@@ -21,3 +21,13 @@ web/node_modules/
 # 忽略 Docker 本身的文件
 Dockerfile
 docker-compose.yml
+
+# 忽略运行时数据卷和本地产物
+docker/volumes/
+saves/
+models/
+.venv/
+backend/.venv/
+backend/.ruff_cache/
+web/dist/
+web/.vite/

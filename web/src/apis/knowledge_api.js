@@ -293,6 +293,30 @@ export const fileApi = {
     })
   },
 
+  createWebReadSession: async (url, dbId, maxDepth = null) => {
+    return apiAdminPost('/api/knowledge/web-reader/sessions', {
+      url,
+      db_id: dbId,
+      max_depth: maxDepth
+    })
+  },
+
+  expandWebReadSession: async (sessionId, urls) => {
+    return apiAdminPost(`/api/knowledge/web-reader/sessions/${sessionId}/expand`, {
+      urls
+    })
+  },
+
+  updateWebReadSelection: async (sessionId, selectedUrls) => {
+    return apiAdminPut(`/api/knowledge/web-reader/sessions/${sessionId}/selection`, {
+      selected_urls: selectedUrls
+    })
+  },
+
+  commitWebReadSession: async (sessionId, payload = {}) => {
+    return apiAdminPost(`/api/knowledge/web-reader/sessions/${sessionId}/commit`, payload)
+  },
+
   /**
    * 上传文件
    * @param {File} file - 文件对象

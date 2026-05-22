@@ -3,6 +3,7 @@ import json
 import os
 import textwrap
 import traceback
+import uuid
 from urllib.parse import quote, unquote
 
 import aiofiles
@@ -17,6 +18,10 @@ from yuxi.knowledge.chunking.ragflow_like.presets import ensure_chunk_defaults_i
 from yuxi.plugins.parser import Parser, SUPPORTED_FILE_EXTENSIONS, is_supported_file_extension
 from yuxi.knowledge.utils import calculate_content_hash
 from yuxi.knowledge.utils.kb_utils import parse_minio_url
+from yuxi.knowledge.web_reader.models import DiscoveredLink, WebReadSession
+from yuxi.knowledge.web_reader.scrapling_reader import ScraplingWebReader
+from yuxi.knowledge.web_reader.session_store import load_session, save_session
+from yuxi.knowledge.web_reader.similarity import compute_similarities
 from yuxi.models.embed import test_all_embedding_models_status, test_embedding_model_status
 from yuxi.services.model_cache import is_v2_spec_format
 from yuxi.storage.postgres.models_business import User
@@ -81,6 +86,28 @@ async def _ensure_database_not_dify(db_id: str, operation: str) -> None:
         raise HTTPException(status_code=404, detail=f"知识库 {db_id} 不存在")
     if (db_info.get("kb_type") or "").lower() == "dify":
         raise HTTPException(status_code=400, detail=f"Dify 知识库只支持检索，不支持{operation}")
+
+
+def _public_page_snapshot(snapshot):
+    data = snapshot.model_dump() if hasattr(snapshot, "model_dump") else snapshot.dict()
+    text = data.pop("text", "") or ""
+    data.pop("html", None)
+    data["text_excerpt"] = text[:500]
+    return data
+
+
+async def _get_database_embed_info(db_id: str) -> dict:
+    db_info = await knowledge_base.get_database_info(db_id)
+    if not db_info:
+        raise HTTPException(status_code=404, detail=f"知识库 {db_id} 不存在")
+    embed_info = db_info.get("embed_info") or {}
+    if not isinstance(embed_info, dict) or not embed_info.get("model_id"):
+        raise HTTPException(status_code=400, detail="知识库缺少 embedding 模型配置")
+    return embed_info
+
+
+def _model_to_dict(model):
+    return model.model_dump() if hasattr(model, "model_dump") else model.dict()
 
 
 # =============================================================================
@@ -508,6 +535,273 @@ async def add_documents(
     except Exception as e:  # noqa: BLE001
         logger.error(f"Failed to enqueue {content_type}s: {e}, {traceback.format_exc()}")
         return {"message": f"Failed to enqueue task: {e}", "status": "failed"}
+
+
+# =============================================================================
+# === 网页读取会话分组 ===
+# =============================================================================
+
+
+@knowledge.post("/web-reader/sessions")
+async def create_web_reader_session(
+    url: str = Body(...),
+    db_id: str = Body(...),
+    max_depth: int | None = Body(None),
+    current_user: User = Depends(get_admin_user),
+):
+    """创建网页读取会话，抓取初始页和第一层同域 HTML 候选页。"""
+    await _ensure_database_not_dify(db_id, "网页读取")
+    embed_info = await _get_database_embed_info(db_id)
+    if max_depth is not None and max_depth < 0:
+        raise HTTPException(status_code=400, detail="max_depth 不能小于 0")
+
+    reader = ScraplingWebReader()
+    try:
+        root_snapshot = await reader.fetch_page(url, depth=0)
+        candidate_snapshots = []
+        if max_depth is None or max_depth >= 1:
+            fetch_tasks = [
+                reader.fetch_page(link, depth=1, parent_url=root_snapshot.final_url)
+                for link in root_snapshot.links
+                if link != root_snapshot.final_url
+            ]
+            if fetch_tasks:
+                results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
+                candidate_snapshots = [item for item in results if not isinstance(item, Exception)]
+                for item in results:
+                    if isinstance(item, Exception):
+                        logger.warning(f"Failed to fetch discovered page: {item}")
+
+        similarities = await compute_similarities(
+            root_snapshot.text,
+            [snapshot.text for snapshot in candidate_snapshots],
+            embed_info,
+        )
+
+        discovered_map: dict[str, DiscoveredLink] = {}
+        for snapshot, similarity in zip(candidate_snapshots, similarities, strict=True):
+            discovered_map[snapshot.final_url] = DiscoveredLink(
+                url=snapshot.final_url,
+                base_url=root_snapshot.final_url,
+                parents=[root_snapshot.final_url],
+                similarity=similarity,
+                topic=snapshot.topic,
+                title=snapshot.title,
+                depth=snapshot.depth,
+                status="ready",
+                selected=False,
+            )
+
+        session = WebReadSession(
+            session_id=uuid.uuid4().hex,
+            db_id=db_id,
+            root_url=url,
+            max_depth=max_depth,
+            root_snapshot=root_snapshot,
+            discovered_map=discovered_map,
+            selected_urls=[],
+            created_by=current_user.user_id,
+        )
+        await save_session(session)
+        return {
+            "session_id": session.session_id,
+            "root_page": _public_page_snapshot(root_snapshot),
+            "discovered_map": {key: _model_to_dict(value) for key, value in discovered_map.items()},
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to create web reader session: {e}, {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"创建网页读取会话失败: {e}")
+
+
+@knowledge.post("/web-reader/sessions/{session_id}/expand")
+async def expand_web_reader_session(
+    session_id: str,
+    urls: list[str] = Body(..., embed=True),
+    current_user: User = Depends(get_admin_user),
+):
+    """展开已发现的 URL，并把下一层同域 HTML 链接合并进会话字典。"""
+    try:
+        session = await load_session(session_id)
+        if session.created_by != current_user.user_id:
+            raise HTTPException(status_code=404, detail="网页读取会话不存在或已过期")
+
+        if not urls:
+            raise HTTPException(status_code=400, detail="urls 不能为空")
+
+        unknown = [url for url in urls if url not in session.discovered_map]
+        if unknown:
+            raise HTTPException(status_code=400, detail=f"只能展开已发现的 URL: {unknown[0]}")
+
+        blocked = [
+            url
+            for url in urls
+            if session.max_depth is not None and session.discovered_map[url].depth >= session.max_depth
+        ]
+        if blocked:
+            raise HTTPException(status_code=400, detail=f"URL 已达到最大深度: {blocked[0]}")
+
+        embed_info = await _get_database_embed_info(session.db_id)
+        reader = ScraplingWebReader()
+        snapshots = []
+
+        for url in urls:
+            link = session.discovered_map[url]
+            try:
+                snapshot = await reader.fetch_page(url, depth=link.depth, parent_url=link.base_url)
+                snapshots.append(snapshot)
+                link.status = "expanded"
+                link.error = None
+            except Exception as e:  # noqa: BLE001
+                link.status = "error"
+                link.error = str(e)
+                logger.warning(f"Failed to expand web reader URL {url}: {e}")
+
+        new_candidates = []
+        for snapshot in snapshots:
+            for child_url in snapshot.links:
+                if child_url == session.root_snapshot.final_url:
+                    continue
+                next_depth = snapshot.depth + 1
+                if session.max_depth is not None and next_depth > session.max_depth:
+                    continue
+                existing = session.discovered_map.get(child_url)
+                if existing:
+                    if snapshot.final_url not in existing.parents:
+                        existing.parents.append(snapshot.final_url)
+                    continue
+                try:
+                    child_snapshot = await reader.fetch_page(child_url, depth=next_depth, parent_url=snapshot.final_url)
+                    new_candidates.append(child_snapshot)
+                except Exception as e:  # noqa: BLE001
+                    logger.warning(f"Failed to fetch child web page {child_url}: {e}")
+
+        similarities = await compute_similarities(
+            session.root_snapshot.text,
+            [snapshot.text for snapshot in new_candidates],
+            embed_info,
+        )
+        for snapshot, similarity in zip(new_candidates, similarities, strict=True):
+            if snapshot.final_url in session.discovered_map:
+                existing = session.discovered_map[snapshot.final_url]
+                if snapshot.parent_url and snapshot.parent_url not in existing.parents:
+                    existing.parents.append(snapshot.parent_url)
+                continue
+            session.discovered_map[snapshot.final_url] = DiscoveredLink(
+                url=snapshot.final_url,
+                base_url=snapshot.parent_url or session.root_snapshot.final_url,
+                parents=[snapshot.parent_url or session.root_snapshot.final_url],
+                similarity=similarity,
+                topic=snapshot.topic,
+                title=snapshot.title,
+                depth=snapshot.depth,
+                status="ready",
+                selected=False,
+            )
+
+        await save_session(session)
+        return {"discovered_map": {key: _model_to_dict(value) for key, value in session.discovered_map.items()}}
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to expand web reader session {session_id}: {e}, {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"展开网页读取会话失败: {e}")
+
+
+@knowledge.put("/web-reader/sessions/{session_id}/selection")
+async def update_web_reader_selection(
+    session_id: str,
+    selected_urls: list[str] = Body(..., embed=True),
+    current_user: User = Depends(get_admin_user),
+):
+    """更新准备入库的子页面选择。root 页面默认总会入库，不需要选择。"""
+    try:
+        session = await load_session(session_id)
+        if session.created_by != current_user.user_id:
+            raise HTTPException(status_code=404, detail="网页读取会话不存在或已过期")
+
+        invalid = [url for url in selected_urls if url not in session.discovered_map]
+        if invalid:
+            raise HTTPException(status_code=400, detail=f"只能选择已发现的 URL: {invalid[0]}")
+
+        selected_set = set(selected_urls)
+        for url, link in session.discovered_map.items():
+            link.selected = url in selected_set
+        session.selected_urls = list(selected_set)
+        await save_session(session)
+        return {"selected_urls": session.selected_urls}
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@knowledge.post("/web-reader/sessions/{session_id}/commit")
+async def commit_web_reader_session(
+    session_id: str,
+    auto_index: bool = Body(False),
+    parent_id: str | None = Body(None),
+    chunk_params: dict | None = Body(None),
+    current_user: User = Depends(get_admin_user),
+):
+    """将 root 页面和已选择子页面上传为 HTML，并复用文档处理任务入库。"""
+    try:
+        session = await load_session(session_id)
+        if session.created_by != current_user.user_id:
+            raise HTTPException(status_code=404, detail="网页读取会话不存在或已过期")
+
+        await _ensure_database_not_dify(session.db_id, "网页读取入库")
+        selected_set = set(session.selected_urls)
+        selected_links = [link for url, link in session.discovered_map.items() if url in selected_set]
+
+        reader = ScraplingWebReader()
+        snapshots = [session.root_snapshot]
+        for link in selected_links:
+            snapshots.append(await reader.fetch_page(link.url, depth=link.depth, parent_url=link.base_url))
+
+        minio_client = get_minio_client()
+        bucket_name = MinIOClient.KB_BUCKETS["documents"]
+        await asyncio.to_thread(minio_client.ensure_bucket_exists, bucket_name)
+
+        items = []
+        preprocessed_map = {}
+        for snapshot in snapshots:
+            html_bytes = snapshot.html.encode("utf-8", errors="replace")
+            content_hash = await calculate_content_hash(html_bytes)
+            object_name = f"{session.db_id}/upload/web-reader/{session.session_id}/{content_hash}.html"
+            upload_result = await minio_client.aupload_file(
+                bucket_name=bucket_name,
+                object_name=object_name,
+                data=html_bytes,
+                content_type="text/html",
+            )
+            items.append(upload_result.url)
+            preprocessed_map[upload_result.url] = {
+                "path": upload_result.url,
+                "content_hash": content_hash,
+                "filename": snapshot.final_url,
+                "file_size": len(html_bytes),
+            }
+
+        params = {**(chunk_params or {})}
+        params["content_type"] = "file"
+        params["_preprocessed_map"] = preprocessed_map
+        if auto_index:
+            params["auto_index"] = True
+        if parent_id:
+            params["parent_id"] = parent_id
+
+        return await add_documents(session.db_id, items=items, params=params, current_user=current_user)
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to commit web reader session {session_id}: {e}, {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"提交网页读取会话失败: {e}")
 
 
 @knowledge.post("/databases/{db_id}/documents/parse")

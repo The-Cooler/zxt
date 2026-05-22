@@ -8,6 +8,7 @@ dependencies = [
     "fastapi>=0.121",
     "uvicorn[standard]>=0.34.2",
     "arq>=0.26.3",
+    "scrapling[fetchers]>=0.4.8",
     "yuxi",
 ]
 [tool.ruff]

@@ -133,7 +133,7 @@
 - 新增基于知识库文件生成示例问题功能（[#335](https://github.com/xerrors/Yuxi/pull/335#issuecomment-3530976425)）
 - 新增知识库支持文件夹/压缩包上传的功能（[#335](https://github.com/xerrors/Yuxi/pull/335#issuecomment-3530976425)）
 - 新增自定义模型支持、新增 dashscope rerank/embeddings 模型的支持
-- 新增文档解析的图片支持，已支持 MinerU Officical、Docs、Markdown Zip格式
+- 新增文档解析的图片支持，已支持 Docs、Markdown Zip 格式
 - 新增暗色模式支持并调整整体 UI（[#343](https://github.com/xerrors/Yuxi/pull/343)）
 - 新增知识库评估功能，支持导入评估基准或者自动构建评估基准（目前仅支持Milvus类型知识库）详见[文档](https://xerrors.github.io/Yuxi/intro/evaluation.html)
 - 新增同名文件处理逻辑：遇到同名文件则在上传区域提示，是否删除旧文件
@@ -167,7 +167,6 @@
 - 新建 tasker 模块，用来管理所有的后台任务，UI 上使用侧边栏管理。Tasker 中获取历史任务的时候，仅获取 top100 个 task。
 - 优化对文档信息的检索展示（检索结果页、详情页）
 - 优化全局配置的管理模型，优化配置管理
-- 支持 MinerU 2.5 的解析方法 <Badge type="info" text="0.3.5" />
 - 修改现有的智能体Demo，并尽量将默认助手的特性兼容到 LangGraph 的 [`create_agent`](https://docs.langchain.com/oss/python/langchain/agents) 中
 - 基于 create_agent 创建 SQL Viewer 智能体 <Badge type="info" text="0.3.5" />
 - 优化 MCP 逻辑，支持 common + special 创建方式 <Badge type="info" text="0.3.5" />

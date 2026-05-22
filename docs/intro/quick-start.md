@@ -77,7 +77,7 @@ docker compose up --build -d
 服务首次启动需要等待镜像拉取和编译，请耐心等待 2-3 分钟。
 
 ::: tip 轻量模式（Lite Mode）
-如果你不需要知识库和知识图谱功能，可以使用轻量模式启动，跳过 Milvus、Neo4j、etcd 等服务，节省系统资源：
+如果你不需要知识库和知识图谱功能，可以使用轻量模式启动，跳过 Neo4j 等服务，节省系统资源：
 
 ```bash
 make up-lite  # macOS or Linux
@@ -157,11 +157,12 @@ $env:HTTPS_PROXY="http://IP:PORT"
 </details>
 
 <details>
-<summary><strong>Milvus 服务启动失败</strong></summary>
+<summary><strong>需要启用旧 Milvus 知识库</strong></summary>
 
 ```bash
-# 重启 Milvus 服务
-docker compose up milvus -d
+# 默认 LightRAG 使用 PostgreSQL/pgvector 存放向量。
+# 只有需要旧 Milvus 知识库时才启动 Milvus profile。
+docker compose --profile milvus up milvus -d
 docker restart api-dev
 ```
 </details>

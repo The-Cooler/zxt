@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import base64
 from pathlib import Path
 from types import SimpleNamespace
@@ -12,10 +11,6 @@ from docx import Document
 from PIL import Image
 
 from yuxi.plugins.parser import Parser
-from yuxi.plugins.parser.factory import DocumentProcessorFactory
-
-DATA_DIR = Path(__file__).resolve().parents[2] / "data"
-
 
 def _build_pdf(file_path: Path, text: str) -> None:
     doc = fitz.open()
@@ -174,20 +169,3 @@ async def test_parser_aparse_pdf_file_returns_markdown_text(tmp_path: Path):
     assert len(markdown.strip()) > 0
 
 
-@pytest.mark.asyncio
-async def test_parser_aparse_image_file_with_mineru_when_available():
-    file_path = DATA_DIR / "测试图片.png"
-    assert file_path.exists(), f"测试文件不存在: {file_path}"
-
-    health = await asyncio.to_thread(DocumentProcessorFactory.check_health, "mineru_ocr")
-    if health.get("status") != "healthy":
-        pytest.skip(f"mineru_ocr 不可用: {health.get('message', 'unknown')}")
-
-    markdown = await Parser.aparse(
-        str(file_path),
-        params={"enable_ocr": "mineru_ocr", "backend": "pipeline"},
-    )
-
-    assert isinstance(markdown, str)
-    assert len(markdown) > 100
-    assert len(markdown.strip()) > 0

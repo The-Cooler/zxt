@@ -8,7 +8,6 @@ from lightrag.kg.shared_storage import initialize_pipeline_status
 from lightrag.llm.openai import openai_complete_if_cache, openai_embed
 from lightrag.utils import EmbeddingFunc
 from neo4j import GraphDatabase
-from pymilvus import connections, utility
 
 from yuxi import config
 from yuxi.knowledge.base import FileStatus, KnowledgeBase
@@ -16,7 +15,7 @@ from yuxi.knowledge.chunking.ragflow_like.dispatcher import chunk_markdown
 from yuxi.knowledge.chunking.ragflow_like.presets import resolve_chunk_processing_params
 from yuxi.models.embed import get_embedding_model_info_by_id
 from yuxi.plugins.parser.unified import Parser
-from yuxi.utils import hashstr, logger
+from yuxi.utils import logger
 from yuxi.utils.datetime_utils import utc_isoformat
 
 
@@ -59,28 +58,7 @@ class LightRagKB(KnowledgeBase):
         return payload, delimiter, False  # 允许 LightRAG 基于进行二次切分，避免超限
 
     def delete_database(self, db_id: str) -> dict:
-        """删除数据库，同时清除Milvus和Neo4j中的数据"""
-        # Drop Milvus collection
-        try:
-            milvus_uri = os.getenv("MILVUS_URI") or "http://localhost:19530"
-            milvus_token = os.getenv("MILVUS_TOKEN") or ""
-            connection_alias = f"lightrag_{hashstr(db_id, 6)}"
-
-            connections.connect(alias=connection_alias, uri=milvus_uri, token=milvus_token)
-
-            # 删除 LightRAG 创建的三个集合
-            collection_names = [f"{db_id}_chunks", f"{db_id}_relationships", f"{db_id}_entities"]
-            for collection_name in collection_names:
-                if utility.has_collection(collection_name, using=connection_alias):
-                    utility.drop_collection(collection_name, using=connection_alias)
-                    logger.info(f"Dropped Milvus collection {collection_name}")
-                else:
-                    logger.info(f"Milvus collection {collection_name} does not exist, skipping")
-
-            connections.disconnect(connection_alias)
-        except Exception as e:
-            logger.error(f"Failed to drop Milvus collection {db_id}: {e}")
-
+        """删除数据库，同时清除Neo4j中的数据。LightRAG PostgreSQL 向量表由上游存储层管理。"""
         # Delete Neo4j data
         neo4j_uri = os.getenv("NEO4J_URI") or "bolt://localhost:7687"
         neo4j_username = os.getenv("NEO4J_USERNAME") or "neo4j"
@@ -163,7 +141,7 @@ class LightRagKB(KnowledgeBase):
             workspace=db_id,
             llm_model_func=self._get_llm_func(llm_info),
             embedding_func=self._get_embedding_func(embed_info),
-            vector_storage="MilvusVectorDBStorage",
+            vector_storage=os.getenv("LIGHTRAG_VECTOR_STORAGE") or "PGVectorStorage",
             kv_storage="JsonKVStorage",
             graph_storage="Neo4JStorage",
             doc_status_storage="JsonDocStatusStorage",

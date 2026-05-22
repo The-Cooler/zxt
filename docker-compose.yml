@@ -5,18 +5,21 @@ x-api-worker-env: &api-worker-env
   YUXI_ENV: development
   MODEL_DIR_IN_DOCKER: /models
   # DBs and other services
-  POSTGRES_URL: ${POSTGRES_URL:-postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-yuxi_know}}
+  POSTGRES_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-yuxi_know}
   REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-  NEO4J_URI: ${NEO4J_URI:-bolt://graph:7687}
+  NEO4J_URI: bolt://graph:7687
   NEO4J_USERNAME: ${NEO4J_USERNAME:-neo4j}
   NEO4J_PASSWORD: ${NEO4J_PASSWORD:-0123456789}
   MILVUS_URI: ${MILVUS_URI:-http://milvus:19530}
   MILVUS_DB_NAME: ${MILVUS_DB_NAME:-default}
   MILVUS_TOKEN: ${MILVUS_TOKEN:-}
   MINIO_URI: ${MINIO_URI:-http://minio:9000}
-  # 文档解析
-  MINERU_VL_SERVER: ${MINERU_VL_SERVER:-http://mineru-vllm-server:30000}
-  MINERU_API_URI: ${MINERU_API_URI:-http://mineru-api:30001}
+  LIGHTRAG_VECTOR_STORAGE: ${LIGHTRAG_VECTOR_STORAGE:-PGVectorStorage}
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_USER: ${POSTGRES_USER:-postgres}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+  POSTGRES_DATABASE: ${POSTGRES_DB:-yuxi_know}
   PADDLEX_URI: ${PADDLEX_URI:-http://paddlex:8080}
   # Sandbox related
   YUXI_DOCKER_API_BASE: ${YUXI_DOCKER_API_BASE:-http://localhost}
@@ -32,8 +35,8 @@ x-api-worker-env: &api-worker-env
   RUN_CANCEL_KEY_TTL_SECONDS: ${RUN_CANCEL_KEY_TTL_SECONDS:-1800}
   RUN_EVENTS_STREAM_TTL_SECONDS: ${RUN_EVENTS_STREAM_TTL_SECONDS:-7200}
   # 其他环境变量
-  NO_PROXY: localhost,127.0.0.1,milvus,graph,minio,milvus-etcd-dev,etcd,mineru,paddlex,sandbox-provisioner,api.siliconflow.cn
-  no_proxy: localhost,127.0.0.1,milvus,graph,minio,milvus-etcd-dev,etcd,mineru,paddlex,sandbox-provisioner,api.siliconflow.cn
+  NO_PROXY: localhost,127.0.0.1,milvus,graph,minio,milvus-etcd-dev,etcd,paddlex,sandbox-provisioner,api.siliconflow.cn
+  no_proxy: localhost,127.0.0.1,milvus,graph,minio,milvus-etcd-dev,etcd,paddlex,sandbox-provisioner,api.siliconflow.cn
 
 services:
   api:
@@ -50,7 +53,7 @@ services:
       - ./backend/test:/app/test
       - ./backend/scripts:/app/scripts
       - ./docker/sandbox_provisioner:/app/docker/sandbox_provisioner:ro
-      - ./.env:/app/.env
+      - ./.env.docker:/app/.env
       - ${MODEL_DIR:-./models}:/models  # 使用默认值处理未定义的环境变量
       - /var/run/docker.sock:/var/run/docker.sock
       - nltk_data:/root/nltk_data  # 使用命名卷持久化NLTK数据，避免路径展开差异
@@ -61,12 +64,12 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     env_file:
-      - .env
+      - .env.docker
     # region api_envs
     environment:
       <<: *api-worker-env
     # endregion api_envs
-    command: uv run --no-dev uvicorn server.main:app --host 0.0.0.0 --port 5050 --reload --reload-dir /app/server --reload-dir /app/package
+    command: uvicorn server.main:app --host 0.0.0.0 --port 5050 --reload --reload-dir /app/server --reload-dir /app/package
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:5050/api/system/health || exit 1"]
@@ -98,7 +101,7 @@ services:
       - ./backend/test:/app/test
       - ./backend/scripts:/app/scripts
       - ./docker/sandbox_provisioner:/app/docker/sandbox_provisioner:ro
-      - ./.env:/app/.env
+      - ./.env.docker:/app/.env
       - ./backend/pyproject.toml:/app/pyproject.toml
       - ./backend/uv.lock:/app/uv.lock
       - ${MODEL_DIR:-./models}:/models
@@ -108,10 +111,10 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     env_file:
-      - .env
+      - .env.docker
     environment:
       <<: *api-worker-env
-    command: uv run --no-dev arq server.worker_main.WorkerSettings
+    command: arq server.worker_main.WorkerSettings
     restart: unless-stopped
     depends_on:
       postgres:
@@ -231,6 +234,8 @@ services:
   etcd:
     container_name: milvus-etcd-dev
     image: quay.io/coreos/etcd:v3.5.5
+    profiles:
+      - milvus
     environment:
       - ETCD_AUTO_COMPACTION_MODE=revision
       - ETCD_AUTO_COMPACTION_RETENTION=1000
@@ -275,6 +280,8 @@ services:
   milvus:
     image: milvusdb/milvus:v2.5.6
     container_name: milvus
+    profiles:
+      - milvus
     command: ["milvus", "run", "standalone"]
     security_opt:
       - seccomp:unconfined
@@ -302,10 +309,10 @@ services:
     restart: unless-stopped
 
   postgres:
-    image: postgres:16
+    image: pgvector/pgvector:pg16
     container_name: postgres
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
@@ -326,7 +333,7 @@ services:
     image: redis:7-alpine
     container_name: redis
     ports:
-      - "6379:6379"
+      - "6380:6379"
     command: redis-server --appendonly yes
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -338,71 +345,6 @@ services:
     networks:
       - app-network
     restart: unless-stopped
-
-  # lastest version: wget https://gcore.jsdelivr.net/gh/opendatalab/MinerU@master/docker/compose.yaml
-  mineru-vllm-server:
-    build:
-      context: .
-      dockerfile: docker/mineru.Dockerfile
-    image: mineru-vllm:latest
-    container_name: mineru-vllm-server
-    profiles:
-      - all
-    env_file:
-      - .env
-    ports:
-      - 30000:30000
-    environment:
-      MINERU_MODEL_SOURCE: local
-    entrypoint: mineru-vllm-server
-    command:
-      --host 0.0.0.0
-      --port 30000
-      # parameters for vllm-engine
-      # --data-parallel-size 2  # If using multiple GPUs, increase throughput using vllm's multi-GPU parallel mode
-      # --gpu-memory-utilization 0.5  # If running on a single GPU and encountering VRAM shortage, reduce the KV cache size by this parameter, if VRAM issues persist, try lowering it further to `0.4` or below.
-    ulimits:
-      memlock: -1
-      stack: 67108864
-    ipc: host
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:30000/health || exit 1"]
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              device_ids: ["0"]
-              capabilities: [gpu]
-    networks:
-      - app-network
-    restart: unless-stopped
-
-  mineru-api:
-    build:
-      context: .
-      dockerfile: docker/mineru.Dockerfile
-    image: mineru-vllm:latest
-    container_name: mineru-api
-    profiles:
-      - all
-    env_file:
-      - .env
-    ports:
-      - 30001:30001
-    environment:
-      MINERU_MODEL_SOURCE: local
-    entrypoint: mineru-api
-    command:
-      --host 0.0.0.0
-      --port 30001
-    ulimits:
-      memlock: -1
-      stack: 67108864
-    ipc: host
-    restart: unless-stopped
-    networks:
-      - app-network
 
   paddlex:
     build:

@@ -13,7 +13,7 @@ Yuxi 是一个面向 RAG、知识图谱和多智能体工作流的知识库平�
 - `worker-dev`：ARQ 后台任务 worker，处理智能体运行等异步任务。
 - `sandbox-provisioner`：为智能体工具执行提供沙盒环境。
 - `postgres`、`redis`、`minio`、`milvus`、`graph`：分别承载业务/知识库元数据、运行事件与队列状态、对象存储、向量检索、Neo4j 图谱。
-- `mineru-*`、`paddlex`：按 `all` profile 启动的文档解析/OCR 能力。
+- `paddlex`：按 `all` profile 启动的文档解析/OCR 能力。
 
 ## 后端代码地图
 
@@ -31,7 +31,7 @@ Yuxi 是一个面向 RAG、知识图谱和多智能体工作流的知识库平�
 - `repositories` 是数据库访问边界，封装业务对象和知识库元数据的 SQLAlchemy 查询。不要让路由绕过 repository 直接操作模型，除非已有局部模式要求这样做。
 - `storage` 放持久化基础设施。`storage/postgres` 管理业务表、知识库表和 LangGraph checkpoint 所需连接池；`storage/minio` 管理对象存储。
 - `knowledge` 是知识库和图谱领域。`KnowledgeBaseManager` 根据知识库类型分发到具体实现；`implementations` 放 LightRAG、Milvus、Dify 等知识库实现；`graphs` 放图谱适配与上传图谱服务；`chunking` 放文档分块策略。
-- `plugins/parser` 是文档解析插件边界，统一封装 MinerU、PaddleX、RapidOCR、DeepSeek OCR 等解析实现。
+- `plugins/parser` 是文档解析插件边界，统一封装 PaddleX、RapidOCR、DeepSeek OCR 等解析实现。
 - `models` 封装 chat、embedding、rerank 模型适配；`config` 维护应用配置和内置模型信息；`utils` 放跨领域但足够通用的工具。
 
 测试代码放在 `backend/test`，按 `unit`、`integration`、`e2e` 分层组织。新增或修改后端行为时，测试应落在最能覆盖风险的那一层。

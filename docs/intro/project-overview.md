@@ -18,9 +18,9 @@ Yuxi (语析) 是一个智能知识库和知识图谱 Agent 开发平台，能�
 | 状态管理 | Pinia | 前端集中式状态管理 |
 | 后端 API | FastAPI, Uvicorn | 高性能异步 Python Web 框架 |
 | Agent 框架 | LangGraph v1 | 声明式 Agent 编排与状态管理 |
-| 知识库 | LightRAG, Milvus | 基于向量存储的 RAG 实现 |
+| 知识库 | LightRAG, PostgreSQL/pgvector | 基于向量存储的 RAG 实现 |
 | 图数据库 | Neo4j | 知识图谱存储与查询 |
-| 文档处理 | MinerU, PaddleX, RapidOCR | 多格式文档解析与 OCR |
+| 文档处理 | Docling, PaddleX, RapidOCR | 多格式文档解析与 OCR |
 | 任务队列 | Redis, PostgreSQL Workers | 异步任务处理 |
 | 对象存储 | MinIO | 文件与文档存储 |
 | 关系型数据库 | PostgreSQL | 元数据与用户数据持久化 |
@@ -53,7 +53,7 @@ Yuxi 的知识图谱能力不是孤立的可视化模块，而是和知识库、
 
 ### 4. 面向生产落地的文档理解与平台能力
 
-为了让知识真正可用，Yuxi 集成了 MinerU、PP-Structure-V3、Docling 等解析能力，覆盖 PDF、Office、Markdown、图片等常见格式，解决原始资料进入系统前的结构化处理问题。
+为了让知识真正可用，Yuxi 集成了 Docling、PP-Structure-V3、RapidOCR 等解析能力，覆盖 PDF、Office、Markdown、图片等常见格式，解决原始资料进入系统前的结构化处理问题。
 
 在此基础上，平台还补齐了业务落地常用的工程能力，例如：
 

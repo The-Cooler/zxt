@@ -21,8 +21,6 @@ class DocumentProcessorFactory:
     # 处理器类型映射: processor_type -> (module_path, class_name)
     PROCESSOR_TYPES = {
         "rapid_ocr": ("yuxi.plugins.parser.rapid_ocr", "RapidOCRParser"),
-        "mineru_ocr": ("yuxi.plugins.parser.mineru", "MinerUParser"),
-        "mineru_official": ("yuxi.plugins.parser.mineru_official", "MinerUOfficialParser"),
         "pp_structure_v3_ocr": ("yuxi.plugins.parser.pp_structure_v3", "PPStructureV3Parser"),
         "deepseek_ocr": ("yuxi.plugins.parser.deepseek_ocr", "DeepSeekOCRParser"),
     }
@@ -50,8 +48,6 @@ class DocumentProcessorFactory:
         Args:
             processor_type: 处理器类型
                 - "rapid_ocr": RapidOCR 本地 OCR
-                - "mineru_ocr": MinerU HTTP API 文档解析
-                - "mineru_official": MinerU 官方云服务 API 文档解析
                 - "pp_structure_v3_ocr": PP-Structure-V3 版面解析
                 - "deepseek_ocr": DeepSeek-OCR SiliconFlow API
             **kwargs: 处理器初始化参数

@@ -204,17 +204,29 @@
       <!-- URL 输入区域 -->
       <div class="url-area" v-if="uploadMode === 'url'">
         <div class="url-input-wrapper">
-          <a-textarea
-            v-model:value="newUrl"
-            placeholder="输入 URL，一行一个&#10;https://site1.com&#10;https://site2.com"
-            :auto-size="{ minRows: 4, maxRows: 8 }"
-            class="url-input"
-            @keydown.enter.ctrl="handleFetchUrls"
-          />
+          <div class="url-input-grid">
+            <a-textarea
+              v-model:value="newUrl"
+              placeholder="输入 URL，一行一个&#10;https://site1.com&#10;https://site2.com"
+              :auto-size="{ minRows: 4, maxRows: 8 }"
+              class="url-input"
+              @keydown.enter.ctrl="handleFetchUrls"
+            />
+            <div class="max-depth-field">
+              <label for="web-reader-max-depth">最大深度</label>
+              <a-input-number
+                id="web-reader-max-depth"
+                v-model:value="webReaderMaxDepth"
+                :min="0"
+                :precision="0"
+                placeholder="不限"
+                class="max-depth-input"
+              />
+            </div>
+          </div>
           <div class="url-actions">
             <span class="url-hint">
-              支持批量粘贴，自动过滤空行。
-              <span class="warning-text">需配置白名单，详见文档说明</span>
+              支持批量粘贴，系统会读取初始页并发现同域 HTML 子页面。
             </span>
             <a-button
               type="primary"
@@ -223,34 +235,102 @@
               :loading="fetchingUrls"
               :disabled="!newUrl.trim()"
             >
-              加载 URLs
+              读取网页
             </a-button>
           </div>
         </div>
-        <div class="url-list" v-if="urlList.length > 0">
-          <div v-for="(item, index) in urlList" :key="index" class="url-item">
-            <div class="url-icon-wrapper">
-              <Link v-if="item.status === 'success'" :size="14" class="url-icon success" />
-              <Info
-                v-else-if="item.status === 'error'"
-                :size="14"
-                class="url-icon error"
-                :title="item.error"
-              />
-              <RotateCw v-else :size="14" class="url-icon spinning" />
+
+        <div class="web-session-list" v-if="urlList.length > 0">
+          <div v-for="(item, index) in urlList" :key="item.url" class="web-session-card">
+            <div class="web-session-header">
+              <div class="url-icon-wrapper">
+                <Link v-if="item.status === 'success'" :size="14" class="url-icon success" />
+                <Info
+                  v-else-if="item.status === 'error'"
+                  :size="14"
+                  class="url-icon error"
+                  :title="item.error"
+                />
+                <RotateCw v-else :size="14" class="url-icon spinning" />
+              </div>
+              <div class="url-content">
+                <span class="url-text" :title="item.url">{{ item.url }}</span>
+                <span v-if="item.status === 'error'" class="url-error-msg">{{ item.error }}</span>
+                <span v-else-if="item.data?.root_page?.title" class="url-title">
+                  {{ item.data.root_page.title }}
+                </span>
+              </div>
+              <a-button type="text" size="small" class="remove-url-btn" @click="removeUrl(index)">
+                <X :size="14" />
+              </a-button>
             </div>
-            <div class="url-content">
-              <span class="url-text" :title="item.url">{{ item.url }}</span>
-              <span v-if="item.status === 'error'" class="url-error-msg">{{ item.error }}</span>
+
+            <div v-if="item.status === 'success'" class="web-session-body">
+              <div class="root-page-summary">
+                <div class="summary-meta">
+                  <span class="summary-label">主题</span>
+                  <span class="summary-value">{{ item.data.root_page.topic || '未识别' }}</span>
+                </div>
+                <p class="summary-text">{{ item.data.root_page.text_excerpt || '无正文摘要' }}</p>
+              </div>
+
+              <div class="link-table-toolbar">
+                <span>已发现 {{ getDiscoveredLinks(item).length }} 个页面</span>
+                <div class="link-table-actions">
+                  <a-button
+                    size="small"
+                    @click="expandSelectedLinks(item)"
+                    :loading="item.expanding"
+                    :disabled="getCheckedLinks(item).length === 0"
+                  >
+                    展开选中链接
+                  </a-button>
+                </div>
+              </div>
+
+              <div class="discovered-table" v-if="getDiscoveredLinks(item).length > 0">
+                <div class="discovered-row discovered-row-head">
+                  <span></span>
+                  <span>页面</span>
+                  <span>相似度</span>
+                  <span>深度</span>
+                  <span>状态</span>
+                </div>
+                <label
+                  v-for="linkItem in getDiscoveredLinks(item)"
+                  :key="linkItem.url"
+                  class="discovered-row"
+                >
+                  <a-checkbox
+                    :checked="item.checkedUrls.includes(linkItem.url)"
+                    @change="toggleDiscoveredLink(item, linkItem.url, $event.target.checked)"
+                  />
+                  <span class="discovered-page">
+                    <span class="discovered-title" :title="linkItem.title || linkItem.url">
+                      {{ linkItem.title || linkItem.topic || linkItem.url }}
+                    </span>
+                    <span class="discovered-url" :title="linkItem.url">{{ linkItem.url }}</span>
+                    <span class="discovered-source" :title="linkItem.base_url">
+                      来源 {{ linkItem.base_url }}
+                    </span>
+                  </span>
+                  <span class="similarity-badge" :class="getSimilarityClass(linkItem.similarity)">
+                    {{ formatSimilarity(linkItem.similarity) }}
+                  </span>
+                  <span>{{ linkItem.depth }}</span>
+                  <span>{{ getLinkStatusText(linkItem.status) }}</span>
+                </label>
+              </div>
+              <div class="url-empty-tip compact" v-else>
+                <Info :size="16" />
+                <span>未发现可继续探索的同域 HTML 页面</span>
+              </div>
             </div>
-            <a-button type="text" size="small" class="remove-url-btn" @click="removeUrl(index)">
-              <X :size="14" />
-            </a-button>
           </div>
         </div>
         <div class="url-empty-tip" v-else>
           <Info :size="16" />
-          <span>输入 URL 后点击加载，系统将自动抓取网页内容</span>
+          <span>输入 URL 后点击读取网页，选择发现的子页面后可继续展开或入库</span>
         </div>
       </div>
 
@@ -297,6 +377,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { message, Upload, Modal } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
 import { useDatabaseStore } from '@/stores/database'
+import { useTaskerStore } from '@/stores/tasker'
 import { ocrApi } from '@/apis/system_api'
 import { fileApi, documentApi } from '@/apis/knowledge_api'
 import { ReloadOutlined } from '@ant-design/icons-vue'
@@ -342,6 +423,7 @@ const props = defineProps({
 const emit = defineEmits(['update:visible', 'success'])
 
 const store = useDatabaseStore()
+const taskerStore = useTaskerStore()
 
 // 文件夹选择相关
 const selectedFolderId = ref(null)
@@ -541,7 +623,7 @@ const uploadModeOptions = computed(() => [
     value: 'url',
     label: h('div', { class: 'segmented-option' }, [
       h(Link, { size: 16, class: 'option-icon' }),
-      h('span', { class: 'option-text' }, '解析 URL')
+      h('span', { class: 'option-text' }, '读取网页')
     ])
   }
 ])
@@ -583,11 +665,11 @@ watch(fileList, (newFileList) => {
 })
 
 // URL 列表
-// Item structure: { url: string, status: 'fetching'|'success'|'error', data: object|null, error: string }
+// Item structure: web reader session state.
 const urlList = ref([])
 const newUrl = ref('')
 const fetchingUrls = ref(false)
-const CONTENT_EXISTS_ERROR_TEXT = '内容已存在于知识库中'
+const webReaderMaxDepth = ref(null)
 
 // 同名文件列表（用于显示提示）
 const sameNameFiles = ref([])
@@ -614,10 +696,15 @@ const mergeSameNameFiles = (sameNameList = []) => {
 const fetchSingleUrlItem = async (item) => {
   item.status = 'fetching'
   try {
-    const res = await fileApi.fetchUrl(item.url, databaseId.value)
+    const res = await fileApi.createWebReadSession(
+      item.url,
+      databaseId.value,
+      webReaderMaxDepth.value ?? null
+    )
     item.status = 'success'
     item.data = res
-    mergeSameNameFiles(res.same_name_files)
+    item.checkedUrls = []
+    item.expanding = false
   } catch (error) {
     console.error('Failed to fetch URL:', error)
     item.status = 'error'
@@ -625,12 +712,7 @@ const fetchSingleUrlItem = async (item) => {
     const detailData = error.response?.data?.detail
     const detailMessage =
       (typeof detailData === 'string' ? detailData : detailData?.message) || error.message || ''
-    if (detailMessage.includes('same content') || detailMessage.includes('相同内容')) {
-      item.error = CONTENT_EXISTS_ERROR_TEXT
-      mergeSameNameFiles(detailData?.same_name_files)
-    } else {
-      item.error = detailMessage || '加载失败'
-    }
+    item.error = detailMessage || '读取失败'
   }
 }
 
@@ -652,7 +734,14 @@ const handleFetchUrls = async () => {
     }
     if (urlList.value.some((u) => u.url === url)) continue
 
-    const item = { url, status: 'pending', data: null, error: '' }
+    const item = {
+      url,
+      status: 'pending',
+      data: null,
+      error: '',
+      checkedUrls: [],
+      expanding: false
+    }
     urlList.value.push(item)
     newItems.push(item)
   }
@@ -675,11 +764,95 @@ const removeUrl = (index) => {
   urlList.value.splice(index, 1)
 }
 
+const getDiscoveredLinks = (item) => {
+  const map = item.data?.discovered_map || {}
+  return Object.values(map).sort((a, b) => (b.similarity || 0) - (a.similarity || 0))
+}
+
+const getCheckedLinks = (item) => {
+  return item.checkedUrls || []
+}
+
+const toggleDiscoveredLink = (item, url, checked) => {
+  const checkedSet = new Set(item.checkedUrls || [])
+  if (checked) {
+    checkedSet.add(url)
+  } else {
+    checkedSet.delete(url)
+  }
+  item.checkedUrls = Array.from(checkedSet)
+  syncWebReadSelection(item)
+}
+
+const syncWebReadSelection = async (item) => {
+  if (!item.data?.session_id) return
+  try {
+    await fileApi.updateWebReadSelection(item.data.session_id, item.checkedUrls || [])
+  } catch (error) {
+    console.error('更新网页选择失败:', error)
+    message.error(error.message || '更新网页选择失败')
+  }
+}
+
+const registerWebReadTask = (result, pageCount) => {
+  if (!result?.task_id) return
+  taskerStore.registerQueuedTask({
+    task_id: result.task_id,
+    name: `网页导入 (${databaseId.value || ''})`,
+    task_type: 'knowledge_ingest',
+    message: result.message,
+    payload: {
+      db_id: databaseId.value,
+      count: pageCount,
+      content_type: 'file'
+    }
+  })
+}
+
+const expandSelectedLinks = async (item) => {
+  const urls = getCheckedLinks(item)
+  if (!item.data?.session_id || urls.length === 0) return
+
+  item.expanding = true
+  try {
+    const res = await fileApi.expandWebReadSession(item.data.session_id, urls)
+    item.data.discovered_map = res.discovered_map || {}
+    const validUrls = new Set(Object.keys(item.data.discovered_map))
+    item.checkedUrls = (item.checkedUrls || []).filter((url) => validUrls.has(url))
+    message.success('链接已展开')
+  } catch (error) {
+    console.error('展开网页链接失败:', error)
+    message.error(error.message || '展开网页链接失败')
+  } finally {
+    item.expanding = false
+  }
+}
+
+const formatSimilarity = (value) => {
+  const percent = Math.round((Number(value) || 0) * 100)
+  return `${percent}%`
+}
+
+const getSimilarityClass = (value) => {
+  const score = Number(value) || 0
+  if (score >= 0.7) return 'high'
+  if (score < 0.35) return 'low'
+  return 'medium'
+}
+
+const getLinkStatusText = (status) => {
+  const statusMap = {
+    ready: '可选择',
+    expanded: '已展开',
+    error: '失败',
+    pending: '待处理'
+  }
+  return statusMap[status] || status || '-'
+}
+
 // OCR服务健康状态
 const ocrHealthStatus = ref({
   rapid_ocr: { status: 'unknown', message: '' },
-  mineru_ocr: { status: 'unknown', message: '' },
-  mineru_official: { status: 'unknown', message: '' },
   pp_structure_v3_ocr: { status: 'unknown', message: '' },
   deepseek_ocr: { status: 'unknown', message: '' }
 })
@@ -793,22 +966,6 @@ const enableOcrOptions = computed(() => [
       ocrHealthStatus.value?.rapid_ocr?.status === 'error'
   },
   {
-    value: 'mineru_ocr',
-    label: getMinerULabel(),
-    title: 'MinerU OCR',
-    disabled:
-      ocrHealthStatus.value?.mineru_ocr?.status === 'unavailable' ||
-      ocrHealthStatus.value?.mineru_ocr?.status === 'error'
-  },
-  {
-    value: 'mineru_official',
-    label: getMinerUOfficialLabel(),
-    title: 'MinerU Official API',
-    disabled:
-      ocrHealthStatus.value?.mineru_official?.status === 'unavailable' ||
-      ocrHealthStatus.value?.mineru_official?.status === 'error'
-  },
-  {
     value: 'pp_structure_v3_ocr',
     label: getPPStructureV3Label(),
     title: 'PP-Structure-V3',
@@ -831,10 +988,6 @@ const selectedOcrStatus = computed(() => {
   switch (chunkParams.value.enable_ocr) {
     case 'rapid_ocr':
       return ocrHealthStatus.value?.rapid_ocr?.status || 'unknown'
-    case 'mineru_ocr':
-      return ocrHealthStatus.value?.mineru_ocr?.status || 'unknown'
-    case 'mineru_official':
-      return ocrHealthStatus.value?.mineru_official?.status || 'unknown'
     case 'pp_structure_v3_ocr':
       return ocrHealthStatus.value?.pp_structure_v3_ocr?.status || 'unknown'
     case 'deepseek_ocr':
@@ -849,10 +1002,6 @@ const selectedOcrMessage = computed(() => {
   switch (chunkParams.value.enable_ocr) {
     case 'rapid_ocr':
       return ocrHealthStatus.value?.rapid_ocr?.message || ''
-    case 'mineru_ocr':
-      return ocrHealthStatus.value?.mineru_ocr?.message || ''
-    case 'mineru_official':
-      return ocrHealthStatus.value?.mineru_official?.message || ''
     case 'pp_structure_v3_ocr':
       return ocrHealthStatus.value?.pp_structure_v3_ocr?.message || ''
     case 'deepseek_ocr':
@@ -878,10 +1027,7 @@ const getOcrLabel = (serviceKey, displayName) => {
   return `${STATUS_ICONS[status] || '❓'} ${displayName}`
 }
 
-// 兼容性包装器
 const getRapidOcrLabel = () => getOcrLabel('rapid_ocr', 'RapidOCR (ONNX)')
-const getMinerULabel = () => getOcrLabel('mineru_ocr', 'MinerU OCR')
-const getMinerUOfficialLabel = () => getOcrLabel('mineru_official', 'MinerU Official API')
 const getPPStructureV3Label = () => getOcrLabel('pp_structure_v3_ocr', 'PP-Structure-V3')
 const getDeepSeekOcrLabel = () => getOcrLabel('deepseek_ocr', 'DeepSeek OCR')
 
@@ -1226,77 +1372,41 @@ const chunkData = async () => {
 
   // URL 模式处理
   if (uploadMode.value === 'url') {
-    // 过滤出成功的项
     const successfulItems = urlList.value.filter((item) => item.status === 'success' && item.data)
     if (successfulItems.length === 0) {
-      message.error('请添加并等待至少一个 URL 解析成功')
+      message.error('请添加并等待至少一个网页读取成功')
       return
-    }
-
-    // 批内按内容哈希去重，避免同一批次重复入库
-    const deduplicatedItems = []
-    const seenKeys = new Set()
-    let skippedDuplicates = 0
-    for (const item of successfulItems) {
-      const dedupKey = item.data?.content_hash || item.data?.file_path || item.url
-      if (seenKeys.has(dedupKey)) {
-        skippedDuplicates += 1
-        continue
-      }
-      seenKeys.add(dedupKey)
-      deduplicatedItems.push(item)
-    }
-
-    if (deduplicatedItems.length === 0) {
-      message.error('URL 内容均为重复项，请更换后重试')
-      return
-    }
-
-    if (skippedDuplicates > 0) {
-      message.warning(`检测到 ${skippedDuplicates} 个重复 URL 内容，已保留首个并跳过其余项`)
     }
 
     try {
       store.state.chunkLoading = true
-      const params = { ...chunkParams.value }
+      const chunkPayload = { ...chunkParams.value }
       if (autoIndex.value) {
-        params.auto_index = true
-        Object.assign(params, buildAutoIndexParams())
+        Object.assign(chunkPayload, buildAutoIndexParams())
       }
-
-      // 构造 _preprocessed_map 和 items (minio urls)
-      const items = []
-      const preprocessedMap = {}
-      for (const item of deduplicatedItems) {
-        // item.data = { file_path: "http://minio...", content_hash: "...", filename: "...", ... }
-        // 注意：fetch-url 返回的 file_path 其实是 MinIO URL
-        // 我们需要传递 MinIO URL 给 addDocuments
-        const minioUrl = item.data.file_path
-        items.push(minioUrl)
-        preprocessedMap[minioUrl] = {
-          path: minioUrl,
-          content_hash: item.data.content_hash,
-          filename: item.data.filename,
-          file_size: item.data.size
-        }
-      }
-      params._preprocessed_map = preprocessedMap
-
-      // 调用 addFiles (file mode)
-      await store.addFiles({
-        items: items,
-        contentType: 'file', // 重要：这里改为 file，因为我们已经转成了 minio 上的文件
-        params,
-        parentId: selectedFolderId.value
+      const results = await Promise.all(
+        successfulItems.map((item) =>
+          fileApi.commitWebReadSession(item.data.session_id, {
+            auto_index: autoIndex.value,
+            parent_id: selectedFolderId.value,
+            chunk_params: chunkPayload
+          })
+        )
+      )
+      results.forEach((result, index) => {
+        const pageCount = 1 + (successfulItems[index].checkedUrls || []).length
+        registerWebReadTask(result, pageCount)
       })
+      await store.getDatabaseInfo(undefined, true)
 
+      message.success('网页处理任务已提交，请在任务中心查看进度')
       emit('success')
       handleCancel()
       urlList.value = []
       newUrl.value = ''
     } catch (error) {
-      console.error('URL 提交失败:', error)
-      message.error('URL 提交失败: ' + (error.message || '未知错误'))
+      console.error('网页提交失败:', error)
+      message.error('网页提交失败: ' + (error.message || '未知错误'))
     } finally {
       store.state.chunkLoading = false
     }
@@ -1807,6 +1917,29 @@ const chunkData = async () => {
   width: 100%;
 }
 
+.url-input-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  gap: 12px;
+  align-items: start;
+}
+
+.max-depth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--gray-700);
+  }
+}
+
+.max-depth-input {
+  width: 100%;
+}
+
 .url-actions {
   display: flex;
   align-items: center;
@@ -1834,27 +1967,31 @@ const chunkData = async () => {
   margin-left: 8px;
 }
 
-.url-list {
+.web-session-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 300px;
+  max-height: 420px;
   overflow-y: auto;
 }
 
-.url-item {
+.web-session-card {
+  background: var(--gray-0);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.web-session-header {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
   background: var(--gray-50);
-  border: 1px solid var(--gray-200);
-  border-radius: 6px;
   transition: all 0.2s;
 
   &:hover {
     background: var(--gray-100);
-    border-color: var(--main-300);
   }
 }
 
@@ -1903,6 +2040,15 @@ const chunkData = async () => {
   margin-top: 2px;
 }
 
+.url-title {
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .remove-url-btn {
   color: var(--gray-400);
   flex-shrink: 0;
@@ -1922,6 +2068,166 @@ const chunkData = async () => {
   border-radius: 8px;
   color: var(--gray-500);
   font-size: 13px;
+
+  &.compact {
+    padding: 10px 12px;
+    border-radius: 6px;
+  }
+}
+
+.web-session-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.root-page-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.summary-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.summary-label {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.summary-value {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-800);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--gray-600);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.link-table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--gray-600);
+}
+
+.link-table-actions {
+  flex-shrink: 0;
+}
+
+.discovered-table {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.discovered-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 76px 48px 64px;
+  gap: 8px;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--gray-150);
+  font-size: 12px;
+  color: var(--gray-700);
+  cursor: pointer;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.discovered-row-head {
+  min-height: 34px;
+  background: var(--gray-50);
+  color: var(--gray-500);
+  font-weight: 600;
+  cursor: default;
+}
+
+.discovered-page {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.discovered-title,
+.discovered-url,
+.discovered-source {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.discovered-title {
+  color: var(--gray-800);
+  font-weight: 500;
+}
+
+.discovered-url,
+.discovered-source {
+  color: var(--gray-500);
+}
+
+.similarity-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  background: var(--color-warning-50);
+  color: var(--color-warning-700);
+
+  &.high {
+    background: var(--color-success-50);
+    color: var(--color-success-700);
+  }
+
+  &.low {
+    background: var(--gray-100);
+    color: var(--gray-600);
+  }
+}
+
+@media (max-width: 760px) {
+  .url-input-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .discovered-row {
+    grid-template-columns: 28px minmax(0, 1fr) 66px;
+
+    > span:nth-child(4),
+    > span:nth-child(5) {
+      display: none;
+    }
+  }
 }
 
 /* Conflict Files Panel */
