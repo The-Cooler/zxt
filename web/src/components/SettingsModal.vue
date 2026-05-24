@@ -39,24 +39,6 @@
           </div>
           <div
             class="sider-item"
-            :class="{ activesec: activeTab === 'user' }"
-            @click="activeTab = 'user'"
-            v-if="userStore.isAdmin"
-          >
-            <User class="icon" :size="18" />
-            <span>用户管理</span>
-          </div>
-          <div
-            class="sider-item"
-            :class="{ activesec: activeTab === 'department' }"
-            @click="activeTab = 'department'"
-            v-if="userStore.isSuperAdmin"
-          >
-            <Users class="icon" :size="18" />
-            <span>部门管理</span>
-          </div>
-          <div
-            class="sider-item"
             :class="{ activesec: activeTab === 'apikey' }"
             @click="activeTab = 'apikey'"
             v-if="userStore.isLoggedIn"
@@ -120,22 +102,6 @@
         </div>
         <div
           class="nav-item"
-          :class="{ active: activeTab === 'user' }"
-          @click="activeTab = 'user'"
-          v-if="userStore.isAdmin"
-        >
-          用户管理
-        </div>
-        <div
-          class="nav-item"
-          :class="{ active: activeTab === 'department' }"
-          @click="activeTab = 'department'"
-          v-if="userStore.isSuperAdmin"
-        >
-          部门管理
-        </div>
-        <div
-          class="nav-item"
           :class="{ active: activeTab === 'apikey' }"
           @click="activeTab = 'apikey'"
           v-if="userStore.isLoggedIn"
@@ -153,14 +119,6 @@
 
           <div v-show="activeTab === 'model'" v-if="userStore.isSuperAdmin">
             <ModelProvidersComponent />
-          </div>
-
-          <div v-show="activeTab === 'user'" v-if="userStore.isAdmin">
-            <UserManagementComponent />
-          </div>
-
-          <div v-show="activeTab === 'department'" v-if="userStore.isSuperAdmin">
-            <DepartmentManagementComponent />
           </div>
 
           <div v-show="activeTab === 'apikey'" v-if="userStore.isLoggedIn">
@@ -181,14 +139,10 @@ import {
   Settings,
   SquareCode,
   Star,
-  User,
-  Users,
   X
 } from 'lucide-vue-next'
 import BasicSettingsSection from '@/components/BasicSettingsSection.vue'
 import ModelProvidersComponent from '@/components/ModelProvidersComponent.vue'
-import UserManagementComponent from '@/components/UserManagementComponent.vue'
-import DepartmentManagementComponent from '@/components/DepartmentManagementComponent.vue'
 import ApiKeyManagementComponent from '@/components/ApiKeyManagementComponent.vue'
 
 const props = defineProps({
@@ -232,7 +186,7 @@ watch(
     if (newVal) {
       if (userStore.isAdmin) {
         activeTab.value = 'base'
-      } else if (userStore.isLogin) {
+      } else if (userStore.isLoggedIn) {
         activeTab.value = 'apikey'
       }
     }
@@ -448,8 +402,6 @@ watch(
     min-height: 0;
 
     .model-providers-section,
-    .user-management,
-    .department-management,
     .apikey-management {
       min-height: auto;
     }

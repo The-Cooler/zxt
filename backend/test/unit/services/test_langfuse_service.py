@@ -45,7 +45,6 @@ def test_build_run_context_includes_trace_metadata(monkeypatch):
         message_type="text",
         username="alice",
         login_user_id="alice-login",
-        department_id=7,
     )
 
     assert run_context.trace_id == "trace-req-1"
@@ -54,7 +53,6 @@ def test_build_run_context_includes_trace_metadata(monkeypatch):
     assert run_context.metadata["langfuse_user_id"] == "user-1"
     assert run_context.metadata["langfuse_session_id"] == "thread-1"
     assert run_context.metadata["agent_config_id"] == "42"
-    assert run_context.metadata["department_id"] == "7"
     assert run_context.tags == [
         "yuxi",
         "chat",

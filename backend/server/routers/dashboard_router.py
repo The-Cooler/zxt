@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy import Integer, String, cast, distinct, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from server.routers.auth_router import get_admin_user
+from server.utils.auth_middleware import get_admin_user
 from server.utils.auth_middleware import get_db
 from yuxi.repositories.conversation_repository import ConversationRepository
 from yuxi.storage.postgres.models_business import User
@@ -448,8 +448,6 @@ async def get_knowledge_stats(
             display_type = {
                 "lightrag": "LightRAG",
                 "faiss": "FAISS",
-                "milvus": "Milvus",
-                "dify": "Dify",
                 "qdrant": "Qdrant",
                 "elasticsearch": "Elasticsearch",
                 "unknown": "未知类型",

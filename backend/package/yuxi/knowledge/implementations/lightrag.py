@@ -728,10 +728,9 @@ class LightRagKB(KnowledgeBase):
         使用 LightRAG 原生功能导出知识库数据。
         [注意] 此功能当前已禁用。
         """
-        # TODO: 修复 LightRAG 库与 Milvus 后端不兼容的问题
-        # 当前调用 aexport_data 会导致 "'MilvusVectorDBStorage' object has no attribute 'client_storage'" 错误。
+        # TODO: 修复 LightRAG 库原生导出问题。
         # 在 lightrag 库修复此问题前，暂时禁用此功能。
-        raise NotImplementedError("由于 LightRAG 库与 Milvus 后端不兼容，原生导出功能暂不可用。等待上游库修复。")
+        raise NotImplementedError("LightRAG 原生导出功能暂不可用，等待上游库修复。")
 
         # --- 以下为待修复后启用的代码 ---
         # logger.info(f"Exporting data for db_id {db_id} in format {format} with options {kwargs}")

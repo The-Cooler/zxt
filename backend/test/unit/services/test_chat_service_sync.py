@@ -19,8 +19,11 @@ class _FakeAgentConfigRepo:
     async def get_by_id(self, config_id: int):
         return SimpleNamespace(id=config_id)
 
-    async def get_or_create_default(self, *, department_id: str, agent_id: str, created_by: str):
-        return SimpleNamespace(id=999, department_id=department_id, agent_id=agent_id, created_by=created_by)
+    def personal_scope_id(self):
+        return 1
+
+    async def get_or_create_default_for_agent(self, *, agent_id: str, created_by: str):
+        return SimpleNamespace(id=999, department_id=1, agent_id=agent_id, created_by=created_by)
 
 
 class _FakeConvRepo:
@@ -142,7 +145,7 @@ async def test_agent_chat_uses_invoke_messages_and_persists_langgraph_state(monk
         thread_id="thread-1",
         meta={"request_id": "req-1"},
         image_content=None,
-        current_user=SimpleNamespace(id="user-1", department_id="dept-1"),
+        current_user=SimpleNamespace(id="user-1"),
         db=object(),
     )
 
@@ -225,7 +228,7 @@ async def test_agent_chat_sync_returns_finished_even_when_state_has_interrupt(mo
         thread_id="thread-2",
         meta={"request_id": "req-2"},
         image_content=None,
-        current_user=SimpleNamespace(id="user-1", department_id="dept-1"),
+        current_user=SimpleNamespace(id="user-1"),
         db=object(),
     )
 

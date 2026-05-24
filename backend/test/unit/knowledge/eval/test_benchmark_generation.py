@@ -132,10 +132,10 @@ async def test_select_neighbor_chunks_by_kb_query_filters_anchor():
         {
             "query_text": "anchor content",
             "db_id": "db_1",
-            "search_mode": "vector",
-            "final_top_k": 4,
-            "use_reranker": False,
-            "similarity_threshold": 0.0,
+            "agent_call": True,
+            "mode": "mix",
+            "top_k": 4,
+            "retrieval_content_scope": "chunks",
         }
     ]
 
@@ -166,7 +166,7 @@ async def test_iter_generated_benchmark_items_uses_query_neighbor(monkeypatch):
 
     assert items == [{"query": "问题", "gold_chunk_ids": ["neighbor_chunk"], "gold_answer": "答案"}]
     assert kb.query_calls[0]["query_text"] == "anchor content"
-    assert kb.query_calls[0]["search_mode"] == "vector"
+    assert kb.query_calls[0]["mode"] == "mix"
     assert "片段ID=neighbor_chunk" in fake_llm.prompts[0]
 
 

@@ -163,7 +163,7 @@ export class MessageProcessor {
         const parsed = parseToolResultContent(content)
         if (!parsed) continue
 
-        // Milvus / Dify: 直接是 chunks 数组
+        // chunks 数组格式
         if (Array.isArray(parsed)) {
           for (const chunk of parsed) appendChunk(chunk, kbName)
           continue

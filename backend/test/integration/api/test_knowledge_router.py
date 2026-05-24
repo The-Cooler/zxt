@@ -47,7 +47,7 @@ async def test_create_database_with_chunk_preset(test_client, admin_headers):
         "database_name": db_name,
         "description": "Chunk preset create test",
         "embed_model_name": "siliconflow/BAAI/bge-m3",
-        "kb_type": "milvus",
+        "kb_type": "lightrag",
         "additional_params": {"chunk_preset_id": "book"},
     }
 
@@ -115,17 +115,17 @@ async def test_knowledge_routes_enforce_permissions(test_client, standard_user, 
     _assert_forbidden_response(forbidden_get)
 
 
-async def test_admin_can_create_vector_db_with_reranker(test_client, admin_headers):
-    """测试创建向量库并配置 reranker 参数（通过 query_params.options）
+async def test_admin_can_create_lightrag_db_with_query_params(test_client, admin_headers):
+    """测试创建 LightRAG 知识库并配置查询参数。
 
     注意：数据库清理由 conftest.py 中的 session fixture 自动处理。
     """
-    db_name = f"pytest_rerank_{uuid.uuid4().hex[:6]}"
+    db_name = f"pytest_lightrag_query_{uuid.uuid4().hex[:6]}"
     payload = {
         "database_name": db_name,
-        "description": "Vector DB with reranker",
+        "description": "LightRAG DB with query params",
         "embed_model_name": "siliconflow/BAAI/bge-m3",
-        "kb_type": "milvus",
+        "kb_type": "lightrag",
         "additional_params": {},
     }
 
@@ -143,26 +143,19 @@ async def test_admin_can_create_vector_db_with_reranker(test_client, admin_heade
     options = params_payload.get("params", {}).get("options", [])
     option_keys = {option.get("key") for option in options}
 
-    # 验证新的参数名称
-    assert "final_top_k" in option_keys
-    assert "use_reranker" in option_keys
-    assert "recall_top_k" in option_keys
-    assert "reranker_model" in option_keys
+    assert "top_k" in option_keys
+    assert "mode" in option_keys
+    assert "retrieval_content_scope" in option_keys
 
-    # 验证参数配置
-    final_top_k_option = next((opt for opt in options if opt.get("key") == "final_top_k"), None)
-    assert final_top_k_option is not None
-    assert final_top_k_option.get("default") == 10
-
-    use_reranker_option = next((opt for opt in options if opt.get("key") == "use_reranker"), None)
-    assert use_reranker_option is not None
-    assert use_reranker_option.get("default") is False
+    top_k_option = next((opt for opt in options if opt.get("key") == "top_k"), None)
+    assert top_k_option is not None
+    assert top_k_option.get("default") == 10
 
     # 保存查询参数（模拟前端配置）
     update_params = {
-        "final_top_k": 5,
-        "use_reranker": True,
-        "recall_top_k": 20,
+        "top_k": 5,
+        "mode": "hybrid",
+        "retrieval_content_scope": "chunks",
     }
     update_response = await test_client.put(
         f"/api/knowledge/databases/{db_id}/query-params", json=update_params, headers=admin_headers
@@ -177,119 +170,9 @@ async def test_admin_can_create_vector_db_with_reranker(test_client, admin_heade
     options2 = params_payload2.get("params", {}).get("options", [])
 
     # 验证保存的值
-    final_top_k_option2 = next((opt for opt in options2 if opt.get("key") == "final_top_k"), None)
-    assert final_top_k_option2 is not None
-    assert final_top_k_option2.get("default") == 5  # 保存的值
-
-    use_reranker_option2 = next((opt for opt in options2 if opt.get("key") == "use_reranker"), None)
-    assert use_reranker_option2 is not None
-    assert use_reranker_option2.get("default") is True  # 保存的值
-
-
-async def test_create_dify_database_success(test_client, admin_headers):
-    db_name = f"pytest_dify_{uuid.uuid4().hex[:6]}"
-    payload = {
-        "database_name": db_name,
-        "description": "Dify KB create test",
-        "kb_type": "dify",
-        "additional_params": {
-            "dify_api_url": "https://api.dify.ai/v1",
-            "dify_token": "test-token",
-            "dify_dataset_id": "dataset-123",
-        },
-    }
-
-    create_response = await test_client.post("/api/knowledge/databases", json=payload, headers=admin_headers)
-    assert create_response.status_code == 200, create_response.text
-    db_id = create_response.json()["db_id"]
-
-    info_response = await test_client.get(f"/api/knowledge/databases/{db_id}", headers=admin_headers)
-    assert info_response.status_code == 200, info_response.text
-    additional_params = info_response.json()["additional_params"]
-    assert additional_params["dify_api_url"] == "https://api.dify.ai/v1"
-    assert additional_params["dify_token"] == "test-token"
-    assert additional_params["dify_dataset_id"] == "dataset-123"
-
-
-async def test_create_dify_database_missing_params_failed(test_client, admin_headers):
-    payload = {
-        "database_name": f"pytest_dify_missing_{uuid.uuid4().hex[:6]}",
-        "description": "Dify KB missing params",
-        "kb_type": "dify",
-        "additional_params": {
-            "dify_api_url": "https://api.dify.ai/v1",
-            "dify_token": "",
-            "dify_dataset_id": "",
-        },
-    }
-
-    response = await test_client.post("/api/knowledge/databases", json=payload, headers=admin_headers)
-    assert response.status_code == 400, response.text
-    assert "Dify 参数缺失" in response.json()["detail"]
-
-
-async def test_create_dify_database_invalid_api_url_failed(test_client, admin_headers):
-    payload = {
-        "database_name": f"pytest_dify_bad_url_{uuid.uuid4().hex[:6]}",
-        "description": "Dify KB invalid api url",
-        "kb_type": "dify",
-        "additional_params": {
-            "dify_api_url": "https://api.dify.ai",
-            "dify_token": "test-token",
-            "dify_dataset_id": "dataset-123",
-        },
-    }
-
-    response = await test_client.post("/api/knowledge/databases", json=payload, headers=admin_headers)
-    assert response.status_code == 400, response.text
-    assert "/v1" in response.json()["detail"]
-
-
-async def test_dify_query_params_and_documents_readonly(test_client, admin_headers):
-    payload = {
-        "database_name": f"pytest_dify_ro_{uuid.uuid4().hex[:6]}",
-        "description": "Dify readonly routes",
-        "kb_type": "dify",
-        "additional_params": {
-            "dify_api_url": "https://api.dify.ai/v1",
-            "dify_token": "test-token",
-            "dify_dataset_id": "dataset-123",
-        },
-    }
-
-    create_response = await test_client.post("/api/knowledge/databases", json=payload, headers=admin_headers)
-    assert create_response.status_code == 200, create_response.text
-    db_id = create_response.json()["db_id"]
-
-    params_response = await test_client.get(f"/api/knowledge/databases/{db_id}/query-params", headers=admin_headers)
-    assert params_response.status_code == 200, params_response.text
-    options = params_response.json().get("params", {}).get("options", [])
-    option_keys = {item.get("key") for item in options}
-    assert option_keys == {"search_mode", "final_top_k", "score_threshold_enabled", "similarity_threshold"}
-
-    add_response = await test_client.post(
-        f"/api/knowledge/databases/{db_id}/documents",
-        json={"items": ["/tmp/demo.txt"], "params": {"content_type": "file"}},
-        headers=admin_headers,
-    )
-    assert add_response.status_code == 400, add_response.text
-    assert "只支持检索" in add_response.json()["detail"]
-
-    parse_response = await test_client.post(
-        f"/api/knowledge/databases/{db_id}/documents/parse",
-        json=["file_id_1"],
-        headers=admin_headers,
-    )
-    assert parse_response.status_code == 400, parse_response.text
-    assert "只支持检索" in parse_response.json()["detail"]
-
-    index_response = await test_client.post(
-        f"/api/knowledge/databases/{db_id}/documents/index",
-        json={"file_ids": ["file_id_1"], "params": {}},
-        headers=admin_headers,
-    )
-    assert index_response.status_code == 400, index_response.text
-    assert "只支持检索" in index_response.json()["detail"]
+    top_k_option2 = next((opt for opt in options2 if opt.get("key") == "top_k"), None)
+    assert top_k_option2 is not None
+    assert top_k_option2.get("default") == 5
 
 
 # =============================================================================
@@ -457,27 +340,6 @@ async def test_duplicate_database_name(test_client, admin_headers, knowledge_dat
     )
     assert response.status_code == 409
     assert "已存在" in response.json()["detail"]
-
-
-async def test_create_milvus_knowledge_base(test_client, admin_headers):
-    """测试创建 Milvus 知识库
-
-    注意：数据库清理由 conftest.py 中的 session fixture 自动处理。
-    """
-    db_name = f"pytest_milvus_{uuid.uuid4().hex[:6]}"
-    payload = {
-        "database_name": db_name,
-        "description": "Pytest Milvus knowledge base",
-        "embed_model_name": "siliconflow/BAAI/bge-m3",
-        "kb_type": "milvus",
-        "additional_params": {},
-    }
-
-    create_response = await test_client.post("/api/knowledge/databases", json=payload, headers=admin_headers)
-    assert create_response.status_code == 200, create_response.text
-
-    db_payload = create_response.json()
-    assert db_payload["kb_type"] == "milvus"
 
 
 async def test_sample_questions_endpoints(test_client, admin_headers, knowledge_database):

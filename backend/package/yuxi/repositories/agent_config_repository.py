@@ -8,11 +8,37 @@ from yuxi.utils.datetime_utils import utc_now_naive
 
 # 默认配置名称
 DEFAULT_CONFIG_NAME = "初始配置"
+PERSONAL_AGENT_CONFIG_SCOPE_ID = 1
 
 
 class AgentConfigRepository:
     def __init__(self, db_session: AsyncSession):
         self.db = db_session
+
+    @staticmethod
+    def personal_scope_id() -> int:
+        return PERSONAL_AGENT_CONFIG_SCOPE_ID
+
+    async def list_by_agent(self, *, agent_id: str) -> list[AgentConfig]:
+        return await self.list_by_department_agent(department_id=self.personal_scope_id(), agent_id=agent_id)
+
+    async def get_default_for_agent(self, *, agent_id: str) -> AgentConfig | None:
+        return await self.get_default(department_id=self.personal_scope_id(), agent_id=agent_id)
+
+    async def get_or_create_default_for_agent(
+        self,
+        *,
+        agent_id: str,
+        created_by: str | None = None,
+    ) -> AgentConfig:
+        return await self.get_or_create_default(
+            department_id=self.personal_scope_id(),
+            agent_id=agent_id,
+            created_by=created_by,
+        )
+
+    def belongs_to_personal_scope(self, config: AgentConfig, agent_id: str) -> bool:
+        return config.department_id == self.personal_scope_id() and config.agent_id == agent_id
 
     async def list_by_department_agent(self, *, department_id: int, agent_id: str) -> list[AgentConfig]:
         result = await self.db.execute(

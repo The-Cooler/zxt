@@ -154,20 +154,6 @@
           </a-button>
         </div>
 
-        <div class="service-link-card">
-          <div class="service-info">
-            <h4>Milvus WebUI</h4>
-            <p>向量数据库管理界面</p>
-          </div>
-          <a-button
-            type="default"
-            class="lucide-icon-btn"
-            @click="openLink('http://localhost:9091/webui/')"
-            :icon="h(Globe, { size: 18 })"
-          >
-            访问
-          </a-button>
-        </div>
       </div>
     </div>
   </div>

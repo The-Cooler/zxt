@@ -304,10 +304,6 @@ class EvaluationService:
         if not kb_instance:
             await context.set_message("知识库不存在")
             raise ValueError("Knowledge Base not found")
-        if kb_instance.kb_type != "milvus":
-            await context.set_message("仅支持 commonrag/Milvus 类型知识库生成评估基准")
-            raise ValueError("Unsupported KB type for benchmark generation")
-
         benchmark_id = f"benchmark_{uuid.uuid4().hex[:8]}"
         bench_dir = await self._get_benchmark_dir(db_id)
         data_file_path = os.path.join(bench_dir, f"{benchmark_id}.jsonl")

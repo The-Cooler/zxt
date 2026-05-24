@@ -9,6 +9,20 @@ from langchain.messages import AIMessageChunk, HumanMessage
 from yuxi.services import chat_service as svc
 
 
+class _FakeAgentConfigRepo:
+    def __init__(self, _db):
+        pass
+
+    def personal_scope_id(self):
+        return 1
+
+    async def get_by_id(self, config_id: int):
+        return SimpleNamespace(id=config_id)
+
+    async def get_or_create_default_for_agent(self, *, agent_id: str, created_by: str):
+        return SimpleNamespace(id=999, department_id=1, agent_id=agent_id, created_by=created_by)
+
+
 class _FakeConvRepo:
     def __init__(self, _db):
         self.saved_messages: list[dict] = []
@@ -101,6 +115,7 @@ async def test_stream_agent_chat_passes_langfuse_callbacks_and_persists_trace_in
     monkeypatch.setattr(svc.agent_manager, "get_agent", lambda agent_id: FakeAgent())
     monkeypatch.setattr(svc, "get_agent_config_by_id", fake_get_agent_config_by_id)
     monkeypatch.setattr(svc, "ConversationRepository", _FakeConvRepo)
+    monkeypatch.setattr(svc, "AgentConfigRepository", _FakeAgentConfigRepo)
     monkeypatch.setattr(svc, "save_messages_from_langgraph_state", fake_save_messages_from_langgraph_state)
     monkeypatch.setattr(svc.content_guard, "check", fake_guard_check)
     monkeypatch.setattr(svc.content_guard, "check_with_keywords", fake_guard_check_with_keywords)
@@ -132,7 +147,7 @@ async def test_stream_agent_chat_passes_langfuse_callbacks_and_persists_trace_in
         thread_id="thread-1",
         meta={"request_id": "req-1"},
         image_content=None,
-        current_user=SimpleNamespace(id="user-1", department_id="dept-1"),
+        current_user=SimpleNamespace(id="user-1"),
         db=object(),
     ):
         chunks.append(json.loads(chunk.decode("utf-8")))
@@ -191,6 +206,7 @@ async def test_stream_agent_chat_emits_realtime_agent_state_from_values(monkeypa
     monkeypatch.setattr(svc.agent_manager, "get_agent", lambda agent_id: FakeAgent())
     monkeypatch.setattr(svc, "get_agent_config_by_id", fake_get_agent_config_by_id)
     monkeypatch.setattr(svc, "ConversationRepository", _FakeConvRepo)
+    monkeypatch.setattr(svc, "AgentConfigRepository", _FakeAgentConfigRepo)
     monkeypatch.setattr(svc, "save_messages_from_langgraph_state", fake_save_messages_from_langgraph_state)
     monkeypatch.setattr(svc.content_guard, "check", fake_guard_check)
     monkeypatch.setattr(svc.content_guard, "check_with_keywords", fake_guard_check_with_keywords)
@@ -210,7 +226,7 @@ async def test_stream_agent_chat_emits_realtime_agent_state_from_values(monkeypa
         thread_id="thread-1",
         meta={"request_id": "req-1"},
         image_content=None,
-        current_user=SimpleNamespace(id="user-1", department_id="dept-1"),
+        current_user=SimpleNamespace(id="user-1"),
         db=object(),
     ):
         chunks.append(json.loads(chunk.decode("utf-8")))

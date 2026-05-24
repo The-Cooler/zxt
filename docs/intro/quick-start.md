@@ -156,17 +156,6 @@ $env:HTTPS_PROXY="http://IP:PORT"
 如果配置代理后反而失败，尝试移除代理后重试。
 </details>
 
-<details>
-<summary><strong>需要启用旧 Milvus 知识库</strong></summary>
-
-```bash
-# 默认 LightRAG 使用 PostgreSQL/pgvector 存放向量。
-# 只有需要旧 Milvus 知识库时才启动 Milvus profile。
-docker compose --profile milvus up milvus -d
-docker restart api-dev
-```
-</details>
-
 ::: tip 调试面板
 前端提供了调试面板（在头像菜单中可找到），可以查看详细的请求和响应信息。生产环境建议关闭此特性。
 :::

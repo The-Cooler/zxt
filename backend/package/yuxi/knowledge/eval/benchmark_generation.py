@@ -58,10 +58,10 @@ async def select_neighbor_chunks_by_kb_query(
     candidates = await kb_instance.aquery(
         anchor_content,
         db_id,
-        search_mode="vector",
-        final_top_k=neighbors_count + 3,
-        use_reranker=False,
-        similarity_threshold=0.0,
+        agent_call=True,
+        mode="mix",
+        top_k=neighbors_count + 3,
+        retrieval_content_scope="chunks",
     )
 
     chunks = []

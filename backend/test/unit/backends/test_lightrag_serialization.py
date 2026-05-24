@@ -209,13 +209,9 @@ async def test_add_documents_auto_index_uses_latest_parsed_metadata(monkeypatch:
             await coroutine(FakeTaskContext())
             return SimpleNamespace(id="task-1")
 
-    async def fake_ensure_database_not_dify(_db_id: str, _operation: str) -> None:
-        return None
-
     monkeypatch.setattr("yuxi.knowledge.utils.kb_utils.validate_file_path", lambda _item, _db_id: None)
     monkeypatch.setattr(knowledge_router, "knowledge_base", FakeKnowledgeBase())
     monkeypatch.setattr(knowledge_router, "tasker", FakeTasker())
-    monkeypatch.setattr(knowledge_router, "_ensure_database_not_dify", fake_ensure_database_not_dify)
 
     current_user = SimpleNamespace(user_id="user-1", id="user-1")
     result = await knowledge_router.add_documents(

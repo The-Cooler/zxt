@@ -152,10 +152,6 @@
               {{ userRoleText }}
             </div>
           </div>
-          <div class="info-item" v-if="userStore.departmentId">
-            <div class="info-label">部门</div>
-            <div class="info-value">{{ userStore.departmentName || '默认部门' }}</div>
-          </div>
         </div>
 
         <!-- 操作区域 -->

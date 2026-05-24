@@ -52,9 +52,7 @@ async function getOIDCLoginUrl(redirectPath = '/') {
  *   user_id_login: string,
  *   phone_number: string | null,
  *   avatar: string | null,
- *   role: string,
- *   department_id: number | null,
- *   department_name: string | null
+ *   role: string
  * }>}
  */
 async function exchangeOIDCCode(code) {

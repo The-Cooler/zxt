@@ -75,9 +75,6 @@ const handleCallback = async () => {
     userStore.phoneNumber = tokenData.phone_number || ''
     userStore.avatar = tokenData.avatar || ''
     userStore.userRole = tokenData.role || 'user'
-    userStore.departmentId = tokenData.department_id || null
-    userStore.departmentName = tokenData.department_name || ''
-
     // 保存 token 到 localStorage
     localStorage.setItem('user_token', tokenData.access_token)
 

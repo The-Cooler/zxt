@@ -464,15 +464,6 @@ wheels = [
 ]
 
 [[package]]
-name = "cachetools"
-version = "7.0.5"
-source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
-sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/af/dd/57fe3fdb6e65b25a5987fd2cdc7e22db0aef508b91634d2e57d22928d41b/cachetools-7.0.5.tar.gz", hash = "sha256:0cd042c24377200c1dcd225f8b7b12b0ca53cc2c961b43757e774ebe190fd990", size = 37367, upload-time = "2026-03-09T20:51:29.451Z" }
-wheels = [
-    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/06/f3/39cf3367b8107baa44f861dc802cbf16263c945b62d8265d36034fc07bea/cachetools-7.0.5-py3-none-any.whl", hash = "sha256:46bc8ebefbe485407621d0a4264b23c080cedd913921bad7ac3ed2f26c183114", size = 13918, upload-time = "2026-03-09T20:51:27.33Z" },
-]
-
-[[package]]
 name = "catalogue"
 version = "2.0.10"
 source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
@@ -3736,25 +3727,6 @@ source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
 sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/5d/ab/34ec41718af73c00119d0351b7a2531d2ebddb51833a36448fc7b862be60/pylatexenc-2.10.tar.gz", hash = "sha256:3dd8fd84eb46dc30bee1e23eaab8d8fb5a7f507347b23e5f38ad9675c84f40d3", size = 162597, upload-time = "2021-04-06T07:56:07.854Z" }
 
 [[package]]
-name = "pymilvus"
-version = "2.6.11"
-source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
-dependencies = [
-    { name = "cachetools" },
-    { name = "grpcio" },
-    { name = "orjson" },
-    { name = "pandas" },
-    { name = "protobuf" },
-    { name = "python-dotenv" },
-    { name = "requests" },
-    { name = "setuptools" },
-]
-sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/c9/e6/0adc3b374f5c5d1eebd4f551b455c6865c449b170b17545001b208e2b153/pymilvus-2.6.11.tar.gz", hash = "sha256:a40c10322cde25184a8c3d84993a14dfb67ad2bdcfc5dff7e68b11a79ff8f6d8", size = 1583634, upload-time = "2026-03-27T06:25:46.023Z" }
-wheels = [
-    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/9c/1c/bccb331d71f824738f80f11e9b8b4da47973c903826355526ae4fa2b762f/pymilvus-2.6.11-py3-none-any.whl", hash = "sha256:a11e1718b15045361c71ca671b959900cb7e2faae863c896f6b7e87bf2e4d10a", size = 315252, upload-time = "2026-03-27T06:25:44.215Z" },
-]
-
-[[package]]
 name = "pymupdf"
 version = "1.27.2.2"
 source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
@@ -5893,7 +5865,6 @@ dependencies = [
     { name = "pillow" },
     { name = "psycopg", extra = ["binary", "pool"] },
     { name = "pyjwt" },
-    { name = "pymilvus" },
     { name = "pymupdf" },
     { name = "pymysql" },
     { name = "pypinyin" },
@@ -5972,7 +5943,6 @@ requires-dist = [
     { name = "pillow", specifier = ">=10.5.0" },
     { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.3.3" },
     { name = "pyjwt", specifier = ">=2.8.0" },
-    { name = "pymilvus", specifier = ">=2.5.8" },
     { name = "pymupdf", specifier = ">=1.25.5" },
     { name = "pymysql", specifier = ">=1.1.0" },
     { name = "pypinyin", specifier = ">=0.55.0" },

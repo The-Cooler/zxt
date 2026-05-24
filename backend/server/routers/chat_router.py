@@ -9,8 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from yuxi.storage.postgres.models_business import User
-from server.routers.auth_router import get_admin_user
-from server.utils.auth_middleware import get_db, get_required_user
+from server.utils.auth_middleware import get_admin_user, get_db, get_required_user
 from yuxi import config as conf
 from yuxi.agents.buildin import agent_manager
 from yuxi.models import select_model
@@ -206,14 +205,10 @@ async def list_agent_configs(
         raise HTTPException(status_code=404, detail=f"智能体 {agent_id} 不存在")
 
     repo = AgentConfigRepository(db)
-    items = await repo.list_by_department_agent(department_id=current_user.department_id, agent_id=agent_id)
+    items = await repo.list_by_agent(agent_id=agent_id)
     if not items:
-        await repo.get_or_create_default(
-            department_id=current_user.department_id,
-            agent_id=agent_id,
-            created_by=str(current_user.id),
-        )
-        items = await repo.list_by_department_agent(department_id=current_user.department_id, agent_id=agent_id)
+        await repo.get_or_create_default_for_agent(agent_id=agent_id, created_by=str(current_user.id))
+        items = await repo.list_by_agent(agent_id=agent_id)
 
     configs = [
         {
@@ -242,7 +237,7 @@ async def get_agent_config_profile(
 
     repo = AgentConfigRepository(db)
     item = await repo.get_by_id(config_id)
-    if not item or item.agent_id != agent_id or item.department_id != current_user.department_id:
+    if not item or not repo.belongs_to_personal_scope(item, agent_id):
         raise HTTPException(status_code=404, detail="配置不存在")
 
     return {"config": item.to_dict()}
@@ -260,7 +255,7 @@ async def create_agent_config_profile(
 
     repo = AgentConfigRepository(db)
     item = await repo.create(
-        department_id=current_user.department_id,
+        department_id=repo.personal_scope_id(),
         agent_id=agent_id,
         name=payload.name,
         description=payload.description,
@@ -290,7 +285,7 @@ async def update_agent_config_profile(
 
     repo = AgentConfigRepository(db)
     item = await repo.get_by_id(config_id)
-    if not item or item.agent_id != agent_id or item.department_id != current_user.department_id:
+    if not item or not repo.belongs_to_personal_scope(item, agent_id):
         raise HTTPException(status_code=404, detail="配置不存在")
 
     updated = await repo.update(
@@ -318,7 +313,7 @@ async def set_agent_config_default(
 
     repo = AgentConfigRepository(db)
     item = await repo.get_by_id(config_id)
-    if not item or item.agent_id != agent_id or item.department_id != current_user.department_id:
+    if not item or not repo.belongs_to_personal_scope(item, agent_id):
         raise HTTPException(status_code=404, detail="配置不存在")
 
     updated = await repo.set_default(config=item, updated_by=str(current_user.id))
@@ -337,7 +332,7 @@ async def delete_agent_config_profile(
 
     repo = AgentConfigRepository(db)
     item = await repo.get_by_id(config_id)
-    if not item or item.agent_id != agent_id or item.department_id != current_user.department_id:
+    if not item or not repo.belongs_to_personal_scope(item, agent_id):
         raise HTTPException(status_code=404, detail="配置不存在")
 
     await repo.delete(config=item, updated_by=str(current_user.id))

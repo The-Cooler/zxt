@@ -59,10 +59,6 @@
               <span v-if="state.autoRefresh" class="refresh-interval">(5s)</span>
             </a-button>
           </a-tooltip>
-          <a-button @click="openUserSwitcher">
-            <template #icon><SwapOutlined /></template>
-            切换用户
-          </a-button>
         </div>
         <div class="filter-group">
           <a-input-search
@@ -111,25 +107,6 @@
         <div v-else class="empty-logs">暂无日志</div>
       </div>
       <p v-if="error" class="error">{{ error }}</p>
-      <!-- 用户切换 Modal -->
-      <a-modal
-        v-model:open="state.showUserSwitcher"
-        title="切换用户"
-        :confirmLoading="state.switchingUser"
-        :footer="null"
-        :bodyStyle="{ padding: '12px' }"
-      >
-        <a-list item-layout="horizontal" :data-source="state.users">
-          <template #renderItem="{ item }">
-            <a-list-item @click="switchToUser(item)" style="cursor: pointer">
-              <a-list-item-meta :title="item.username" :description="item.role" />
-            </a-list-item>
-          </template>
-          <template #empty>
-            <a-empty description="暂无用户" />
-          </template>
-        </a-list>
-      </a-modal>
     </div>
   </a-modal>
 </template>
@@ -164,14 +141,7 @@ import { useDatabaseStore } from '@/stores/database'
 import { useAgentStore } from '@/stores/agent'
 import { useInfoStore } from '@/stores/info'
 import { useThrottleFn } from '@vueuse/core'
-import {
-  message,
-  Modal,
-  List as AList,
-  ListItem as AListItem,
-  ListItemMeta as AListItemMeta,
-  Empty as AEmpty
-} from 'ant-design-vue'
+import { message } from 'ant-design-vue'
 import {
   FullscreenOutlined,
   FullscreenExitOutlined,
@@ -184,8 +154,7 @@ import {
   UserOutlined,
   DatabaseOutlined,
   RobotOutlined,
-  BugOutlined,
-  SwapOutlined
+  BugOutlined
 } from '@ant-design/icons-vue'
 import dayjs from '@/utils/time'
 import { configApi } from '@/apis/system_api'
@@ -215,10 +184,7 @@ const state = reactive({
   searchText: '',
   selectedLevels: logLevels.map((l) => l.value),
   rawLogs: [],
-  isFullscreen: false,
-  showUserSwitcher: false,
-  users: [],
-  switchingUser: false
+  isFullscreen: false
 })
 
 const error = ref('')
@@ -538,65 +504,6 @@ const printAgentConfig = async () => {
   }
 }
 
-// 获取用户列表
-const fetchUsers = async () => {
-  try {
-    const response = await fetch('/api/auth/users', {
-      headers: userStore.getAuthHeaders()
-    })
-    if (!response.ok) {
-      throw new Error('获取用户列表失败')
-    }
-    state.users = await response.json()
-  } catch (err) {
-    message.error(`获取用户列表失败: ${err.message}`)
-  }
-}
-
-// 打开用户选择器
-const openUserSwitcher = () => {
-  if (!checkSuperAdminPermission()) return
-  state.showUserSwitcher = true
-  fetchUsers()
-}
-
-// 切换用户
-const switchToUser = async (user) => {
-  if (!checkSuperAdminPermission()) return
-
-  // 危险操作确认
-  Modal.confirm({
-    title: '⚠️ 危险操作确认',
-    content: `确定要切换为用户 "${user.username}" 吗？此操作将被记录。`,
-    okText: '确认切换',
-    cancelText: '取消',
-    okType: 'danger',
-    onOk: async () => {
-      state.switchingUser = true
-      try {
-        const response = await fetch(`/api/auth/impersonate/${user.id}`, {
-          method: 'POST',
-          headers: userStore.getAuthHeaders()
-        })
-        if (!response.ok) {
-          const error = await response.json()
-          throw new Error(error.detail || '切换用户失败')
-        }
-        const data = await response.json()
-        // 设置新 token
-        localStorage.setItem('user_token', data.access_token)
-        message.success(`已切换用户: ${user.username}`)
-        state.showUserSwitcher = false
-        // 刷新页面以重新初始化应用
-        window.location.reload()
-      } catch (err) {
-        message.error(`切换失败: ${err.message}`)
-      } finally {
-        state.switchingUser = false
-      }
-    }
-  })
-}
 </script>
 
 <style scoped>

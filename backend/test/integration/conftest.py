@@ -17,6 +17,9 @@ import httpx
 import pytest
 import pytest_asyncio
 from dotenv import load_dotenv
+from yuxi.repositories.user_repository import UserRepository
+from yuxi.storage.postgres.manager import pg_manager
+from server.utils.auth_utils import AuthUtils
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
@@ -206,15 +209,21 @@ async def standard_user(test_client: httpx.AsyncClient, admin_headers: dict[str,
     username = f"pytest_user_{uuid.uuid4().hex[:8]}"
     password = f"Pw!{uuid.uuid4().hex[:8]}"
 
-    response = await test_client.post(
-        "/api/auth/users",
-        json={"username": username, "password": password, "role": "user"},
-        headers=admin_headers,
-    )
-    if response.status_code != 200:
-        pytest.fail(f"Failed to create standard user (status={response.status_code}): {response.text}")
+    if not pg_manager._initialized:
+        pg_manager.initialize()
 
-    user_payload = response.json()
+    user_repo = UserRepository()
+    user = await user_repo.create(
+        {
+            "username": username,
+            "user_id": username,
+            "phone_number": None,
+            "avatar": None,
+            "password_hash": AuthUtils.hash_password(password),
+            "role": "user",
+        }
+    )
+    user_payload = user.to_dict()
     login_response = await test_client.post(
         "/api/auth/token",
         data={"username": user_payload["user_id"], "password": password},
@@ -235,18 +244,10 @@ async def standard_user(test_client: httpx.AsyncClient, admin_headers: dict[str,
             "headers": {"Authorization": f"Bearer {access_token}"},
         }
     finally:
-        cleanup_error = None
-        for _ in range(3):
-            response = await test_client.delete(f"/api/auth/users/{user_payload['id']}", headers=admin_headers)
-            if response.status_code in (200, 404):
-                cleanup_error = None
-                break
-            cleanup_error = response
-            await anyio.sleep(0.3)
-        if cleanup_error is not None:
-            assert cleanup_error.status_code == 200, (
-                f"Failed to cleanup test user {user_payload['user_id']}: {cleanup_error.text}"
-            )
+        async with pg_manager.get_async_session_context() as session:
+            db_user = await session.get(type(user), user_payload["id"])
+            if db_user is not None:
+                await session.delete(db_user)
 
 
 @pytest_asyncio.fixture(scope="function")

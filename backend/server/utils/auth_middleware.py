@@ -54,14 +54,6 @@ async def _verify_api_key(key: str, db: AsyncSession) -> tuple[User | None, APIK
         if user and not user.is_deleted:
             return user, api_key
 
-    if api_key.department_id:
-        result = await db.execute(
-            select(User).filter(User.department_id == api_key.department_id, User.role.in_(["admin", "superadmin"]))
-        )
-        user = result.scalar_one_or_none()
-        if user and not user.is_deleted:
-            return user, api_key
-
     result = await db.execute(select(User).filter(User.role == "superadmin", User.is_deleted == 0).limit(1))
     user = result.scalar_one_or_none()
     if user:
@@ -136,11 +128,6 @@ async def get_required_user(user: User | None = Depends(get_current_user)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="请登录后再访问",
             headers={"WWW-Authenticate": "Bearer"},
-        )
-    if not user.department_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="当前用户未绑定部门",
         )
     return user
 

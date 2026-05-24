@@ -9,7 +9,6 @@ from yuxi.knowledge.chunking.ragflow_like.presets import (
 from yuxi.knowledge.factory import KnowledgeBaseFactory
 from yuxi.storage.postgres.models_business import User
 from yuxi.utils import logger
-from yuxi.utils.datetime_utils import utc_isoformat
 
 
 class KnowledgeBaseManager:
@@ -194,8 +193,7 @@ class KnowledgeBaseManager:
                 logger.warning(f"Skip database due to missing metadata: db_id={row.db_id}, kb_type={kb_type}")
                 continue
 
-            # 补充 share_config 和 additional_params
-            db_info["share_config"] = row.share_config or {"is_shared": True, "accessible_departments": []}
+            # 补充 additional_params
             db_info["additional_params"] = ensure_chunk_defaults_in_additional_params(row.additional_params)
             all_databases.append(db_info)
         return {"databases": all_databases}
@@ -210,10 +208,6 @@ class KnowledgeBaseManager:
         Returns:
             bool: 是否有权限
         """
-        # 超级管理员有权访问所有
-        if user.get("role") == "superadmin":
-            return True
-
         from yuxi.repositories.knowledge_base_repository import KnowledgeBaseRepository
 
         kb_repo = KnowledgeBaseRepository()
@@ -221,28 +215,7 @@ class KnowledgeBaseManager:
         if kb is None:
             return False
 
-        share_config = kb.share_config or {}
-        is_shared = share_config.get("is_shared", True)
-
-        # 如果是全员共享，则有权限
-        if is_shared:
-            return True
-
-        # 检查部门权限
-        user_department_id = user.get("department_id")
-        accessible_departments = share_config.get("accessible_departments", [])
-
-        if user_department_id is None:
-            return False
-
-        # 转换为整数进行比较（前端可能传递字符串，后端存储为整数）
-        try:
-            user_department_id = int(user_department_id)
-            accessible_departments = [int(d) for d in accessible_departments]
-        except (ValueError, TypeError):
-            return False
-
-        return user_department_id in accessible_departments
+        return True
 
     async def get_databases_by_raw_id(self, user_id: int) -> dict:
         """根据用户ID获取知识库列表（原始ID版本，兼容旧接口）"""
@@ -277,12 +250,10 @@ class KnowledgeBaseManager:
         else:
             user_info = {
                 "role": user.role,
-                "department_id": user.department_id,
             }
 
         user_role = user_info.get("role")
-        user_dept = user_info.get("department_id")
-        logger.info(f"Getting databases for user with role {user_role} and department {user_dept}")
+        logger.info(f"Getting databases for user with role {user_role}")
 
         all_databases = (await self.get_databases()).get("databases", [])
 
@@ -329,7 +300,6 @@ class KnowledgeBaseManager:
         description: str,
         kb_type: str = "lightrag",
         embed_info: dict | None = None,
-        share_config: dict | None = None,
         **kwargs,
     ) -> dict:
         """
@@ -340,7 +310,6 @@ class KnowledgeBaseManager:
             description: 数据库描述
             kb_type: 知识库类型，默认为lightrag
             embed_info: 嵌入模型信息
-            share_config: 共享配置
             **kwargs: 其他配置参数，包括chunk_size和chunk_overlap
 
         Returns:
@@ -354,10 +323,6 @@ class KnowledgeBaseManager:
         if await self.database_name_exists(database_name):
             raise ValueError(f"知识库名称 '{database_name}' 已存在，请使用其他名称")
 
-        # 默认共享配置
-        if share_config is None:
-            share_config = {"is_shared": True, "accessible_departments": []}
-
         kwargs = ensure_chunk_defaults_in_additional_params(kwargs)
 
         kb_instance = self._get_or_create_kb_instance(kb_type)
@@ -367,8 +332,8 @@ class KnowledgeBaseManager:
         from yuxi.repositories.knowledge_base_repository import KnowledgeBaseRepository
 
         kb_repo = KnowledgeBaseRepository()
-        updated = await kb_repo.update(db_id, {"share_config": share_config})
-        if updated is None:
+        existing = await kb_repo.get_by_id(db_id)
+        if existing is None:
             await kb_repo.create(
                 {
                     "db_id": db_id,
@@ -378,12 +343,10 @@ class KnowledgeBaseManager:
                     "embed_info": embed_info,
                     "llm_info": db_info.get("llm_info"),
                     "additional_params": kwargs.copy(),
-                    "share_config": share_config,
                 }
             )
 
         logger.info(f"Created {kb_type} database: {database_name} ({db_id}) with {kwargs}")
-        db_info["share_config"] = share_config
         return db_info
 
     async def delete_database(self, db_id: str) -> dict:
@@ -467,7 +430,6 @@ class KnowledgeBaseManager:
 
         # 添加数据库中的附加字段
         db_info["additional_params"] = ensure_chunk_defaults_in_additional_params(kb.additional_params)
-        db_info["share_config"] = kb.share_config or {"is_shared": True, "accessible_departments": []}
         db_info["mindmap"] = kb.mindmap
         db_info["sample_questions"] = kb.sample_questions or []
         db_info["query_params"] = kb.query_params
@@ -613,7 +575,6 @@ class KnowledgeBaseManager:
         description: str,
         llm_info: dict = None,
         additional_params: dict | None = None,
-        share_config: dict | None = None,
     ) -> dict:
         """更新数据库"""
         from yuxi.repositories.knowledge_base_repository import KnowledgeBaseRepository
@@ -641,9 +602,6 @@ class KnowledgeBaseManager:
             update_data["additional_params"] = merged_additional_params
             if db_id in kb_instance.databases_meta:
                 kb_instance.databases_meta[db_id]["metadata"] = merged_additional_params
-
-        if share_config is not None:
-            update_data["share_config"] = share_config
 
         # 保存到数据库
         await kb_repo.update(db_id, update_data)
@@ -770,187 +728,3 @@ class KnowledgeBaseManager:
         """
         all_databases = (await self.get_databases())["databases"]
         return [db for db in all_databases if db.get("kb_type", "lightrag") == "lightrag"]
-
-    # =============================================================================
-    # 数据一致性检测方法
-    # =============================================================================
-
-    async def detect_data_inconsistencies(self) -> dict:
-        """
-        检测向量数据库中存在但在 metadata 中缺失的数据
-
-        Returns:
-            包含不一致信息的字典，按知识库类型分组
-        """
-        inconsistencies = {
-            "milvus": {"missing_collections": [], "missing_files": []},
-            "total_missing_collections": 0,
-            "total_missing_files": 0,
-        }
-
-        logger.info("开始检测向量数据库与元数据的一致性...")
-
-        # 检测 Milvus 数据不一致
-        if "milvus" in self.kb_instances:
-            try:
-                milvus_inconsistencies = await self._detect_milvus_inconsistencies()
-                inconsistencies["milvus"] = milvus_inconsistencies
-                inconsistencies["total_missing_collections"] += len(milvus_inconsistencies["missing_collections"])
-                inconsistencies["total_missing_files"] += len(milvus_inconsistencies["missing_files"])
-            except Exception as e:
-                logger.error(f"检测 Milvus 数据不一致时出错: {e}")
-
-        # 输出检测结果到日志
-        self._log_inconsistencies(inconsistencies)
-
-        return inconsistencies
-
-    async def _detect_milvus_inconsistencies(self) -> dict:
-        """检测 Milvus 中的数据不一致"""
-        from yuxi.repositories.knowledge_base_repository import KnowledgeBaseRepository
-
-        inconsistencies = {"missing_collections": [], "missing_files": []}
-
-        milvus_kb = self.kb_instances["milvus"]
-
-        try:
-            from pymilvus import utility
-
-            # 获取 Milvus 中所有实际的集合
-            actual_collection_names = set(utility.list_collections(using=milvus_kb.connection_alias))
-
-            # 从数据库获取所有已知的数据库ID
-            kb_repo = KnowledgeBaseRepository()
-            rows = await kb_repo.get_all()
-            all_known_db_ids = {row.db_id for row in rows}
-
-            lightrag_suffixes = ["_chunks", "_relationships", "_entities"]
-
-            # 找出存在于 Milvus 但不在 metadata 中的集合
-            # missing_collections = actual_collection_names - metadata_collection_names
-            for collection_name in actual_collection_names:
-                # 跳过一些系统集合
-                if not collection_name.startswith("kb_"):
-                    continue
-
-                # 检查集合是否属于已知数据库
-                is_known = False
-
-                # 1. 精确匹配 (Milvus 类型的知识库)
-                if collection_name in all_known_db_ids:
-                    is_known = True
-                # 2. 后缀匹配 (LightRAG 类型的知识库)
-                else:
-                    for suffix in lightrag_suffixes:
-                        if collection_name.endswith(suffix):
-                            potential_db_id = collection_name[: -len(suffix)]
-                            if potential_db_id in all_known_db_ids:
-                                is_known = True
-                                break
-
-                # 如果是已知集合，跳过
-                if is_known:
-                    continue
-
-                # 如果是未知集合，记录下来
-                collection_info = {"collection_name": collection_name, "detected_at": utc_isoformat()}
-
-                # 尝试获取集合的基本信息
-                try:
-                    from pymilvus import Collection
-
-                    collection = Collection(name=collection_name, using=milvus_kb.connection_alias)
-                    collection_info["count"] = collection.num_entities
-                    collection_info["description"] = collection.description
-                except Exception as e:
-                    logger.warning(f"无法获取集合 {collection_name} 的详细信息: {e}")
-                    collection_info["count"] = "unknown"
-
-                inconsistencies["missing_collections"].append(collection_info)
-                logger.warning(
-                    f"发现 Milvus 中存在但 metadata 中缺失的集合: {collection_name} "
-                    f"(实体数: {collection_info['count']})"
-                )
-
-            # 获取 metadata 中记录的数据库ID（仅 Milvus 类型，用于检查文件一致性）
-            metadata_collection_names = set(milvus_kb.databases_meta.keys())
-
-            # 检查文件级别的不一致（针对已知的数据库）
-            for db_id in metadata_collection_names:
-                try:
-                    if utility.has_collection(db_id, using=milvus_kb.connection_alias):
-                        from pymilvus import Collection
-
-                        collection = Collection(name=db_id, using=milvus_kb.connection_alias)
-                        actual_count = collection.num_entities
-
-                        # 获取 metadata 中记录的文件数量
-                        metadata_files_count = sum(
-                            1 for file_info in milvus_kb.files_meta.values() if file_info.get("database_id") == db_id
-                        )
-
-                        # 如果向量数据库中有数据但 metadata 中没有文件记录，可能存在文件缺失
-                        if actual_count > 0 and metadata_files_count == 0:
-                            inconsistencies["missing_files"].append(
-                                {
-                                    "database_id": db_id,
-                                    "vector_count": actual_count,
-                                    "metadata_files_count": metadata_files_count,
-                                    "detected_at": utc_isoformat(),
-                                }
-                            )
-                            logger.warning(
-                                f"发现数据库 {db_id} 在 Milvus 中有 {actual_count} 条向量数据，"
-                                "但 metadata 中没有文件记录"
-                            )
-
-                except Exception as e:
-                    logger.debug(f"检查数据库 {db_id} 的文件一致性时出错: {e}")
-
-        except Exception as e:
-            logger.error(f"检测 Milvus 数据不一致时出错: {e}")
-
-        return inconsistencies
-
-    def _log_inconsistencies(self, inconsistencies: dict) -> None:
-        """将不一致检测结果输出到日志"""
-        total_missing_collections = inconsistencies["total_missing_collections"]
-        total_missing_files = inconsistencies["total_missing_files"]
-
-        if total_missing_collections == 0 and total_missing_files == 0:
-            logger.info("数据一致性检测完成，未发现不一致情况")
-            return
-
-        logger.warning("=" * 80)
-        logger.warning("数据一致性检测完成，发现以下不一致情况：")
-        logger.warning("=" * 80)
-
-        # Milvus 不一致情况
-        milvus_missing = inconsistencies["milvus"]["missing_collections"]
-        milvus_files_missing = inconsistencies["milvus"]["missing_files"]
-        if milvus_missing or milvus_files_missing:
-            logger.warning("Milvus 不一致情况：")
-            logger.warning(f"  缺失集合数量: {len(milvus_missing)}")
-            for collection_info in milvus_missing:
-                logger.warning(f"    - 集合: {collection_info['collection_name']}, 实体数: {collection_info['count']}")
-            logger.warning(f"  缺失文件记录数量: {len(milvus_files_missing)}")
-            for file_info in milvus_files_missing:
-                logger.warning(
-                    f"    - 数据库: {file_info['database_id']}, 向量数: {file_info['vector_count']}, "
-                    f"元数据文件数: {file_info['metadata_files_count']}"
-                )
-
-        logger.warning("=" * 80)
-        logger.warning(f"总计：缺失集合 {total_missing_collections} 个，缺失文件记录 {total_missing_files} 个")
-        logger.warning("建议：检查这些不一致的数据，必要时进行数据清理或元数据修复")
-        logger.warning("=" * 80)
-
-    async def manual_consistency_check(self) -> dict:
-        """
-        手动触发数据一致性检测
-
-        Returns:
-            检测结果字典
-        """
-        logger.info("手动触发数据一致性检测...")
-        return await self.detect_data_inconsistencies()

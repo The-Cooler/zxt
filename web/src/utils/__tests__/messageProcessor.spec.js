@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 
 import { MessageProcessor } from '../messageProcessor.js'
 
-const databases = [{ name: '财税库' }, { name: 'DifyKB' }, { name: 'LightGraphKB' }]
+const databases = [{ name: '财税库' }, { name: 'LightGraphKB' }]
 
 const run = () => {
   const conv = {
@@ -50,7 +50,7 @@ const run = () => {
             }
           },
           {
-            name: 'DifyKB',
+            name: 'LightGraphKB',
             tool_call_result: { content: 'not-json' }
           }
         ]
@@ -60,7 +60,7 @@ const run = () => {
 
   const chunks = MessageProcessor.extractKnowledgeChunksFromConversation(conv, databases)
 
-  // 1. Milvus/Dify 数组提取
+  // 1. chunks 数组提取
   assert.equal(
     chunks.some((c) => c.content === 'A' && c.kb_name === '财税库'),
     true
@@ -80,7 +80,7 @@ const run = () => {
 
   // 4. 非法 JSON 自动跳过
   assert.equal(
-    chunks.some((c) => c.kb_name === 'DifyKB'),
+    chunks.some((c) => c.kb_name === 'LightGraphKB' && c.content === 'not-json'),
     false
   )
 

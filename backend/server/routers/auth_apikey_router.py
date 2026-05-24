@@ -34,7 +34,6 @@ def generate_api_key() -> tuple[str, str, str]:
 class APIKeyCreate(BaseModel):
     name: str
     user_id: int | None = None
-    department_id: int | None = None
     expires_at: str | None = None
 
 
@@ -49,7 +48,6 @@ class APIKeyResponse(BaseModel):
     key_prefix: str
     name: str
     user_id: int | None
-    department_id: int | None
     expires_at: str | None
     is_enabled: bool
     last_used_at: str | None
@@ -134,7 +132,6 @@ async def create_api_key(
         key_prefix=key_prefix,
         name=data.name,
         user_id=data.user_id,
-        department_id=data.department_id,
         expires_at=expires_at,
         created_by=str(current_user.id),
     )

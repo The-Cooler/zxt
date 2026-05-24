@@ -2,7 +2,6 @@ import os
 
 from ..config import config
 from .factory import KnowledgeBaseFactory
-from .implementations.dify import DifyKB
 from .manager import KnowledgeBaseManager
 
 _LITE_MODE = os.environ.get("LITE_MODE", "").lower() in ("true", "1")
@@ -11,13 +10,9 @@ _SKIP_APP_INIT = os.environ.get("YUXI_SKIP_APP_INIT") == "1"
 if not _LITE_MODE:
     from .graphs.upload_graph_service import UploadGraphService
     from .implementations.lightrag import LightRagKB
-    from .implementations.milvus import MilvusKB
 
     # 注册知识库类型
-    KnowledgeBaseFactory.register("milvus", MilvusKB, {"description": "基于 Milvus 的生产级向量知识库，适合高性能部署"})
     KnowledgeBaseFactory.register("lightrag", LightRagKB, {"description": "基于图的知识库，支持实体关系构建和复杂查询"})
-
-KnowledgeBaseFactory.register("dify", DifyKB, {"description": "连接 Dify Dataset 的只读检索知识库"})
 
 # 创建知识库管理器
 work_dir = os.path.join(config.save_dir, "knowledge_base_data")

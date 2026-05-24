@@ -11,8 +11,6 @@ export const useUserStore = defineStore('user', () => {
   const phoneNumber = ref('')
   const avatar = ref('')
   const userRole = ref('')
-  const departmentId = ref(null)
-  const departmentName = ref('')
 
   // 计算属性
   const isLoggedIn = computed(() => !!token.value)
@@ -56,9 +54,6 @@ export const useUserStore = defineStore('user', () => {
       phoneNumber.value = data.phone_number || ''
       avatar.value = data.avatar || ''
       userRole.value = data.role
-      departmentId.value = data.department_id || null
-      departmentName.value = data.department_name || ''
-
       // 只保存 token 到本地存储
       localStorage.setItem('user_token', data.access_token)
 
@@ -78,9 +73,6 @@ export const useUserStore = defineStore('user', () => {
     phoneNumber.value = ''
     avatar.value = ''
     userRole.value = ''
-    departmentId.value = null
-    departmentName.value = ''
-
     // 清除 agentStore 状态，确保重新登录时能正确加载数据
     const agentStore = useAgentStore()
     agentStore.reset()
@@ -114,9 +106,6 @@ export const useUserStore = defineStore('user', () => {
       phoneNumber.value = data.phone_number || ''
       avatar.value = data.avatar || ''
       userRole.value = data.role
-      departmentId.value = data.department_id || null
-      departmentName.value = data.department_name || ''
-
       // 只保存 token 到本地存储
       localStorage.setItem('user_token', data.access_token)
 
@@ -142,117 +131,6 @@ export const useUserStore = defineStore('user', () => {
   function getAuthHeaders() {
     return {
       Authorization: `Bearer ${token.value}`
-    }
-  }
-
-  // 用户管理功能
-  async function getUsers() {
-    try {
-      const response = await fetch('/api/auth/users', {
-        headers: {
-          ...getAuthHeaders()
-        }
-      })
-
-      if (!response.ok) {
-        throw new Error('获取用户列表失败')
-      }
-
-      return await response.json()
-    } catch (error) {
-      console.error('获取用户列表错误:', error)
-      throw error
-    }
-  }
-
-  async function createUser(userData) {
-    try {
-      const response = await fetch('/api/auth/users', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify(userData)
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.detail || '创建用户失败')
-      }
-
-      return await response.json()
-    } catch (error) {
-      console.error('创建用户错误:', error)
-      throw error
-    }
-  }
-
-  async function updateUser(userId, userData) {
-    try {
-      const response = await fetch(`/api/auth/users/${userId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify(userData)
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.detail || '更新用户失败')
-      }
-
-      return await response.json()
-    } catch (error) {
-      console.error('更新用户错误:', error)
-      throw error
-    }
-  }
-
-  async function deleteUser(userId) {
-    try {
-      const response = await fetch(`/api/auth/users/${userId}`, {
-        method: 'DELETE',
-        headers: {
-          ...getAuthHeaders()
-        }
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.detail || '删除用户失败')
-      }
-
-      return await response.json()
-    } catch (error) {
-      console.error('删除用户错误:', error)
-      throw error
-    }
-  }
-
-  // 验证用户名并生成user_id
-  async function validateUsernameAndGenerateUserId(username) {
-    try {
-      const response = await fetch('/api/auth/validate-username', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify({ username })
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.detail || '用户名验证失败')
-      }
-
-      return await response.json()
-    } catch (error) {
-      console.error('用户名验证错误:', error)
-      throw error
     }
   }
 
@@ -309,9 +187,6 @@ export const useUserStore = defineStore('user', () => {
       phoneNumber.value = userData.phone_number || ''
       avatar.value = userData.avatar || ''
       userRole.value = userData.role
-      departmentId.value = userData.department_id || null
-      departmentName.value = userData.department_name || ''
-
       return userData
     } catch (error) {
       console.error('获取用户信息错误:', error)
@@ -362,8 +237,6 @@ export const useUserStore = defineStore('user', () => {
     phoneNumber,
     avatar,
     userRole,
-    departmentId,
-    departmentName,
 
     // 计算属性
     isLoggedIn,
@@ -376,11 +249,6 @@ export const useUserStore = defineStore('user', () => {
     initialize,
     checkFirstRun,
     getAuthHeaders,
-    getUsers,
-    createUser,
-    updateUser,
-    deleteUser,
-    validateUsernameAndGenerateUserId,
     uploadAvatar,
     getCurrentUser,
     updateProfile

@@ -74,7 +74,6 @@
       </a-form-item>
 
       <a-form-item
-        v-if="database.kb_type !== 'dify'"
         label="自动生成问题"
         name="auto_generate_questions"
       >
@@ -88,7 +87,7 @@
         >
       </a-form-item>
 
-      <a-form-item v-if="database.kb_type !== 'dify'" name="chunk_preset_id">
+      <a-form-item name="chunk_preset_id">
         <template #label>
           <span class="chunk-preset-label">
             分块策略
@@ -100,24 +99,6 @@
         <a-select v-model:value="editForm.chunk_preset_id" :options="chunkPresetOptions" />
       </a-form-item>
 
-      <template v-if="database.kb_type === 'dify'">
-        <a-form-item label="Dify API URL" name="dify_api_url">
-          <a-input
-            v-model:value="editForm.dify_api_url"
-            placeholder="例如: https://api.dify.ai/v1"
-          />
-        </a-form-item>
-        <a-form-item label="Dify Token" name="dify_token">
-          <a-input-password
-            v-model:value="editForm.dify_token"
-            placeholder="请输入 Dify API Token"
-          />
-        </a-form-item>
-        <a-form-item label="Dataset ID" name="dify_dataset_id">
-          <a-input v-model:value="editForm.dify_dataset_id" placeholder="请输入 Dify dataset_id" />
-        </a-form-item>
-      </template>
-
       <!-- 仅对 LightRAG 类型显示 LLM 配置 -->
       <a-form-item v-if="database.kb_type === 'lightrag'" label="语言模型 (LLM)" name="llm_info">
         <ModelSelectorComponent
@@ -128,36 +109,14 @@
         />
       </a-form-item>
 
-      <!-- 共享配置（超级管理员可编辑，非共享时本部门管理员也可编辑） -->
-      <a-form-item v-if="canEditShareConfig" label="共享设置" name="share_config">
-        <a-form-item-rest>
-          <ShareConfigForm
-            ref="shareConfigFormRef"
-            :model-value="database.share_config"
-            :auto-select-user-dept="true"
-          />
-        </a-form-item-rest>
-      </a-form-item>
-      <!-- 非编辑状态下显示共享配置信息 -->
-      <a-form-item v-else-if="database.share_config" label="共享设置" name="share_config_readonly">
-        <div class="share-config-readonly">
-          <a-tag :color="database.share_config.is_shared !== false ? 'green' : 'blue'">
-            {{ database.share_config.is_shared !== false ? '全员共享' : '指定部门' }}
-          </a-tag>
-          <span v-if="database.share_config.is_shared === false" class="dept-names">
-            {{ getAccessibleDeptNames() }}
-          </span>
-        </div>
-      </a-form-item>
     </a-form>
   </a-modal>
 </template>
 
 <script setup>
-import { ref, reactive, computed, h, onMounted } from 'vue'
+import { ref, reactive, computed, h } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDatabaseStore } from '@/stores/database'
-import { useUserStore } from '@/stores/user'
 import {
   getKbTypeLabel,
   getKbTypeColor,
@@ -173,58 +132,13 @@ import {
 import { message } from 'ant-design-vue'
 import { LeftOutlined, QuestionCircleOutlined } from '@ant-design/icons-vue'
 import { Pencil, Trash2, Copy } from 'lucide-vue-next'
-import { departmentApi } from '@/apis/department_api'
 import ModelSelectorComponent from '@/components/ModelSelectorComponent.vue'
 import AiTextarea from '@/components/AiTextarea.vue'
-import ShareConfigForm from '@/components/ShareConfigForm.vue'
 
 const router = useRouter()
 const store = useDatabaseStore()
-const userStore = useUserStore()
 
 const database = computed(() => store.database)
-
-// 部门列表（用于显示部门名称）
-const departments = ref([])
-
-// 加载部门列表
-const loadDepartments = async () => {
-  try {
-    const res = await departmentApi.getDepartments()
-    departments.value = res.departments || res || []
-  } catch (e) {
-    console.error('加载部门列表失败:', e)
-    departments.value = []
-  }
-}
-
-// 初始化时加载部门
-onMounted(() => {
-  loadDepartments()
-})
-
-// 获取可访问的部门名称
-const getAccessibleDeptNames = () => {
-  const deptIds = database.value?.share_config?.accessible_departments || []
-  if (deptIds.length === 0) return '无'
-  return deptIds
-    .map((id) => {
-      const dept = departments.value.find((d) => d.id === id)
-      return dept?.name || `部门${id}`
-    })
-    .join('、')
-}
-
-// 是否可以编辑共享配置
-// 规则：1. 超级管理员可以编辑所有
-//       2. 管理员也可以编辑（后端会验证权限）
-const canEditShareConfig = computed(() => {
-  if (userStore.isSuperAdmin) {
-    return true
-  }
-  // 管理员可以编辑共享配置，后端会验证权限
-  return userStore.isAdmin
-})
 
 const fileList = computed(() => {
   if (!database.value?.files) return []
@@ -263,7 +177,6 @@ const backToDatabase = () => {
 // 编辑相关逻辑（复用自 DatabaseHeader）
 const editModalVisible = ref(false)
 const editFormRef = ref(null)
-const shareConfigFormRef = ref(null)
 const editForm = reactive({
   name: '',
   description: '',
@@ -273,10 +186,7 @@ const editForm = reactive({
     model_spec: '',
     provider: '',
     model_name: ''
-  },
-  dify_api_url: '',
-  dify_token: '',
-  dify_dataset_id: ''
+  }
 })
 
 const chunkPresetOptions = CHUNK_PRESET_OPTIONS.map(({ label, value }) => ({ label, value }))
@@ -296,9 +206,6 @@ const showEditModal = () => {
   editForm.auto_generate_questions =
     database.value.additional_params?.auto_generate_questions || false
   editForm.chunk_preset_id = database.value.additional_params?.chunk_preset_id || 'general'
-  editForm.dify_api_url = database.value.additional_params?.dify_api_url || ''
-  editForm.dify_token = database.value.additional_params?.dify_token || ''
-  editForm.dify_dataset_id = database.value.additional_params?.dify_dataset_id || ''
 
   // 如果是 LightRAG 类型，加载当前的 LLM 配置
   if (database.value.kb_type === 'lightrag') {
@@ -315,71 +222,16 @@ const handleEditSubmit = () => {
   editFormRef.value
     .validate()
     .then(async () => {
-      // 验证共享配置
-      if (shareConfigFormRef.value) {
-        const validation = shareConfigFormRef.value.validate()
-        if (!validation.valid) {
-          message.warning(validation.message)
-          return
-        }
-      }
-
-      // 从 ShareConfigForm 组件直接获取当前值
-      let finalIsShared = true
-      let finalDeptIds = []
-
-      if (shareConfigFormRef.value) {
-        const formConfig = shareConfigFormRef.value.config
-        finalIsShared = formConfig.is_shared
-        finalDeptIds = formConfig.accessible_department_ids || []
-      }
-
-      console.log(
-        '[handleEditSubmit] 直接从组件获取 - is_shared:',
-        finalIsShared,
-        'dept_ids:',
-        JSON.stringify(finalDeptIds)
-      )
-
       const updateData = {
         name: editForm.name,
         description: editForm.description,
-        additional_params: {},
-        share_config: {
-          is_shared: finalIsShared,
-          accessible_departments: finalIsShared ? [] : finalDeptIds
-        }
+        additional_params: {}
       }
 
-      if (database.value.kb_type === 'dify') {
-        if (
-          !editForm.dify_api_url?.trim() ||
-          !editForm.dify_token?.trim() ||
-          !editForm.dify_dataset_id?.trim()
-        ) {
-          message.error('请完整填写 Dify API URL、Token 和 Dataset ID')
-          return
-        }
-        if (!editForm.dify_api_url.trim().endsWith('/v1')) {
-          message.error('Dify API URL 必须以 /v1 结尾')
-          return
-        }
-        updateData.additional_params = {
-          dify_api_url: editForm.dify_api_url.trim(),
-          dify_token: editForm.dify_token.trim(),
-          dify_dataset_id: editForm.dify_dataset_id.trim()
-        }
-      } else {
-        updateData.additional_params = {
-          auto_generate_questions: editForm.auto_generate_questions,
-          chunk_preset_id: editForm.chunk_preset_id || 'general'
-        }
+      updateData.additional_params = {
+        auto_generate_questions: editForm.auto_generate_questions,
+        chunk_preset_id: editForm.chunk_preset_id || 'general'
       }
-
-      console.log(
-        '[handleEditSubmit] updateData.share_config:',
-        JSON.stringify(updateData.share_config)
-      )
 
       // 如果是 LightRAG 类型，包含 llm_info
       if (database.value.kb_type === 'lightrag') {
@@ -414,18 +266,6 @@ const deleteDatabase = () => {
   border-radius: 12px;
   border: 1px solid var(--gray-200);
   margin-bottom: 8px;
-}
-
-// 只读共享配置显示
-.share-config-readonly {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-
-  .dept-names {
-    font-size: 13px;
-    color: var(--gray-600);
-  }
 }
 
 .card-header {
