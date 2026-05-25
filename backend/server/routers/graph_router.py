@@ -1,4 +1,5 @@
 import traceback
+from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 
@@ -6,8 +7,8 @@ from server.utils.auth_middleware import get_admin_user
 from yuxi import graph_base, knowledge_base
 from yuxi.knowledge.graphs.adapters.base import GraphAdapter
 from yuxi.knowledge.graphs.adapters.factory import GraphAdapterFactory
+from yuxi.knowledge.graphs.triple_extraction_service import extract_triples_from_file, normalize_triples
 from yuxi.storage.postgres.models_business import User
-from yuxi.storage.minio.client import StorageError
 from yuxi.utils.logging_config import logger
 
 graph = APIRouter(prefix="/graph", tags=["graph"])
@@ -265,25 +266,62 @@ async def index_neo4j_entities(data: dict = Body(default={}), current_user: User
         raise HTTPException(status_code=500, detail=f"索引节点失败: {str(e)}")
 
 
-@graph.post("/neo4j/add-entities")
-async def add_neo4j_entities(
+@graph.post("/neo4j/extract-entities")
+async def extract_neo4j_entities(
     file_path: str = Body(...),
+    llm_model_spec: str | None = Body(None),
+    max_triples: int = Body(200),
+    current_user: User = Depends(get_admin_user),
+):
+    """从普通文件中自动识别全局实体关系草稿，不写入 Neo4j。"""
+    try:
+        max_triples = max(1, min(max_triples, 500))
+        data = await extract_triples_from_file(
+            file_path=file_path,
+            llm_model_spec=llm_model_spec,
+            max_triples=max_triples,
+        )
+        return {"success": True, "status": "success", "data": data}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"自动识别关系失败: {e}, {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"自动识别关系失败: {str(e)}")
+
+
+@graph.post("/neo4j/add-triples")
+async def add_neo4j_triples(
+    triples: list[dict[str, Any]] = Body(...),
     kgdb_name: str | None = Body(None),
     embed_model_name: str | None = Body(None),
     batch_size: int | None = Body(None),
     current_user: User = Depends(get_admin_user),
 ):
-    """通过JSONL文件添加图谱实体到Neo4j（只接受 MinIO URL）"""
+    """写入前端确认后的全局实体关系到 Neo4j。"""
     try:
-        # 服务层会验证 URL 并从 MinIO 下载文件
-        await graph_base.jsonl_file_add_entity(file_path, kgdb_name, embed_model_name, batch_size)
-        return {"success": True, "message": "实体添加成功", "status": "success"}
-    except StorageError as e:
-        # MinIO 验证或下载错误
-        raise HTTPException(status_code=400, detail=str(e))
+        if not graph_base.is_running():
+            raise HTTPException(status_code=400, detail="图数据库未启动")
+
+        normalized_triples = normalize_triples(triples, max_triples=1000)
+        if not normalized_triples:
+            raise HTTPException(status_code=400, detail="没有可写入的有效关系")
+
+        await graph_base.txt_add_vector_entity(
+            normalized_triples,
+            kgdb_name or "neo4j",
+            embed_model_name,
+            batch_size,
+        )
+        return {
+            "success": True,
+            "message": f"已成功写入 {len(normalized_triples)} 条全局关系",
+            "status": "success",
+            "count": len(normalized_triples),
+        }
+    except HTTPException:
+        raise
     except ValueError as e:
-        # 本地路径拒绝错误
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"添加实体失败: {e}, {traceback.format_exc()}")
-        return {"success": False, "message": f"添加实体失败: {e}", "status": "failed"}
+        logger.error(f"写入全局关系失败: {e}, {traceback.format_exc()}")
+        return {"success": False, "message": f"写入全局关系失败: {e}", "status": "failed"}

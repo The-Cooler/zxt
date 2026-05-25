@@ -1,6 +1,6 @@
 # 开发路线图
 
-路线图可能会经常变更，如果有强烈的建议，可以在 [issue](https://github.com/xerrors/Yuxi/issues) 中提。
+路线图可能会经常变更，如果有强烈建议，请先在当前项目约定的协作渠道中讨论。
 
 日志添加规范（For Agent）:
 
@@ -38,7 +38,9 @@
 ### 0.6.2 开发记录
 
 <!-- 0.6.2 的内容请放在这里 -->
-- 新增知识库网页读取会话：URL 导入支持读取初始网页、发现同域 HTML 子页面、按 embedding 相似度排序、手动选择展开和入库；提交阶段继续复用 MinIO HTML 与现有知识库文档处理任务。
+- 优化知识库文档入库：新增快速入库、标准入库、图谱入库三种模式；快速入库仅写入 chunks 与向量，标准/图谱入库支持限制本次新增节点和关系数量，避免小文档生成过多图谱数据并改善入库耗时。
+- 优化全局知识图谱构建：Neo4j 图谱支持从普通文件自动识别系统级实体关系，前端提供写入前的关系增删改校对流程；面向用户移除 JSONL 三元组文件入口，并明确单个知识库内 LightRAG 图谱仍由文档入库自动构建。
+- 新增知识库网页读取会话：URL 导入支持读取初始网页、发现同域 HTML 子页面、按 embedding 相似度排序、手动选择展开和入库；提交前先将所选页面清洗为 Markdown 产物并保存到 MinIO，用户可查看、编辑或删除清洗结果，再复用现有知识库文档处理任务。
 - 下放扩展管理权限：普通管理员现在可进入扩展管理并完整管理 Tools、MCP、SubAgent、Skills；同步放开 Skill 管理接口权限并补充权限测试。
 - 调整 Agent 知识库默认选择：未显式配置知识库时默认启用当前用户可访问的全部知识库，显式保存空列表仍表示不启用知识库。
 - 优化评估基准自动生成：默认参考 chunks 数量改为 1；多 chunk 场景复用知识库向量检索选择相似 chunks，不再对全量 chunks 重新计算 embedding，并移除前端 Embedding 模型选择。
@@ -54,7 +56,9 @@
 - 合并智能体对话导航：移除 `AgentChatComponent` 内部聊天侧边栏，将新建对话入口和对话历史移动到 `AppLayout` 主侧边栏，并通过共享线程 store 统一管理历史列表、当前线程、重命名、删除、置顶和分页加载。
 - 新增独立模型配置模块：增加 `model_providers` 表、独立管理接口和”模型配置”页面，支持 provider 基础信息、可配置模型列表端点、远端候选模型、`enabled_models` 的早期配置验证；启动时会补齐内置 provider 模板，`provider_type` 暂统一默认为 `openai`，该模块暂不接入现有运行时模型选择逻辑。远端模型加载默认使用 `/models` 获取 chat/通用模型，provider 声明 `embedding` 能力时使用 `/embeddings/models` 获取 embedding 候选，rerank 模型列表端点按供应商文档显式配置后加载；修复路由请求模型未接收 `embedding_base_url`/`rerank_base_url` 导致前端已填写仍被后端校验拦截的问题。补充手动添加模型能力：`enabled_models[i]` 新增可选 `source: "manual"|"remote"` 字段（默认 `remote`），管理员可通过”+ 手动添加”入口录入远端清单未覆盖的模型（典型：自部署 embedding/rerank），手动模型在前端跳过”远端不存在”的 stale 警告并显示「手动」标签；type 选项受 `provider.capabilities` 约束，后端在 `_normalize_payload` 与 `update_provider_config` 双层一致性校验中拦截越权写入。
 - 统一前端 Markdown 预览渲染：新增共享 `MarkdownPreview` 组件与 `markdown_preview` 渲染工具，替换 Agent 消息、文件预览、知识库 chunk、任务工具结果、聊天导出等场景中的旧 `md-editor-v3/marked` 预览；支持 KaTeX、任务列表、frontmatter 卡片、Shiki 代码高亮、DOMPurify 清洗和浅层渲染缓存，并抽取 HTML 转义与代码语言归一化工具。Skill 详情页复用 `AgentFilePreview`，统一文件预览、编辑、保存和全屏交互。
-- 优化远程 Skill 批量安装：`remote_skill_install_service.py` 新增 `install_remote_skills_batch()`，利用 `npx skills add --skill A --skill B --skill C` 原生多 skill 支持，将安装 N 个 skill 的仓库克隆次数从 2N 降至 1；配套新增路由 `POST /remote/install-batch`、前端 `installRemoteSkillsBatch()` API 方法和批处理 UI 逻辑
+- 优化远程 Skill 批量安装：`remote_skill_install_service.py` 新增 `install_remote_skills_batch()`，利用 `npx skills add --skill A --skill B --skill C` 原生多 skill 支持，将安装 N 个 skill 的仓库克隆次数从 2N 降至 1；配套新增路由 `POST /remote/install-batch`、前端 `installRemoteSkillsBatch()` API 方法和批处理 UI 逻辑。
+- 调整内置 `ChatbotAgent` 为学习助手：新增只读学习计划概览接口，空会话展示当前用户 workspace 中登记的学习计划；提示词约束新主题先匹配历史计划、候选知识库需确认后再写入 Markdown 计划。
+- 更新正式文档：补充网页读取会话、清洗结果编辑、入库模式、学习助手文件约定和导航入口，并移除面向用户的 JSONL 三元组导入说明。
 
 ---
 

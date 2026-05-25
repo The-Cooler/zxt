@@ -130,18 +130,7 @@ const visible = computed({
 
 // 说明文本
 const extraText = computed(() =>
-  h('span', {}, [
-    '需要了解评估基准生成原理？查看',
-    h(
-      'a',
-      {
-        href: 'https://xerrors.github.io/Yuxi/intro/evaluation.html',
-        target: '_blank',
-        rel: 'noopener noreferrer'
-      },
-      '使用说明'
-    )
-  ])
+  h('span', {}, ['评估基准会基于当前知识库内容自动生成问题和参考答案。'])
 )
 
 // 生成基准

@@ -17,6 +17,10 @@ export default defineConfig(({ mode }) => {
         '^/api': {
           target: env.VITE_API_URL || 'http://api:5050',
           changeOrigin: true
+        },
+        '^/docs': {
+          target: env.VITE_DOCS_URL || 'http://localhost:5174',
+          changeOrigin: true
         }
       },
       watch: {

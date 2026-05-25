@@ -65,7 +65,7 @@ Yuxi 支持以OIDC接入第三方登录认证，方便企业用户集成现有�
 # 姓名映射字段 (默认: name)
 # OIDC_NAME_CLAIM=name
 
-# 是否使用原始用户名（不带 oidc: 前缀），允许映射到 Yuxi 已有的本地账号 (true/false，默认: false)
+# 是否使用原始用户名（不带 oidc: 前缀），允许映射到 语析 已有的本地账号 (true/false，默认: false)
 # 开启后，OIDC 返回的 username 会直接作为 user_id 登录，需要管理员提前创建好用户账号
 # OIDC_USE_RAW_USERNAME=false
 

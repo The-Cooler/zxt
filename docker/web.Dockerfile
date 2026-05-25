@@ -39,9 +39,20 @@ RUN pnpm install --frozen-lockfile --registry=https://registry.npmmirror.com
 COPY ./web .
 RUN pnpm run build
 
+# 文档站构建阶段
+FROM node:24-alpine AS docs-build-stage
+WORKDIR /docs
+
+COPY ./docs/package*.json ./
+RUN npm install --registry=https://registry.npmmirror.com
+
+COPY ./docs .
+RUN npm run build
+
 # 生产环境运行阶段
 FROM nginx:alpine AS production
 COPY --from=build-stage /app/dist /usr/share/nginx/html
+COPY --from=docs-build-stage /docs/.vitepress/dist /usr/share/nginx/html/docs
 COPY ./docker/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY ./docker/nginx/default.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80

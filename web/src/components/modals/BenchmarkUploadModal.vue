@@ -87,18 +87,7 @@ const visible = computed({
 
 // 说明文本
 const extraText = computed(() =>
-  h('span', {}, [
-    '需要了解评估基准格式？查看',
-    h(
-      'a',
-      {
-        href: 'https://xerrors.github.io/Yuxi/intro/evaluation.html',
-        target: '_blank',
-        rel: 'noopener noreferrer'
-      },
-      '使用说明'
-    )
-  ])
+  h('span', {}, ['评估基准文件需使用 JSONL 格式，每行包含 query 和 gold_answer 字段。'])
 )
 
 // 文件上传前验证

@@ -39,6 +39,7 @@ from yuxi.services.thread_files_service import (
     save_thread_artifact_to_workspace_view,
 )
 from yuxi.services.feedback_service import get_message_feedback_view, submit_message_feedback_view
+from yuxi.services.learning_plan_service import get_learning_overview
 from yuxi.repositories.agent_config_repository import AgentConfigRepository
 from yuxi.utils.logging_config import logger
 from yuxi.utils.image_processor import process_uploaded_image
@@ -173,6 +174,12 @@ async def get_agent(current_user: User = Depends(get_required_user)):
     """获取所有可用智能体的基本信息（需要登录）"""
     agents_info = await agent_manager.get_agents_info(include_configurable_items=False)
     return {"agents": agents_info}
+
+
+@chat.get("/learning/overview")
+async def get_learning_plan_overview(current_user: User = Depends(get_required_user)):
+    """读取当前用户学习计划概览（需要登录）"""
+    return get_learning_overview(current_user)
 
 
 @chat.get("/agent/{agent_id}")

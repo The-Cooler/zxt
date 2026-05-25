@@ -275,8 +275,16 @@
               </div>
 
               <div class="link-table-toolbar">
-                <span>已发现 {{ getDiscoveredLinks(item).length }} 个页面</span>
+                <span>
+                  已发现 {{ getDiscoveredLinks(item).length }} 个页面
+                  <template v-if="item.cleanedPages?.length">
+                    ，已清洗 {{ item.cleanedPages.length }} 页
+                  </template>
+                </span>
                 <div class="link-table-actions">
+                  <a-button size="small" @click="openWebReaderPreview(item)">
+                    {{ item.cleanedPages?.length ? '查看清洗结果' : '预览并清洗' }}
+                  </a-button>
                   <a-button
                     size="small"
                     @click="expandSelectedLinks(item)"
@@ -369,6 +377,15 @@
         </div>
       </div>
     </div>
+
+    <WebReaderPreviewDrawer
+      v-model:visible="webReaderPreviewVisible"
+      :session-item="activeWebReaderItem"
+      :is-graph-based="isGraphBased"
+      :database-preset-id="store.database?.additional_params?.chunk_preset_id || 'general'"
+      :default-index-params="defaultIndexParams"
+      @payload="handleWebReaderPayload"
+    />
   </a-modal>
 </template>
 
@@ -396,6 +413,7 @@ import {
 } from 'lucide-vue-next'
 import { h } from 'vue'
 import ChunkParamsConfig from '@/components/ChunkParamsConfig.vue'
+import WebReaderPreviewDrawer from '@/components/WebReaderPreviewDrawer.vue'
 
 const props = defineProps({
   visible: {
@@ -599,7 +617,7 @@ const failedDetailItems = computed(() => {
 
 const canSubmit = computed(() => {
   if (uploadMode.value === 'url') {
-    return urlList.value.some((item) => item.status === 'success')
+    return urlList.value.some((item) => item.status === 'success' && item.cleanedPages?.length > 0)
   }
   return successUploadCount.value > 0 && !hasPendingUploads.value
 })
@@ -670,6 +688,8 @@ const urlList = ref([])
 const newUrl = ref('')
 const fetchingUrls = ref(false)
 const webReaderMaxDepth = ref(null)
+const webReaderPreviewVisible = ref(false)
+const activeWebReaderItem = ref(null)
 
 // 同名文件列表（用于显示提示）
 const sameNameFiles = ref([])
@@ -704,6 +724,8 @@ const fetchSingleUrlItem = async (item) => {
     item.status = 'success'
     item.data = res
     item.checkedUrls = []
+    item.cleanedPages = []
+    item.indexParams = null
     item.expanding = false
   } catch (error) {
     console.error('Failed to fetch URL:', error)
@@ -740,6 +762,8 @@ const handleFetchUrls = async () => {
       data: null,
       error: '',
       checkedUrls: [],
+      cleanedPages: [],
+      indexParams: null,
       expanding: false
     }
     urlList.value.push(item)
@@ -762,6 +786,11 @@ const handleFetchUrls = async () => {
 
 const removeUrl = (index) => {
   urlList.value.splice(index, 1)
+}
+
+const openWebReaderPreview = (item) => {
+  activeWebReaderItem.value = item
+  webReaderPreviewVisible.value = true
 }
 
 const getDiscoveredLinks = (item) => {
@@ -828,6 +857,16 @@ const expandSelectedLinks = async (item) => {
   }
 }
 
+const handleWebReaderPayload = (payload) => {
+  const item = urlList.value.find((entry) => entry.data?.session_id === payload.session_id)
+  if (item) {
+    item.checkedUrls = payload.selected_urls || []
+    item.cleanedPages = payload.cleaned_pages || []
+    item.indexParams = payload.index_params || null
+  }
+  message.success('网页清洗结果已生成，可添加到知识库')
+}
+
 const formatSimilarity = (value) => {
   const percent = Math.round((Number(value) || 0) * 100)
   return `${percent}%`
@@ -867,12 +906,16 @@ const chunkParams = ref({
 
 // 自动入库相关
 const autoIndex = ref(false)
-const indexParams = ref({
+const defaultIndexParams = {
   chunk_size: 1000,
   chunk_overlap: 200,
   qa_separator: '',
-  chunk_preset_id: ''
-})
+  chunk_preset_id: '',
+  index_mode: 'standard',
+  max_graph_nodes: 100,
+  max_graph_relations: 200
+}
+const indexParams = ref({ ...defaultIndexParams })
 
 const buildAutoIndexParams = () => {
   const payload = {}
@@ -880,14 +923,26 @@ const buildAutoIndexParams = () => {
     payload.chunk_preset_id = indexParams.value.chunk_preset_id
   }
 
+  payload.index_mode = indexParams.value.index_mode || 'standard'
+  if (payload.index_mode !== 'fast') {
+    payload.max_graph_nodes = indexParams.value.max_graph_nodes
+    payload.max_graph_relations = indexParams.value.max_graph_relations
+  }
+
   if (isGraphBased.value) {
     payload.qa_separator = indexParams.value.qa_separator || ''
     return payload
   }
-  return {
+
+  const params = {
     ...indexParams.value,
     ...payload
   }
+  if (params.index_mode === 'fast') {
+    delete params.max_graph_nodes
+    delete params.max_graph_relations
+  }
+  return params
 }
 
 const isGraphBased = computed(() => {
@@ -1048,6 +1103,7 @@ const validateOcrService = () => {
 }
 
 const handleCancel = () => {
+  Object.assign(indexParams.value, defaultIndexParams)
   emit('update:visible', false)
 }
 
@@ -1352,11 +1408,7 @@ const getAuthHeaders = () => {
 }
 
 const openDocLink = () => {
-  window.open(
-    'https://xerrors.github.io/Yuxi/advanced/document-processing.html',
-    '_blank',
-    'noopener'
-  )
+  window.open('/docs/advanced/document-processing.html', '_blank', 'noopener,noreferrer')
 }
 
 const chunkData = async () => {
@@ -1377,29 +1429,30 @@ const chunkData = async () => {
       message.error('请添加并等待至少一个网页读取成功')
       return
     }
+    const uncleanedItems = successfulItems.filter((item) => !item.cleanedPages?.length)
+    if (uncleanedItems.length > 0) {
+      message.error('请先打开“预览并清洗”，生成清洗结果后再添加到知识库')
+      return
+    }
 
     try {
       store.state.chunkLoading = true
-      const chunkPayload = { ...chunkParams.value }
-      if (autoIndex.value) {
-        Object.assign(chunkPayload, buildAutoIndexParams())
-      }
       const results = await Promise.all(
         successfulItems.map((item) =>
           fileApi.commitWebReadSession(item.data.session_id, {
             auto_index: autoIndex.value,
             parent_id: selectedFolderId.value,
-            chunk_params: chunkPayload
+            chunk_params: item.indexParams || {}
           })
         )
       )
       results.forEach((result, index) => {
-        const pageCount = 1 + (successfulItems[index].checkedUrls || []).length
+        const pageCount = successfulItems[index].cleanedPages?.length || 0
         registerWebReadTask(result, pageCount)
       })
       await store.getDatabaseInfo(undefined, true)
 
-      message.success('网页处理任务已提交，请在任务中心查看进度')
+      message.success('清洗后的网页已提交，请在任务中心查看进度')
       emit('success')
       handleCancel()
       urlList.value = []
@@ -2137,9 +2190,10 @@ const chunkData = async () => {
 .discovered-table {
   display: flex;
   flex-direction: column;
+  max-height: 320px;
   border: 1px solid var(--gray-200);
   border-radius: 6px;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .discovered-row {
@@ -2160,6 +2214,9 @@ const chunkData = async () => {
 }
 
 .discovered-row-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   min-height: 34px;
   background: var(--gray-50);
   color: var(--gray-500);

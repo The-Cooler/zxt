@@ -29,6 +29,15 @@ class DiscoveredLink(BaseModel):
     error: str | None = None
 
 
+class CleanedWebPage(BaseModel):
+    source_url: str
+    title: str = ""
+    path: str
+    content_hash: str
+    filename: str
+    file_size: int
+
+
 class WebReadSession(BaseModel):
     session_id: str
     db_id: str
@@ -37,4 +46,5 @@ class WebReadSession(BaseModel):
     root_snapshot: WebPageSnapshot
     discovered_map: dict[str, DiscoveredLink] = Field(default_factory=dict)
     selected_urls: list[str] = Field(default_factory=list)
+    cleaned_pages: list[CleanedWebPage] = Field(default_factory=list)
     created_by: str

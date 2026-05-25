@@ -78,6 +78,12 @@ export const agentApi = {
   getAgents: () => apiGet('/api/chat/agent'),
 
   /**
+   * 获取学习助手起始页概览
+   * @returns {Promise} - 学习计划概览
+   */
+  getLearningOverview: () => apiGet('/api/chat/learning/overview'),
+
+  /**
    * 获取单个智能体详情
    * @param {string} agentId - 智能体ID
    * @returns {Promise} - 智能体详情

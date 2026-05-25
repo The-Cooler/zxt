@@ -3,28 +3,20 @@
 欢迎使用 Yuxi（语析），这是一个智能知识库和知识图谱 Agent 开发平台。
 本指南将帮助你在几分钟内启动并运行系统，使你能够利用 LangGraph、RAG 技术和知识图谱构建 AI 驱动的知识应用。
 
-![系统架构图](https://xerrors.oss-cn-shanghai.aliyuncs.com/github/image-20260326130844668.png)
-
-
-::: tip 提示
-除了此文档网站外，你还可以访问 [Zread](https://zread.ai/xerrors/Yuxi) 或 [DeepWiki](https://deepwiki.com/xerrors/Yuxi) 查看自动生成的详细项目文档。
-:::
-
 ## 环境要求
 
 项目采用微服务架构设计，默认服务无需 GPU 支持。如果需要使用 OCR 功能，可以通过环境变量配置外部服务。
 
 ## 快速安装
 
-### 步骤一：获取项目代码
+### 步骤一：进入项目目录
 
 ```bash
-# 克隆最新版本
-git clone --branch v0.6.1 --depth 1 https://github.com/xerrors/Yuxi.git
-cd Yuxi
+# 在已获取的项目目录中执行
+cd bishe
 ```
 
-`--depth 1` 标志会创建一个浅克隆，仅包含最新的提交，从而显著减少下载时间和磁盘使用量。下表提供了版本选择的指导。
+本文档面向当前项目目录维护，不依赖外部说明站点。
 
 | 版本 | 适用场景 |
 |------|----------|

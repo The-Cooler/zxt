@@ -166,7 +166,7 @@ const isGraphSupported = computed(() => {
 
 // 计算属性：是否支持评估功能
 const isEvaluationSupported = computed(() => {
-  return false
+  return Boolean(databaseId.value && database.value?.db_id)
 })
 
 // 计算待解析文件数量（status: 'uploaded'）

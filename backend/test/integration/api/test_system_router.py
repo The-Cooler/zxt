@@ -23,6 +23,13 @@ async def test_info_endpoint_is_public(test_client):
     assert "data" in payload
 
 
+async def test_logo_endpoint_is_public(test_client):
+    response = await test_client.get("/api/system/logo")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+    assert response.content.startswith(b"\x89PNG")
+
+
 async def test_config_endpoints_require_admin(test_client, standard_user):
     assert (await test_client.get("/api/system/config")).status_code == 401
     assert (await test_client.get("/api/system/config", headers=standard_user["headers"])).status_code == 403

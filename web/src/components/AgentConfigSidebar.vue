@@ -439,6 +439,14 @@ const props = defineProps({
   disabled: {
     type: Boolean,
     default: false
+  },
+  initialSegment: {
+    type: String,
+    default: ''
+  },
+  initialSegmentRequest: {
+    type: Number,
+    default: 0
   }
 })
 
@@ -505,6 +513,16 @@ const segmentOptions = [
   { label: '工具', value: 'tools' },
   { label: '其他', value: 'other' }
 ]
+
+watch(
+  () => [props.initialSegment, props.initialSegmentRequest],
+  ([segment]) => {
+    if (segmentOptions.some((option) => option.value === segment)) {
+      currentSegment.value = segment
+    }
+  },
+  { immediate: true }
+)
 
 const isEmptyConfig = computed(() => {
   return !selectedAgentId.value || Object.keys(configurableItems.value).length === 0

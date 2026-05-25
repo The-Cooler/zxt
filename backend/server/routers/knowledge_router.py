@@ -18,7 +18,8 @@ from yuxi.knowledge.chunking.ragflow_like.presets import ensure_chunk_defaults_i
 from yuxi.plugins.parser import Parser, SUPPORTED_FILE_EXTENSIONS, is_supported_file_extension
 from yuxi.knowledge.utils import calculate_content_hash
 from yuxi.knowledge.utils.kb_utils import parse_minio_url
-from yuxi.knowledge.web_reader.models import DiscoveredLink, WebReadSession
+from yuxi.knowledge.web_reader.cleaner import clean_web_page_to_markdown
+from yuxi.knowledge.web_reader.models import CleanedWebPage, DiscoveredLink, WebReadSession
 from yuxi.knowledge.web_reader.scrapling_reader import ScraplingWebReader
 from yuxi.knowledge.web_reader.session_store import load_session, save_session
 from yuxi.knowledge.web_reader.similarity import compute_similarities
@@ -86,6 +87,27 @@ async def _get_database_embed_info(db_id: str) -> dict:
 
 def _model_to_dict(model):
     return model.model_dump() if hasattr(model, "model_dump") else model.dict()
+
+
+def _web_reader_clean_preprocessed_map(cleaned_pages: list[CleanedWebPage]) -> dict:
+    return {
+        page.path: {
+            "path": page.path,
+            "content_hash": page.content_hash,
+            "filename": page.filename,
+            "file_size": page.file_size,
+            "source_url": page.source_url,
+            "file_type": "md",
+        }
+        for page in cleaned_pages
+    }
+
+
+def _find_cleaned_page(session: WebReadSession, source_url: str) -> tuple[int, CleanedWebPage]:
+    for index, page in enumerate(session.cleaned_pages or []):
+        if page.source_url == source_url:
+            return index, page
+    raise HTTPException(status_code=404, detail="清洗结果不存在")
 
 
 # =============================================================================
@@ -316,11 +338,20 @@ async def add_documents(
         "qa_separator": params.get("qa_separator", ""),
         "chunk_preset_id": params.get("chunk_preset_id"),
         "chunk_parser_config": params.get("chunk_parser_config"),
+        "index_mode": params.get("index_mode"),
+        "max_graph_nodes": params.get("max_graph_nodes"),
+        "max_graph_relations": params.get("max_graph_relations"),
     }
     if not indexing_params.get("chunk_preset_id"):
         indexing_params.pop("chunk_preset_id", None)
     if not isinstance(indexing_params.get("chunk_parser_config"), dict):
         indexing_params.pop("chunk_parser_config", None)
+    if not indexing_params.get("index_mode"):
+        indexing_params.pop("index_mode", None)
+    if indexing_params.get("max_graph_nodes") in (None, ""):
+        indexing_params.pop("max_graph_nodes", None)
+    if indexing_params.get("max_graph_relations") in (None, ""):
+        indexing_params.pop("max_graph_relations", None)
 
     # URL 解析与入库（需白名单验证）
     if content_type == "url":
@@ -694,15 +725,49 @@ async def update_web_reader_selection(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@knowledge.post("/web-reader/sessions/{session_id}/commit")
-async def commit_web_reader_session(
+@knowledge.get("/web-reader/sessions/{session_id}/preview")
+async def preview_web_reader_page(
     session_id: str,
-    auto_index: bool = Body(False),
-    parent_id: str | None = Body(None),
-    chunk_params: dict | None = Body(None),
+    url: str = Query(...),
     current_user: User = Depends(get_admin_user),
 ):
-    """将 root 页面和已选择子页面上传为 HTML，并复用文档处理任务入库。"""
+    """返回网页读取会话中的页面 HTML，用于 sandbox iframe 预览。"""
+    try:
+        session = await load_session(session_id)
+        if session.created_by != current_user.user_id:
+            raise HTTPException(status_code=404, detail="网页读取会话不存在或已过期")
+
+        root = session.root_snapshot
+        if url == root.final_url or url == root.url:
+            snapshot = root
+        elif url in session.discovered_map:
+            link = session.discovered_map[url]
+            snapshot = await ScraplingWebReader().fetch_page(link.url, depth=link.depth, parent_url=link.base_url)
+        else:
+            raise HTTPException(status_code=400, detail="只能预览当前会话中已发现的页面")
+
+        return {
+            "url": snapshot.final_url,
+            "title": snapshot.title,
+            "topic": snapshot.topic,
+            "html": snapshot.html,
+            "text_excerpt": (snapshot.text or "")[:500],
+        }
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to preview web reader page {session_id}: {e}, {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"预览网页失败: {e}")
+
+
+@knowledge.post("/web-reader/sessions/{session_id}/clean")
+async def clean_web_reader_session(
+    session_id: str,
+    current_user: User = Depends(get_admin_user),
+):
+    """抓取已选择页面，清洗为 Markdown 文件，并保存清洗产物到会话。"""
     try:
         session = await load_session(session_id)
         if session.created_by != current_user.user_id:
@@ -720,25 +785,204 @@ async def commit_web_reader_session(
         bucket_name = MinIOClient.KB_BUCKETS["documents"]
         await asyncio.to_thread(minio_client.ensure_bucket_exists, bucket_name)
 
-        items = []
-        preprocessed_map = {}
+        cleaned_pages = []
         for snapshot in snapshots:
-            html_bytes = snapshot.html.encode("utf-8", errors="replace")
-            content_hash = await calculate_content_hash(html_bytes)
-            object_name = f"{session.db_id}/upload/web-reader/{session.session_id}/{content_hash}.html"
+            filename, markdown = clean_web_page_to_markdown(snapshot)
+            markdown_bytes = markdown.encode("utf-8", errors="replace")
+            content_hash = await calculate_content_hash(markdown_bytes)
+            object_name = f"{session.db_id}/upload/web-reader/{session.session_id}/cleaned/{content_hash}-{filename}"
             upload_result = await minio_client.aupload_file(
                 bucket_name=bucket_name,
                 object_name=object_name,
-                data=html_bytes,
-                content_type="text/html",
+                data=markdown_bytes,
+                content_type="text/markdown",
             )
-            items.append(upload_result.url)
-            preprocessed_map[upload_result.url] = {
-                "path": upload_result.url,
-                "content_hash": content_hash,
-                "filename": snapshot.final_url,
-                "file_size": len(html_bytes),
-            }
+            cleaned_pages.append(
+                CleanedWebPage(
+                    source_url=snapshot.final_url,
+                    title=snapshot.title,
+                    path=upload_result.url,
+                    content_hash=content_hash,
+                    filename=filename,
+                    file_size=len(markdown_bytes),
+                )
+            )
+
+        session.cleaned_pages = cleaned_pages
+        await save_session(session)
+        return {
+            "status": "cleaned",
+            "cleaned_count": len(cleaned_pages),
+            "cleaned_pages": [_model_to_dict(page) for page in cleaned_pages],
+        }
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to clean web reader session {session_id}: {e}, {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"清洗网页失败: {e}")
+
+
+@knowledge.get("/web-reader/sessions/{session_id}/cleaned-page")
+async def get_cleaned_web_reader_page(
+    session_id: str,
+    source_url: str = Query(...),
+    current_user: User = Depends(get_admin_user),
+):
+    """读取某个清洗结果的 Markdown 内容，供用户审阅。"""
+    try:
+        session = await load_session(session_id)
+        if session.created_by != current_user.user_id:
+            raise HTTPException(status_code=404, detail="网页读取会话不存在或已过期")
+
+        _index, page = _find_cleaned_page(session, source_url)
+        bucket_name, object_name = parse_minio_url(page.path)
+        content_bytes = await get_minio_client().adownload_file(bucket_name, object_name)
+        return {**_model_to_dict(page), "content": content_bytes.decode("utf-8", errors="replace")}
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to get cleaned web reader page {session_id}: {e}, {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"读取清洗结果失败: {e}")
+
+
+@knowledge.put("/web-reader/sessions/{session_id}/cleaned-page")
+async def update_cleaned_web_reader_page(
+    session_id: str,
+    source_url: str = Body(...),
+    content: str = Body(...),
+    current_user: User = Depends(get_admin_user),
+):
+    """保存用户编辑后的清洗 Markdown，并更新会话中的文件元数据。"""
+    try:
+        session = await load_session(session_id)
+        if session.created_by != current_user.user_id:
+            raise HTTPException(status_code=404, detail="网页读取会话不存在或已过期")
+
+        index, page = _find_cleaned_page(session, source_url)
+        content_bytes = content.encode("utf-8", errors="replace")
+        content_hash = await calculate_content_hash(content_bytes)
+        bucket_name, old_object_name = parse_minio_url(page.path)
+        object_name = f"{session.db_id}/upload/web-reader/{session.session_id}/cleaned/{content_hash}-{page.filename}"
+        minio_client = get_minio_client()
+        await minio_client.adelete_file(bucket_name, old_object_name)
+        upload_result = await minio_client.aupload_file(
+            bucket_name=bucket_name,
+            object_name=object_name,
+            data=content_bytes,
+            content_type="text/markdown",
+        )
+
+        updated_page = CleanedWebPage(
+            source_url=page.source_url,
+            title=page.title,
+            path=upload_result.url,
+            content_hash=content_hash,
+            filename=page.filename,
+            file_size=len(content_bytes),
+        )
+        session.cleaned_pages[index] = updated_page
+        await save_session(session)
+        return {"page": _model_to_dict(updated_page)}
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to update cleaned web reader page {session_id}: {e}, {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"保存清洗结果失败: {e}")
+
+
+@knowledge.delete("/web-reader/sessions/{session_id}/cleaned-page")
+async def delete_cleaned_web_reader_page(
+    session_id: str,
+    source_url: str = Query(...),
+    current_user: User = Depends(get_admin_user),
+):
+    """从本次入库候选中移除某个清洗结果。"""
+    try:
+        session = await load_session(session_id)
+        if session.created_by != current_user.user_id:
+            raise HTTPException(status_code=404, detail="网页读取会话不存在或已过期")
+
+        index, page = _find_cleaned_page(session, source_url)
+        bucket_name, object_name = parse_minio_url(page.path)
+        await get_minio_client().adelete_file(bucket_name, object_name)
+        session.cleaned_pages.pop(index)
+        await save_session(session)
+        return {
+            "cleaned_count": len(session.cleaned_pages),
+            "cleaned_pages": [_model_to_dict(item) for item in session.cleaned_pages],
+        }
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to delete cleaned web reader page {session_id}: {e}, {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"删除清洗结果失败: {e}")
+
+
+@knowledge.post("/web-reader/sessions/{session_id}/commit")
+async def commit_web_reader_session(
+    session_id: str,
+    auto_index: bool = Body(False),
+    parent_id: str | None = Body(None),
+    chunk_params: dict | None = Body(None),
+    current_user: User = Depends(get_admin_user),
+):
+    """将 root 页面和已选择子页面上传为 HTML，并复用文档处理任务入库。"""
+    try:
+        session = await load_session(session_id)
+        if session.created_by != current_user.user_id:
+            raise HTTPException(status_code=404, detail="网页读取会话不存在或已过期")
+
+        cleaned_pages = []
+        for page in session.cleaned_pages or []:
+            if isinstance(page, CleanedWebPage):
+                cleaned_pages.append(page)
+            elif hasattr(CleanedWebPage, "model_validate"):
+                cleaned_pages.append(CleanedWebPage.model_validate(page))
+            else:
+                cleaned_pages.append(CleanedWebPage.parse_obj(page))
+        if cleaned_pages:
+            items = [page.path for page in cleaned_pages]
+            preprocessed_map = _web_reader_clean_preprocessed_map(cleaned_pages)
+        else:
+            selected_set = set(session.selected_urls)
+            selected_links = [link for url, link in session.discovered_map.items() if url in selected_set]
+
+            reader = ScraplingWebReader()
+            snapshots = [session.root_snapshot]
+            for link in selected_links:
+                snapshots.append(await reader.fetch_page(link.url, depth=link.depth, parent_url=link.base_url))
+
+            minio_client = get_minio_client()
+            bucket_name = MinIOClient.KB_BUCKETS["documents"]
+            await asyncio.to_thread(minio_client.ensure_bucket_exists, bucket_name)
+
+            items = []
+            preprocessed_map = {}
+            for snapshot in snapshots:
+                html_bytes = snapshot.html.encode("utf-8", errors="replace")
+                content_hash = await calculate_content_hash(html_bytes)
+                object_name = f"{session.db_id}/upload/web-reader/{session.session_id}/{content_hash}.html"
+                upload_result = await minio_client.aupload_file(
+                    bucket_name=bucket_name,
+                    object_name=object_name,
+                    data=html_bytes,
+                    content_type="text/html",
+                )
+                items.append(upload_result.url)
+                preprocessed_map[upload_result.url] = {
+                    "path": upload_result.url,
+                    "content_hash": content_hash,
+                    "filename": snapshot.final_url,
+                    "file_size": len(html_bytes),
+                }
 
         params = {**(chunk_params or {})}
         params["content_type"] = "file"

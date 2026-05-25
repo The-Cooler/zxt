@@ -313,6 +313,32 @@ export const fileApi = {
     })
   },
 
+  previewWebReadPage: async (sessionId, url) => {
+    const query = new URLSearchParams({ url })
+    return apiAdminGet(`/api/knowledge/web-reader/sessions/${sessionId}/preview?${query.toString()}`)
+  },
+
+  cleanWebReadSession: async (sessionId) => {
+    return apiAdminPost(`/api/knowledge/web-reader/sessions/${sessionId}/clean`)
+  },
+
+  getCleanedWebReadPage: async (sessionId, sourceUrl) => {
+    const query = new URLSearchParams({ source_url: sourceUrl })
+    return apiAdminGet(`/api/knowledge/web-reader/sessions/${sessionId}/cleaned-page?${query.toString()}`)
+  },
+
+  updateCleanedWebReadPage: async (sessionId, sourceUrl, content) => {
+    return apiAdminPut(`/api/knowledge/web-reader/sessions/${sessionId}/cleaned-page`, {
+      source_url: sourceUrl,
+      content
+    })
+  },
+
+  deleteCleanedWebReadPage: async (sessionId, sourceUrl) => {
+    const query = new URLSearchParams({ source_url: sourceUrl })
+    return apiAdminDelete(`/api/knowledge/web-reader/sessions/${sessionId}/cleaned-page?${query.toString()}`)
+  },
+
   commitWebReadSession: async (sessionId, payload = {}) => {
     return apiAdminPost(`/api/knowledge/web-reader/sessions/${sessionId}/commit`, payload)
   },

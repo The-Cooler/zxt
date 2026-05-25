@@ -584,9 +584,6 @@ class KnowledgeBaseManager:
         if kb is None:
             raise ValueError(f"数据库 {db_id} 不存在")
 
-        kb_instance = await self._get_kb_for_database(db_id)
-        kb_instance.update_database(db_id, name, description, llm_info)
-
         # 准备更新数据
         update_data: dict = {
             "name": name,
@@ -600,8 +597,9 @@ class KnowledgeBaseManager:
                 deep_merge(kb.additional_params or {}, additional_params)
             )
             update_data["additional_params"] = merged_additional_params
-            if db_id in kb_instance.databases_meta:
-                kb_instance.databases_meta[db_id]["metadata"] = merged_additional_params
+
+        kb_instance = await self._get_kb_for_database(db_id)
+        kb_instance.update_database(db_id, name, description, llm_info, update_data.get("additional_params"))
 
         # 保存到数据库
         await kb_repo.update(db_id, update_data)

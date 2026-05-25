@@ -207,7 +207,7 @@ const MoonIcon = h(Moon, { size: '16' })
 const TerminalIcon = h(Terminal, { size: '16' })
 const SettingsIcon = h(Settings, { size: '16' })
 const LogOutIcon = h(LogOut, { size: '16' })
-const DEFAULT_AVATAR_URL = 'https://xerrors.oss-cn-shanghai.aliyuncs.com/github/default.jpeg'
+const DEFAULT_AVATAR_URL = '/avatar.jpg'
 
 // 调试面板状态
 const showDebug = ref(false)
@@ -288,7 +288,7 @@ const goToLogin = () => {
 }
 
 const openDocs = () => {
-  window.open('https://xerrors.github.io/Yuxi/', '_blank', 'noopener,noreferrer')
+  router.push('/')
 }
 
 const toggleTheme = () => {

@@ -70,6 +70,16 @@
                 </div>
               </template>
             </a-dropdown>
+            <button
+              v-if="selectedAgentId"
+              type="button"
+              class="input-action-btn kb-config-trigger"
+              @click.stop="openKnowledgeConfig"
+              @mousedown.stop
+            >
+              <BookOpen size="18" class="nav-btn-icon" />
+              <span class="hide-text config-dropdown-text">{{ knowledgeConfigLabel }}</span>
+            </button>
           </template>
 
           <template #header-right="{ isAgentPanelOpen, hasActiveThread, toggleAgentPanel }">
@@ -100,6 +110,8 @@
       <!-- 配置侧边栏 -->
       <AgentConfigSidebar
         :isOpen="chatUIStore.isConfigSidebarOpen"
+        :initial-segment="configSidebarInitialSegment"
+        :initial-segment-request="configSidebarInitialSegmentRequest"
         @close="() => (chatUIStore.isConfigSidebarOpen = false)"
       />
 
@@ -152,7 +164,15 @@
 import { computed, ref, watch } from 'vue'
 import { MessageOutlined, ShareAltOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
-import { Settings2, Ellipsis, ChevronDown, Check, Plus, FolderKanban } from 'lucide-vue-next'
+import {
+  Settings2,
+  Ellipsis,
+  ChevronDown,
+  Check,
+  Plus,
+  FolderKanban,
+  BookOpen
+} from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import AgentChatComponent from '@/components/AgentChatComponent.vue'
 import AgentConfigSidebar from '@/components/AgentConfigSidebar.vue'
@@ -269,6 +289,8 @@ const configDropdownOpen = ref(false)
 const createConfigModalOpen = ref(false)
 const createConfigLoading = ref(false)
 const createConfigName = ref('')
+const configSidebarInitialSegment = ref('')
+const configSidebarInitialSegmentRequest = ref(0)
 
 const handleConfigSwitch = async (configId) => {
   if (!configId || configId === selectedAgentConfigId.value) return
@@ -282,7 +304,23 @@ const handleConfigSwitch = async (configId) => {
 }
 
 const toggleConfigSidebar = () => {
+  configSidebarInitialSegment.value = ''
   chatUIStore.isConfigSidebarOpen = !chatUIStore.isConfigSidebarOpen
+  configDropdownOpen.value = false
+}
+
+const knowledgeConfigLabel = computed(() => {
+  const knowledges = agentStore.agentConfig?.knowledges
+  if (Array.isArray(knowledges)) {
+    return knowledges.length ? `知识库 ${knowledges.length}` : '知识库 未启用'
+  }
+  return '知识库 全部'
+})
+
+const openKnowledgeConfig = () => {
+  configSidebarInitialSegment.value = 'tools'
+  configSidebarInitialSegmentRequest.value += 1
+  chatUIStore.isConfigSidebarOpen = true
   configDropdownOpen.value = false
 }
 

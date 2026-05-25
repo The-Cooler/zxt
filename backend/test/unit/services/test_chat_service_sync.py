@@ -239,6 +239,70 @@ async def test_agent_chat_sync_returns_finished_even_when_state_has_interrupt(mo
 
 
 @pytest.mark.asyncio
+async def test_agent_chat_strict_rag_returns_insufficient_without_invoking_agent(monkeypatch: pytest.MonkeyPatch):
+    conv_repo = _FakeConvRepo(object())
+
+    class FakeAgent:
+        async def invoke_messages(self, messages, input_context=None, **kwargs):
+            raise AssertionError("strict insufficient RAG should not invoke the model")
+
+        async def stream_messages(self, messages, input_context=None, **kwargs):
+            raise AssertionError("stream_messages should not be used by sync chat")
+
+    async def fake_get_agent_config_by_id(db, user, agent_config_id):
+        return SimpleNamespace(
+            agent_id="test-agent",
+            config_json={"context": {"system_prompt": "原始系统提示词", "knowledges": ["FAQ"]}},
+        )
+
+    async def fake_visible_kbs(context):
+        assert context.knowledges == ["FAQ"]
+        return [{"db_id": "db-1", "name": "FAQ", "description": "常见问题"}]
+
+    async def fake_retriever(query_text: str, **kwargs):
+        return []
+
+    async def fake_guard_check(_content):
+        return False
+
+    monkeypatch.setattr(svc, "_load_workspace_agents_prompt", _empty_agents_prompt)
+    monkeypatch.setattr(svc.agent_manager, "get_agent", lambda agent_id: FakeAgent())
+    monkeypatch.setattr(svc, "get_agent_config_by_id", fake_get_agent_config_by_id)
+    monkeypatch.setattr(svc, "ConversationRepository", lambda _db: conv_repo)
+    monkeypatch.setattr(svc, "AgentConfigRepository", _FakeAgentConfigRepo)
+    monkeypatch.setattr(svc.content_guard, "check", fake_guard_check)
+    monkeypatch.setattr(svc, "resolve_visible_knowledge_bases_for_context", fake_visible_kbs)
+    monkeypatch.setattr(
+        svc.knowledge_base,
+        "get_retrievers",
+        lambda: {
+            "db-1": {
+                "name": "FAQ",
+                "retriever": fake_retriever,
+                "metadata": {"kb_type": "lightrag"},
+            }
+        },
+    )
+
+    result = await svc.agent_chat(
+        query="知识库没有的问题",
+        agent_config_id=123,
+        thread_id="thread-strict",
+        meta={"request_id": "req-strict", "rag_policy": {"strict": True}},
+        image_content=None,
+        current_user=SimpleNamespace(id="user-1"),
+        db=object(),
+    )
+
+    assert result["status"] == "finished"
+    assert result["response"] == svc.STRICT_RAG_INSUFFICIENT_MESSAGE
+    assert result["rag"]["strict"] is True
+    assert result["rag"]["insufficient"] is True
+    assert [message["role"] for message in conv_repo.saved_messages] == ["user", "assistant"]
+    assert conv_repo.saved_messages[1]["content"] == svc.STRICT_RAG_INSUFFICIENT_MESSAGE
+
+
+@pytest.mark.asyncio
 async def test_build_agent_input_context_merges_workspace_agents_prompt(monkeypatch: pytest.MonkeyPatch):
     def fake_agents_prompt(_thread_id: str, _user_id: str) -> str:
         return "回答前先读取 AGENTS.md"
@@ -255,6 +319,124 @@ async def test_build_agent_input_context_merges_workspace_agents_prompt(monkeypa
     assert context["temperature"] == 0.1
     assert context["thread_id"] == "thread-1"
     assert context["user_id"] == "user-1"
+
+
+@pytest.mark.asyncio
+async def test_build_agent_input_context_injects_rag_results_for_enabled_knowledge(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(svc, "_load_workspace_agents_prompt", _empty_agents_prompt)
+
+    async def fake_visible_kbs(context):
+        assert context.knowledges == ["FAQ"]
+        return [{"db_id": "db-1", "name": "FAQ", "description": "常见问题"}]
+
+    async def fake_retriever(query_text: str, **kwargs):
+        assert query_text == "如何登录系统？"
+        assert kwargs == {}
+        return [{"content": "登录系统需要使用统一身份认证账号。", "metadata": {"source": "login.md"}}]
+
+    monkeypatch.setattr(svc, "resolve_visible_knowledge_bases_for_context", fake_visible_kbs)
+    monkeypatch.setattr(
+        svc.knowledge_base,
+        "get_retrievers",
+        lambda: {
+            "db-1": {
+                "name": "FAQ",
+                "retriever": fake_retriever,
+                "metadata": {"kb_type": "lightrag"},
+            }
+        },
+    )
+
+    context = await svc._build_agent_input_context(
+        {"system_prompt": "原始系统提示词", "knowledges": ["FAQ"]},
+        thread_id="thread-1",
+        user_id="1",
+        query="如何登录系统？",
+    )
+
+    assert "本轮已自动检索以下知识库内容" in context["system_prompt"]
+    assert "知识库：FAQ" in context["system_prompt"]
+    assert "登录系统需要使用统一身份认证账号。" in context["system_prompt"]
+
+
+@pytest.mark.asyncio
+async def test_build_agent_input_context_marks_strict_rag_insufficient_when_no_results(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(svc, "_load_workspace_agents_prompt", _empty_agents_prompt)
+
+    async def fake_visible_kbs(context):
+        assert context.knowledges == ["FAQ"]
+        return [{"db_id": "db-1", "name": "FAQ", "description": "常见问题"}]
+
+    async def fake_retriever(query_text: str, **kwargs):
+        return []
+
+    monkeypatch.setattr(svc, "resolve_visible_knowledge_bases_for_context", fake_visible_kbs)
+    monkeypatch.setattr(
+        svc.knowledge_base,
+        "get_retrievers",
+        lambda: {
+            "db-1": {
+                "name": "FAQ",
+                "retriever": fake_retriever,
+                "metadata": {"kb_type": "lightrag"},
+            }
+        },
+    )
+
+    context = await svc._build_agent_input_context(
+        {"system_prompt": "原始系统提示词", "knowledges": ["FAQ"]},
+        thread_id="thread-1",
+        user_id="1",
+        query="知识库没有的问题",
+        rag_policy={"strict": True},
+    )
+
+    assert context["_rag_context"]["strict"] is True
+    assert context["_rag_context"]["insufficient"] is True
+    assert "RAG 检索上下文" not in context["system_prompt"]
+
+
+@pytest.mark.asyncio
+async def test_build_agent_input_context_injects_strict_rag_instruction_when_results_exist(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(svc, "_load_workspace_agents_prompt", _empty_agents_prompt)
+
+    async def fake_visible_kbs(context):
+        return [{"db_id": "db-1", "name": "FAQ", "description": "常见问题"}]
+
+    async def fake_retriever(query_text: str, **kwargs):
+        return "只能依据这段知识回答"
+
+    monkeypatch.setattr(svc, "resolve_visible_knowledge_bases_for_context", fake_visible_kbs)
+    monkeypatch.setattr(
+        svc.knowledge_base,
+        "get_retrievers",
+        lambda: {
+            "db-1": {
+                "name": "FAQ",
+                "retriever": fake_retriever,
+                "metadata": {"kb_type": "lightrag"},
+            }
+        },
+    )
+
+    context = await svc._build_agent_input_context(
+        {"system_prompt": "原始系统提示词", "knowledges": ["FAQ"]},
+        thread_id="thread-1",
+        user_id="1",
+        query="严格回答",
+        rag_policy={"strict": True},
+    )
+
+    assert context["_rag_context"]["strict"] is True
+    assert context["_rag_context"]["insufficient"] is False
+    assert "严格知识库回答模式" in context["system_prompt"]
+    assert "只能依据这段知识回答" in context["system_prompt"]
 
 
 @pytest.mark.asyncio

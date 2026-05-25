@@ -212,7 +212,7 @@ async def prepare_item_metadata(item: str, content_type: str, db_id: str, params
         else:
             filename_display = filename
 
-        file_type = "html"  # 强制转换为 html 类型，以便后续作为文件处理
+        file_type = pre_info.get("file_type", "html")
         item_path = pre_info["path"]  # MinIO path
         content_hash = pre_info["content_hash"]
 

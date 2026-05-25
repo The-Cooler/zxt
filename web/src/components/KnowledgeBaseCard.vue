@@ -225,12 +225,11 @@ const handleEditSubmit = () => {
       const updateData = {
         name: editForm.name,
         description: editForm.description,
-        additional_params: {}
-      }
-
-      updateData.additional_params = {
-        auto_generate_questions: editForm.auto_generate_questions,
-        chunk_preset_id: editForm.chunk_preset_id || 'general'
+        additional_params: {
+          ...(database.value.additional_params || {}),
+          auto_generate_questions: editForm.auto_generate_questions,
+          chunk_preset_id: editForm.chunk_preset_id || 'general'
+        }
       }
 
       // 如果是 LightRAG 类型，包含 llm_info

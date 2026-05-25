@@ -23,6 +23,7 @@ PUBLIC_PATHS = [
     r"^/api$",  # Health Check
     r"^/api/system/health$",  # Health Check
     r"^/api/system/info$",  # 获取系统信息配置
+    r"^/api/system/logo$",  # 获取系统 Logo
 ]
 
 

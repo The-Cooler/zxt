@@ -168,6 +168,7 @@
           :show-preset="true"
           :allow-preset-follow-default="true"
           :database-preset-id="store.database?.additional_params?.chunk_preset_id || 'general'"
+          :graph-only="indexGraphOnly"
         />
       </div>
     </a-modal>
@@ -362,14 +363,20 @@
 
                   <!-- Reindex Action -->
                   <a-button
-                    v-if="!isLightRAG && (record.status === 'done' || record.status === 'indexed')"
+                    v-if="record.status === 'done' || record.status === 'indexed'"
                     type="text"
                     block
                     @click="handleReindexFile(record)"
                     :disabled="lock"
                   >
                     <template #icon><component :is="h(RotateCw)" size="14" /></template>
-                    重新入库
+                    {{
+                      isRecordIndexedWithoutGraph(record)
+                        ? '生成图谱'
+                        : isLightRAG
+                          ? '重新生成图谱'
+                          : '重新入库'
+                    }}
                   </a-button>
 
                   <a-button
@@ -401,6 +408,7 @@ import { ref, computed, h } from 'vue'
 import { useDatabaseStore } from '@/stores/database'
 import { message, Modal } from 'ant-design-vue'
 import { documentApi } from '@/apis/knowledge_api'
+import { isIndexedWithoutGraph } from '@/utils/ingestionMode'
 import {
   CheckCircleFilled,
   HourglassFilled,
@@ -476,6 +484,7 @@ const emit = defineEmits(['showAddFilesModal', 'toggleRightPanel'])
 
 const files = computed(() => Object.values(store.database.files || {}))
 const isLightRAG = computed(() => store.database?.kb_type?.toLowerCase() === 'lightrag')
+const isRecordIndexedWithoutGraph = (record) => isIndexedWithoutGraph(record, store.database?.kb_type)
 const refreshing = computed(() => store.state.refrashing)
 const lock = computed(() => store.state.lock)
 const batchDeleting = computed(() => store.state.batchDeleting)
@@ -671,17 +680,29 @@ const customRow = (record) => {
 const indexConfigModalVisible = ref(false)
 const indexConfigModalLoading = computed(() => store.state.chunkLoading)
 const indexConfigModalTitle = ref('入库参数配置')
+const indexGraphOnly = ref(false)
 
-const indexParams = ref({
+const defaultIndexParams = {
   chunk_size: 1000,
   chunk_overlap: 200,
   qa_separator: '',
-  chunk_preset_id: ''
-})
+  chunk_preset_id: '',
+  index_mode: 'standard',
+  max_graph_nodes: 100,
+  max_graph_relations: 200
+}
+
+const indexParams = ref({ ...defaultIndexParams })
 const buildIndexParamsPayload = () => {
   const payload = {}
   if (indexParams.value.chunk_preset_id) {
     payload.chunk_preset_id = indexParams.value.chunk_preset_id
+  }
+
+  payload.index_mode = indexParams.value.index_mode || 'standard'
+  if (payload.index_mode !== 'fast') {
+    payload.max_graph_nodes = indexParams.value.max_graph_nodes
+    payload.max_graph_relations = indexParams.value.max_graph_relations
   }
 
   if (isLightRAG.value) {
@@ -689,10 +710,15 @@ const buildIndexParamsPayload = () => {
     return payload
   }
 
-  return {
+  const params = {
     ...indexParams.value,
     ...payload
   }
+  if (params.index_mode === 'fast') {
+    delete params.max_graph_nodes
+    delete params.max_graph_relations
+  }
+  return params
 }
 const currentIndexFileIds = ref([])
 const isBatchIndexOperation = ref(false)
@@ -976,7 +1002,8 @@ const canBatchIndex = computed(() => {
       !lock.value &&
       (file.status === 'parsed' ||
         file.status === 'error_indexing' ||
-        (!isLightRAG.value && (file.status === 'done' || file.status === 'indexed')))
+        file.status === 'done' ||
+        file.status === 'indexed')
     )
   })
 })
@@ -1063,7 +1090,8 @@ const handleBatchIndex = async () => {
       file &&
       (file.status === 'parsed' ||
         file.status === 'error_indexing' ||
-        (!isLightRAG.value && (file.status === 'done' || file.status === 'indexed')))
+        file.status === 'done' ||
+        file.status === 'indexed')
     )
   })
 
@@ -1074,6 +1102,7 @@ const handleBatchIndex = async () => {
 
   currentIndexFileIds.value = [...validKeys]
   isBatchIndexOperation.value = true
+  indexGraphOnly.value = false
   indexConfigModalTitle.value = '批量入库参数配置'
   indexConfigModalVisible.value = true
 }
@@ -1148,13 +1177,6 @@ const handleParseFile = async (record) => {
   await store.parseFiles([record.file_id])
 }
 
-const defaultIndexParams = {
-  chunk_size: 1000,
-  chunk_overlap: 200,
-  qa_separator: '',
-  chunk_preset_id: ''
-}
-
 const loadRecordProcessingParams = async (record) => {
   if (record?.processing_params) {
     return record.processing_params
@@ -1168,6 +1190,7 @@ const handleIndexFile = async (record) => {
   closePopover(record.file_id)
   currentIndexFileIds.value = [record.file_id]
   isBatchIndexOperation.value = false
+  indexGraphOnly.value = false
   indexConfigModalTitle.value = '入库参数配置'
 
   Object.assign(indexParams.value, defaultIndexParams)
@@ -1183,12 +1206,22 @@ const handleReindexFile = async (record) => {
   closePopover(record.file_id)
   currentIndexFileIds.value = [record.file_id]
   isBatchIndexOperation.value = false
-  indexConfigModalTitle.value = '重新入库参数配置'
+  indexGraphOnly.value = isRecordIndexedWithoutGraph(record)
+  indexConfigModalTitle.value = indexGraphOnly.value
+    ? '生成图谱参数配置'
+    : isLightRAG.value
+      ? '重新生成图谱参数配置'
+      : '重新入库参数配置'
 
   Object.assign(indexParams.value, defaultIndexParams)
   const processingParams = await loadRecordProcessingParams(record)
   if (processingParams) {
     Object.assign(indexParams.value, processingParams)
+  }
+  if (indexGraphOnly.value || (isLightRAG.value && indexParams.value.index_mode === 'fast')) {
+    indexParams.value.index_mode = 'graph'
+    indexParams.value.max_graph_nodes = 300
+    indexParams.value.max_graph_relations = 800
   }
 
   indexConfigModalVisible.value = true
@@ -1197,8 +1230,18 @@ const handleReindexFile = async (record) => {
 // 入库确认 (统一处理 Index 和 Reindex)
 const handleIndexConfigConfirm = async () => {
   try {
+    if (indexGraphOnly.value) {
+      indexParams.value.index_mode = 'graph'
+    }
+    const indexPayload = buildIndexParamsPayload()
+    if (isLightRAG.value && indexPayload.index_mode !== 'fast') {
+      Modal.info({
+        title: '图谱生成可能较慢',
+        content: '生成知识图谱会调用模型抽取节点和关系，耗时可能较长。任务提交后会在后台执行，你可以离开当前页面继续做其他事。'
+      })
+    }
     // 调用 indexFiles 接口 (支持 params)
-    const result = await store.indexFiles(currentIndexFileIds.value, buildIndexParamsPayload())
+    const result = await store.indexFiles(currentIndexFileIds.value, indexPayload)
     if (result) {
       currentIndexFileIds.value = []
       // 清空选择
@@ -1209,12 +1252,8 @@ const handleIndexConfigConfirm = async () => {
       indexConfigModalVisible.value = false
 
       // 重置参数为默认值
-      Object.assign(indexParams.value, {
-        chunk_size: 1000,
-        chunk_overlap: 200,
-        qa_separator: '',
-        chunk_preset_id: ''
-      })
+      Object.assign(indexParams.value, defaultIndexParams)
+      indexGraphOnly.value = false
     } else {
       // message.error(`入库失败: ${result.message}`); // store already shows message
     }
@@ -1230,6 +1269,7 @@ const handleIndexConfigCancel = () => {
   indexConfigModalVisible.value = false
   currentIndexFileIds.value = []
   isBatchIndexOperation.value = false
+  indexGraphOnly.value = false
   // 重置参数为默认值
   Object.assign(indexParams.value, defaultIndexParams)
 }

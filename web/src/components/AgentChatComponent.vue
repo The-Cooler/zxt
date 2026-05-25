@@ -147,6 +147,48 @@
                 @saved="handleArtifactSaved"
               />
 
+              <div v-if="showLearningStartPanel" class="learning-start-panel">
+                <div class="learning-start-header">
+                  <GraduationCap size="18" class="learning-start-header-icon" />
+                  <span>学习计划</span>
+                </div>
+                <div v-if="learningOverviewLoading" class="learning-start-loading">
+                  <div class="loading-spinner"></div>
+                  <span>正在加载学习计划...</span>
+                </div>
+                <div v-else class="learning-plan-list">
+                  <button
+                    v-for="plan in learningPlans"
+                    :key="`${plan.topic}-${plan.file_path}`"
+                    type="button"
+                    class="learning-plan-item"
+                    @click="handleLearningPlanClick(plan)"
+                  >
+                    <BookOpen size="16" class="learning-plan-icon" />
+                    <span class="learning-plan-main">
+                      <span class="learning-plan-topic">{{ plan.topic }}</span>
+                      <span class="learning-plan-meta">
+                        {{ plan.status || '未标记状态' }}
+                        <template v-if="plan.updated_at"> · {{ plan.updated_at }}</template>
+                      </span>
+                    </span>
+                    <ChevronRight size="16" class="learning-plan-arrow" />
+                  </button>
+                  <button
+                    type="button"
+                    class="learning-plan-item learning-plan-item--new"
+                    @click="handleNewLearningTopicClick"
+                  >
+                    <Plus size="16" class="learning-plan-icon" />
+                    <span class="learning-plan-main">
+                      <span class="learning-plan-topic">开始新的学习主题</span>
+                      <span class="learning-plan-meta">创建计划前会先确认知识库</span>
+                    </span>
+                    <ChevronRight size="16" class="learning-plan-arrow" />
+                  </button>
+                </div>
+              </div>
+
               <AgentInputArea
                 v-model="userInput"
                 :is-loading="isProcessing"
@@ -237,7 +279,15 @@ import AgentInputArea from '@/components/AgentInputArea.vue'
 import AgentMessageComponent from '@/components/AgentMessageComponent.vue'
 import RefsComponent from '@/components/RefsComponent.vue'
 import ToolCallsGroupComponent from '@/components/ToolCallsGroupComponent.vue'
-import { Bot, Telescope, ChevronDown } from 'lucide-vue-next'
+import {
+  Bot,
+  Telescope,
+  ChevronDown,
+  ChevronRight,
+  GraduationCap,
+  BookOpen,
+  Plus
+} from 'lucide-vue-next'
 import { handleChatError, handleValidationError } from '@/utils/errorHandler'
 import { ScrollController } from '@/utils/scrollController'
 import { AgentValidator } from '@/utils/agentValidator'
@@ -287,6 +337,9 @@ const { threads, currentThreadId, currentThread } = storeToRefs(chatThreadsStore
 
 // ==================== LOCAL CHAT & UI STATE ====================
 const userInput = ref('')
+const learningOverview = ref(null)
+const learningOverviewLoading = ref(false)
+let learningOverviewRequest = null
 const sendCooldownActive = ref(false)
 let sendCooldownTimer = null
 const useRunsApi =
@@ -399,6 +452,17 @@ const currentThreadAgentName = computed(() => {
   return currentAgentName.value
 })
 const currentAgentIcon = computed(() => getAgentIconComponent(currentAgentId.value))
+const isLearningAssistant = computed(() => currentAgentId.value === 'ChatbotAgent')
+const showLearningStartPanel = computed(() => {
+  return isLearningAssistant.value && !conversations.value.length && !isLoadingMessages.value
+})
+const learningPlans = computed(() => {
+  const plans = learningOverview.value?.plans
+  return Array.isArray(plans) ? plans : []
+})
+const newLearningTopicPrompt = computed(() => {
+  return learningOverview.value?.new_topic_prompt || '我想开始一个新的学习主题：'
+})
 
 // 检查当前智能体是否支持文件上传
 const supportsFileUpload = computed(() => {
@@ -546,7 +610,7 @@ const conversationRows = computed(() => {
 
 // 智能体图标映射
 const agentIconMap = {
-  ChatbotAgent: Bot,
+  ChatbotAgent: GraduationCap,
   DeepAgent: Telescope
 }
 
@@ -1036,6 +1100,33 @@ const fetchWorkspaceMentionFiles = async () => {
     }
   })()
   return workspaceMentionFilesRequest
+}
+
+const fetchLearningOverview = async () => {
+  if (!isLearningAssistant.value) {
+    learningOverview.value = null
+    return
+  }
+  if (learningOverviewRequest) return learningOverviewRequest
+
+  learningOverviewLoading.value = true
+  learningOverviewRequest = (async () => {
+    try {
+      learningOverview.value = await agentApi.getLearningOverview()
+    } catch (error) {
+      console.warn('Failed to fetch learning overview:', error)
+      learningOverview.value = {
+        profile_exists: false,
+        index_exists: false,
+        plans: [],
+        new_topic_prompt: '我想开始一个新的学习主题：'
+      }
+    } finally {
+      learningOverviewLoading.value = false
+      learningOverviewRequest = null
+    }
+  })()
+  return learningOverviewRequest
 }
 
 const handleArtifactSaved = async () => {
@@ -1540,6 +1631,16 @@ const handleExampleClick = (questionText) => {
   })
 }
 
+const handleLearningPlanClick = (plan) => {
+  const topic = String(plan?.topic || '').trim()
+  if (!topic) return
+  userInput.value = `继续学习：${topic}`
+}
+
+const handleNewLearningTopicClick = () => {
+  userInput.value = newLearningTopicPrompt.value
+}
+
 const buildExportPayload = () => {
   const agentId = currentAgentId.value
   let agentDescription = ''
@@ -1828,6 +1929,10 @@ onMounted(async () => {
 watch(
   currentAgentId,
   async (newAgentId, oldAgentId) => {
+    if (newAgentId === 'ChatbotAgent' && !conversations.value.length) {
+      void fetchLearningOverview()
+    }
+
     if (!props.singleMode) {
       if (oldAgentId === undefined) {
         await loadChatsList()
@@ -1891,6 +1996,16 @@ watch(
     }
   },
   { deep: true, flush: 'post' }
+)
+
+watch(
+  showLearningStartPanel,
+  (visible) => {
+    if (visible) {
+      void fetchLearningOverview()
+    }
+  },
+  { immediate: true }
 )
 
 watch(
@@ -2185,6 +2300,124 @@ watch(currentChatId, (threadId, oldThreadId) => {
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
     }
   }
+}
+
+.learning-start-panel {
+  width: 100%;
+  margin: 0 auto 14px;
+  border: 1px solid var(--gray-150);
+  border-radius: 8px;
+  background: var(--gray-0);
+  overflow: hidden;
+}
+
+.learning-start-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--gray-100);
+  color: var(--gray-900);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.learning-start-header-icon {
+  flex-shrink: 0;
+  color: var(--main-700);
+}
+
+.learning-start-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 54px;
+  color: var(--gray-600);
+  font-size: 13px;
+
+  .loading-spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--gray-200);
+    border-top-color: var(--main-color);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+}
+
+.learning-plan-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.learning-plan-item {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 54px;
+  padding: 8px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--gray-100);
+  background: var(--gray-0);
+  color: var(--gray-900);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+
+  &:hover {
+    background: var(--main-20);
+    color: var(--main-800);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--main-300);
+    outline-offset: -2px;
+  }
+
+  &:last-child {
+    border-bottom: 0;
+  }
+}
+
+.learning-plan-item--new {
+  background: var(--gray-25);
+}
+
+.learning-plan-icon,
+.learning-plan-arrow {
+  color: var(--gray-500);
+}
+
+.learning-plan-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.learning-plan-topic {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 500;
+  color: inherit;
+}
+
+.learning-plan-meta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--gray-500);
 }
 
 .chat-loading {

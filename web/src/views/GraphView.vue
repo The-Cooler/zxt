@@ -67,10 +67,10 @@
       </div>
       <div class="graph-shoulder-right">
         <a-button v-if="isNeo4j" type="primary" @click="state.showModal = true">
-          <UploadOutlined /> 上传文件
+          <BranchesOutlined /> 构建全局关系
         </a-button>
         <a-button v-else type="primary" @click="state.showUploadTipModal = true">
-          <UploadOutlined /> 上传文件
+          <DatabaseOutlined /> 前往知识库详情
         </a-button>
         <a-button
           v-if="unindexedCount > 0"
@@ -111,17 +111,18 @@
 
     <a-modal
       :open="state.showModal"
-      title="上传文件"
-      @ok="addDocumentByFile"
+      title="构建全局关系"
+      @ok="handleGraphFileConfirm"
       @cancel="handleModalCancel"
-      ok-text="添加到图数据库"
+      :ok-text="graphUploadConfirmText"
       cancel-text="取消"
-      :confirm-loading="state.processing"
-      :ok-button-props="{ disabled: !hasValidFile }"
+      :confirm-loading="state.processing || state.extracting"
+      :ok-button-props="{ disabled: !canConfirmGraphUpload }"
+      width="760px"
     >
       <div class="upload">
         <div class="note">
-          <p>上传的文件内容参考 test/data/A_Dream_of_Red_Mansions_tiny.jsonl 中的格式：</p>
+          <p>从普通文件中识别系统级实体关系，确认前可以手动调整。这里写入的是全局 Neo4j 图谱，不会修改单个知识库内的 LightRAG 图谱。</p>
         </div>
         <div class="upload-config">
           <div class="config-row">
@@ -149,6 +150,18 @@
             </div>
           </div>
           <div class="config-hint-row">默认值: 40，范围: 1-1000</div>
+          <div class="config-row">
+            <label class="config-label">识别上限</label>
+            <div class="config-field">
+              <a-input-number
+                v-model:value="state.maxTriples"
+                :min="1"
+                :max="500"
+                style="width: 100%"
+              />
+            </div>
+          </div>
+          <div class="config-hint-row">仅普通文件识别时生效，默认最多 200 条</div>
         </div>
         <a-upload-dragger
           class="upload-dragger"
@@ -156,22 +169,69 @@
           name="file"
           :fileList="fileList"
           :max-count="1"
-          accept=".jsonl"
-          action="/api/knowledge/files/upload?allow_jsonl=true"
+          accept=".txt,.md,.docx,.html,.htm,.json,.csv,.xls,.xlsx,.pdf,.pptx,.jpg,.jpeg,.png,.bmp,.tiff,.tif"
+          action="/api/knowledge/files/upload"
           :headers="getAuthHeaders()"
           @change="handleFileUpload"
           @drop="handleDrop"
         >
-          <p class="ant-upload-text">点击或者把文件拖拽到这里上传</p>
-          <p class="ant-upload-hint">目前仅支持上传 jsonl 文件。</p>
+          <p class="ant-upload-text">选择用于识别全局关系的文件</p>
+          <p class="ant-upload-hint">支持文本、Markdown、Office、PDF、图片等文件；知识库文档入库请前往文档知识库。</p>
         </a-upload-dragger>
+        <a-alert
+          v-if="state.extractionWarning"
+          type="warning"
+          show-icon
+          :message="state.extractionWarning"
+          class="extract-alert"
+        />
+        <div v-if="tripleDraft.length > 0" class="triple-editor">
+          <div class="triple-editor-header">
+            <div>
+              <div class="triple-editor-title">识别结果</div>
+              <div class="triple-editor-subtitle">共 {{ validTripleCount }} 条有效关系，可在写入前调整</div>
+            </div>
+            <a-button @click="addTripleRow">
+              <PlusOutlined /> 新增关系
+            </a-button>
+          </div>
+          <a-table
+            :columns="tripleColumns"
+            :data-source="tripleDraft"
+            :pagination="{ pageSize: 8, size: 'small' }"
+            row-key="key"
+            size="small"
+          >
+            <template #bodyCell="{ column, record, index }">
+              <template v-if="column.dataIndex === 'h'">
+                <a-input v-model:value="record.h" placeholder="头实体" />
+              </template>
+              <template v-else-if="column.dataIndex === 'r'">
+                <a-input v-model:value="record.r" placeholder="关系" />
+              </template>
+              <template v-else-if="column.dataIndex === 't'">
+                <a-input v-model:value="record.t" placeholder="尾实体" />
+              </template>
+              <template v-else-if="column.key === 'action'">
+                <a-button
+                  type="text"
+                  danger
+                  aria-label="删除关系"
+                  @click="deleteTripleRow(record.key)"
+                >
+                  <DeleteOutlined />
+                </a-button>
+              </template>
+            </template>
+          </a-table>
+        </div>
       </div>
     </a-modal>
 
-    <!-- 上传提示弹窗 -->
+    <!-- 知识库图谱说明弹窗 -->
     <a-modal
       :open="state.showUploadTipModal"
-      title="文件上传说明"
+      title="知识库图谱说明"
       @cancel="() => (state.showUploadTipModal = false)"
       :footer="null"
       width="500px"
@@ -184,7 +244,7 @@
           style="margin-bottom: 16px"
         />
         <div v-if="!isNeo4j" class="upload-tip-actions">
-          <p>如需上传文档到当前选中的知识库，请前往对应的知识库详情页面进行操作：</p>
+          <p>当前选中的是单个知识库图谱。它由知识库文档入库自动构建，如需上传文档或重新入库，请前往对应的知识库详情页面。</p>
           <div class="action-buttons">
             <a-button type="primary" @click="goToDatabasePage">
               <DatabaseOutlined /> 前往知识库详情页
@@ -202,12 +262,14 @@ import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { useConfigStore } from '@/stores/config'
 import {
-  UploadOutlined,
   SyncOutlined,
   SearchOutlined,
   ReloadOutlined,
   LoadingOutlined,
-  DatabaseOutlined
+  DatabaseOutlined,
+  PlusOutlined,
+  DeleteOutlined,
+  BranchesOutlined
 } from '@ant-design/icons-vue'
 import PageHeader from '@/components/shared/PageHeader.vue'
 import { neo4jApi, unifiedApi } from '@/apis/graph_api'
@@ -235,6 +297,7 @@ const graphRef = ref(null)
 const graphInfo = ref(null)
 const fileList = ref([])
 const sampleNodeCount = ref(100)
+const tripleDraft = ref([])
 
 const graph = reactive(useGraph(graphRef))
 
@@ -248,12 +311,15 @@ const state = reactive({
   showUploadTipModal: false,
   processing: false,
   indexing: false,
+  extracting: false,
   showPage: true,
   selectedDbId: 'neo4j',
   dbOptions: [],
   lightragStats: null,
   embedModelName: '',
-  batchSize: 40
+  batchSize: 40,
+  maxTriples: 200,
+  extractionWarning: ''
 })
 
 const isNeo4j = computed(() => {
@@ -264,10 +330,34 @@ const embedModelConfigurable = computed(() => {
   return graphInfo.value?.embed_model_configurable ?? true
 })
 
-// 检查是否有有效的已上传文件
+// 检查是否有可用于识别的文件
 const hasValidFile = computed(() => {
   return fileList.value.some((file) => file.status === 'done' && file.response?.file_path)
 })
+
+const uploadedGraphFile = computed(() => {
+  return fileList.value.find((file) => file.status === 'done' && file.response?.file_path)
+})
+
+const validTripleCount = computed(() => serializeTripleDraft().length)
+
+const canConfirmGraphUpload = computed(() => {
+  if (!hasValidFile.value || !state.embedModelName) return false
+  if (tripleDraft.value.length === 0) return true
+  return validTripleCount.value > 0
+})
+
+const graphUploadConfirmText = computed(() => {
+  if (tripleDraft.value.length > 0) return '写入全局图谱'
+  return '识别关系'
+})
+
+const tripleColumns = [
+  { title: '头实体', dataIndex: 'h', key: 'h', width: '30%' },
+  { title: '关系', dataIndex: 'r', key: 'r', width: '28%' },
+  { title: '尾实体', dataIndex: 't', key: 't', width: '30%' },
+  { title: '', key: 'action', width: 64 }
+]
 
 // 计算未索引节点数量
 const unindexedCount = computed(() => {
@@ -361,42 +451,64 @@ const loadGraphInfo = () => {
     })
 }
 
-const addDocumentByFile = () => {
-  // 使用计算属性验证文件
+const handleGraphFileConfirm = () => {
+  if (tripleDraft.value.length > 0) {
+    importTripleDraft()
+    return
+  }
+  extractGraphTriples()
+}
+
+const extractGraphTriples = () => {
   if (!hasValidFile.value) {
     message.error('请先等待文件上传完成')
     return
   }
 
-  if (!state.embedModelName) {
-    message.error('请选择嵌入模型')
+  const filePath = uploadedGraphFile.value?.response?.file_path
+  if (!filePath) {
+    message.error('文件路径获取失败，请重新选择文件')
+    return
+  }
+
+  state.extracting = true
+  state.extractionWarning = ''
+
+  neo4jApi
+    .extractEntities(filePath, null, state.maxTriples)
+    .then((res) => {
+      const data = res.data || {}
+      tripleDraft.value = (data.triples || []).map((item, index) => toTripleDraftRow(item, index))
+      if (data.truncated) {
+        state.extractionWarning = '文件内容较长，系统已截取前半部分进行识别。'
+      }
+      message.success(`已识别 ${tripleDraft.value.length} 条关系`)
+    })
+    .catch((error) => {
+      console.error(error)
+      message.error(error.message || '关系识别失败')
+    })
+    .finally(() => {
+      state.extracting = false
+    })
+}
+
+const importTripleDraft = () => {
+  const triples = serializeTripleDraft()
+  if (triples.length === 0) {
+    message.error('请至少保留一条完整关系')
     return
   }
 
   state.processing = true
 
-  // 获取已上传的文件路径
-  const uploadedFile = fileList.value.find(
-    (file) => file.status === 'done' && file.response?.file_path
-  )
-  const filePath = uploadedFile?.response?.file_path
-
-  // 再次验证文件路径
-  if (!filePath) {
-    message.error('文件路径获取失败，请重新上传文件')
-    state.processing = false
-    return
-  }
-
   neo4jApi
-    .addEntities(filePath, 'neo4j', state.embedModelName, state.batchSize)
+    .addTriples(triples, 'neo4j', state.embedModelName, state.batchSize)
     .then((data) => {
       if (data.status === 'success') {
         message.success(data.message)
         state.showModal = false
-        // 清空文件列表
-        fileList.value = []
-        // 刷新图谱数据
+        resetGraphUploadModal()
         setTimeout(() => {
           loadGraphInfo()
           loadSampleNodes()
@@ -407,9 +519,46 @@ const addDocumentByFile = () => {
     })
     .catch((error) => {
       console.error(error)
-      message.error(error.message || '添加文件失败')
+      message.error(error.message || '写入全局图谱失败')
     })
-    .finally(() => (state.processing = false))
+    .finally(() => {
+      state.processing = false
+    })
+}
+
+const toTripleDraftRow = (item, index) => {
+  const head = typeof item.h === 'object' ? item.h?.name : item.h
+  const relation = typeof item.r === 'object' ? item.r?.type : item.r
+  const tail = typeof item.t === 'object' ? item.t?.name : item.t
+  return {
+    key: `${Date.now()}-${index}`,
+    h: String(head || ''),
+    r: String(relation || ''),
+    t: String(tail || '')
+  }
+}
+
+const serializeTripleDraft = () => {
+  return tripleDraft.value
+    .map((row) => ({
+      h: String(row.h || '').trim(),
+      r: String(row.r || '').trim(),
+      t: String(row.t || '').trim()
+    }))
+    .filter((row) => row.h && row.r && row.t)
+}
+
+const addTripleRow = () => {
+  tripleDraft.value.push({
+    key: `${Date.now()}-${tripleDraft.value.length}`,
+    h: '',
+    r: '',
+    t: ''
+  })
+}
+
+const deleteTripleRow = (rowKey) => {
+  tripleDraft.value = tripleDraft.value.filter((row) => row.key !== rowKey)
 }
 
 const loadSampleNodes = () => {
@@ -481,14 +630,19 @@ const handleFileUpload = ({ file, fileList: newFileList }) => {
   // 更新文件列表
   fileList.value = newFileList
 
+  if (file.status === 'uploading' || newFileList.length === 0) {
+    tripleDraft.value = []
+    state.extractionWarning = ''
+  }
+
   // 如果上传失败，显示错误信息
   if (file.status === 'error') {
-    message.error(`文件上传失败: ${file.name}`)
+    message.error(`文件准备失败: ${file.name}`)
   }
 
   // 如果上传成功，显示成功信息
   if (file.status === 'done' && file.response?.file_path) {
-    message.success(`文件上传成功: ${file.name}`)
+    message.success(`文件已准备: ${file.name}`)
   }
 
   console.log('File upload status:', file.status, file.name)
@@ -502,8 +656,13 @@ const handleDrop = (event) => {
 
 const handleModalCancel = () => {
   state.showModal = false
-  // 重置文件列表
+  resetGraphUploadModal()
+}
+
+const resetGraphUploadModal = () => {
   fileList.value = []
+  tripleDraft.value = []
+  state.extractionWarning = ''
 }
 
 const graphStatusClass = computed(() => {
@@ -560,12 +719,12 @@ const getDatabaseName = () => {
 
 const getUploadTipMessage = () => {
   if (isNeo4j.value) {
-    return 'Neo4j 图数据库支持通过上传 JSONL 格式文件直接导入实体和关系数据。'
+    return '默认 Neo4j 图谱用于维护跨知识库、系统级实体关系。'
   } else {
     const selectedDb = state.dbOptions.find((db) => db.value === state.selectedDbId)
     const dbType = selectedDb?.type || '未知'
     const dbName = selectedDb?.label || getDatabaseName()
-    return `当前选择的是 ${dbType.toUpperCase()} 类型的知识库"${dbName}"，该类型知识库需要在文档知识库页面上传文档，系统会自动从中提取知识图谱。`
+    return `当前选择的是 ${dbType.toUpperCase()} 类型的知识库"${dbName}"，该知识库的图谱由文档入库自动抽取；图谱页只查看和查询，构建请前往知识库详情。`
   }
 }
 
@@ -704,6 +863,47 @@ const goToDatabasePage = () => {
       }
     }
   }
+}
+
+.note {
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+
+  p {
+    margin: 0;
+  }
+}
+
+.extract-alert {
+  margin-top: 16px;
+}
+
+.triple-editor {
+  margin-top: 16px;
+  border: 1px solid var(--gray-100);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--gray-0);
+}
+
+.triple-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.triple-editor-title {
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.triple-editor-subtitle {
+  margin-top: 2px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
 }
 
 .container-outter {

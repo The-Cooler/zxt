@@ -29,37 +29,12 @@
             <span class="logo-text">{{ infoStore.organization.name }}</span>
           </div>
           <div class="header-actions">
-            <div class="github-link">
-              <a href="https://github.com/xerrors/Yuxi" target="_blank">
-                <svg height="20" width="20" viewBox="0 0 16 16" version="1.1">
-                  <path
-                    fill-rule="evenodd"
-                    d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
-                  ></path>
-                </svg>
-              </a>
-            </div>
             <UserInfoComponent :show-button="true" />
           </div>
         </div>
 
         <div class="hero-layout">
           <div class="hero-content reveal-up">
-            <p v-if="typedBadge" class="hero-badge" :class="{ typing: isBadgeTyping }">
-              <template v-if="badgeParts.number">
-                <span>{{ badgeParts.prefix }}</span>
-                <a
-                  class="hero-badge-link"
-                  :href="repoUrl"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <span class="hero-badge-number">{{ badgeParts.number }}</span>
-                </a>
-                <span>{{ badgeParts.suffix }}</span>
-              </template>
-              <template v-else>{{ typedBadge }}</template>
-            </p>
             <h1 class="title reveal-up delay-1">{{ infoStore.branding.title }}</h1>
             <Transition name="subtitle-switch" mode="out-in">
               <p v-if="currentSubtitle" class="subtitle" :key="currentSubtitle">
@@ -68,10 +43,7 @@
             </Transition>
             <!-- <p class="description">{{ infoStore.branding.description }}</p> -->
             <div class="hero-actions">
-              <button class="button-base primary" @click="goToChat">开始体验</button>
-              <a class="doc-text-link" href="https://xerrors.github.io/Yuxi/" target="_blank"
-                >查看文档</a
-              >
+              <button class="button-base primary" @click="goToChat">开始学习</button>
             </div>
           </div>
           <div class="insight-panel" v-if="featureCards.length">
@@ -134,41 +106,25 @@ import { healthApi } from '@/apis/system_api'
 import UserInfoComponent from '@/components/UserInfoComponent.vue'
 import {
   BookText,
-  Bug,
   Video,
   Route,
-  Github,
-  Star,
   CheckCircle2,
-  GitCommit,
-  ShieldCheck
+  Network,
+  Blocks,
+  Wrench,
+  FolderOpen
 } from 'lucide-vue-next'
 
 const router = useRouter()
 const userStore = useUserStore()
 const infoStore = useInfoStore()
 const agentStore = useAgentStore()
-const repoUrl = 'https://github.com/xerrors/Yuxi'
-const faqUrl = 'https://xerrors.github.io/Yuxi/'
+const faqUrl = '/'
 
 // 加载状态
 const isLoading = ref(true)
 const error = ref(null)
-const typedBadge = ref('')
-const isBadgeTyping = ref(false)
-let badgeTimer = null
 let subtitleTimer = null
-let starsFetchController = null
-
-const GITHUB_REPO_API = 'https://api.github.com/repos/xerrors/Yuxi'
-const GITHUB_STARS_TIMEOUT = 3000
-
-const formatStars = (count) => {
-  if (!Number.isFinite(count) || count <= 0) {
-    return ''
-  }
-  return `${count}`
-}
 
 const subtitleIndex = ref(0)
 
@@ -188,23 +144,6 @@ const subtitleOptions = computed(() => {
 })
 
 const currentSubtitle = computed(() => subtitleOptions.value[subtitleIndex.value] || '')
-const badgeParts = computed(() => {
-  const text = typedBadge.value || ''
-  const match = text.match(/^(.*?)(\d[\d,]*\+?)(\s+GitHub Stars.*)?$/)
-  if (!match) {
-    return {
-      prefix: text,
-      number: '',
-      suffix: ''
-    }
-  }
-
-  return {
-    prefix: match[1] || '',
-    number: match[2] || '',
-    suffix: match[3] || ''
-  }
-})
 
 const stopSubtitleCarousel = () => {
   if (subtitleTimer) {
@@ -224,93 +163,6 @@ const startSubtitleCarousel = () => {
   subtitleTimer = setInterval(() => {
     subtitleIndex.value = (subtitleIndex.value + 1) % subtitleOptions.value.length
   }, 2800)
-}
-
-const stopStarsFetch = () => {
-  if (starsFetchController) {
-    starsFetchController.abort()
-    starsFetchController = null
-  }
-}
-
-const fetchGithubStars = async () => {
-  stopStarsFetch()
-  const controller = new AbortController()
-  starsFetchController = controller
-  const timer = setTimeout(() => {
-    controller.abort()
-  }, GITHUB_STARS_TIMEOUT)
-
-  try {
-    const response = await fetch(GITHUB_REPO_API, { signal: controller.signal })
-    if (!response.ok) {
-      return null
-    }
-
-    const data = await response.json()
-    const stars = Number(data?.stargazers_count)
-    return Number.isFinite(stars) && stars > 0 ? stars : null
-  } catch {
-    return null
-  } finally {
-    clearTimeout(timer)
-    if (starsFetchController === controller) {
-      starsFetchController = null
-    }
-  }
-}
-
-const getHeroBadgeText = (starsCount = null) => {
-  const realtimeStars = formatStars(starsCount)
-  if (realtimeStars) {
-    return `已获得 ${realtimeStars} GitHub Stars`
-  }
-
-  const features = Array.isArray(infoStore.features) ? infoStore.features : []
-  const starFeature = features.find((item) => {
-    if (typeof item === 'string') {
-      return /star/i.test(item)
-    }
-
-    return /star|github/i.test(item?.label || '') || /stars|github/i.test(item?.icon || '')
-  })
-
-  if (!starFeature) {
-    return ''
-  }
-
-  const starValue =
-    typeof starFeature === 'string' ? '' : (starFeature?.value || '').toString().trim()
-
-  return starValue ? `已获得 ${starValue} GitHub Stars` : '已获得 GitHub Stars'
-}
-
-const stopBadgeTyping = () => {
-  if (badgeTimer) {
-    clearInterval(badgeTimer)
-    badgeTimer = null
-  }
-  isBadgeTyping.value = false
-}
-
-const startBadgeTyping = (starsCount = null) => {
-  stopBadgeTyping()
-  const text = getHeroBadgeText(starsCount)
-  typedBadge.value = ''
-
-  if (!text) {
-    return
-  }
-
-  let index = 0
-  isBadgeTyping.value = true
-  badgeTimer = setInterval(() => {
-    index += 1
-    typedBadge.value = text.slice(0, index)
-    if (index >= text.length) {
-      stopBadgeTyping()
-    }
-  }, 45)
 }
 
 const checkHealth = async () => {
@@ -338,14 +190,9 @@ const loadData = async () => {
     // 健康检查通过后加载配置
     await infoStore.loadInfoConfig()
     startSubtitleCarousel()
-    const starsCount = await fetchGithubStars()
-    startBadgeTyping(starsCount)
   } catch (e) {
     console.error('加载失败:', e)
-    stopBadgeTyping()
     stopSubtitleCarousel()
-    stopStarsFetch()
-    typedBadge.value = ''
   } finally {
     isLoading.value = false
   }
@@ -393,35 +240,32 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  stopBadgeTyping()
   stopSubtitleCarousel()
-  stopStarsFetch()
 })
 
 const iconKey = (value) => (typeof value === 'string' ? value.toLowerCase() : '')
 
 // region icon_mapping
 const featureIconMap = {
-  stars: Star,
-  issues: CheckCircle2,
-  resolved: CheckCircle2,
-  commits: GitCommit,
-  license: ShieldCheck,
-  default: Star
+  docs: BookText,
+  document: BookText,
+  graph: Network,
+  tools: Wrench,
+  tool: Wrench,
+  workspace: FolderOpen,
+  agent: Blocks,
+  default: CheckCircle2
 }
 
 const actionIconMap = {
   doc: BookText,
   docs: BookText,
   document: BookText,
-  issue: Bug,
-  bug: Bug,
   roadmap: Route,
   plan: Route,
   demo: Video,
   video: Video,
-  github: Github,
-  default: Github
+  default: BookText
 }
 // endregion icon_mapping
 
@@ -585,44 +429,6 @@ const actionLinks = computed(() => {
   font-weight: 600;
 }
 
-.github-link a {
-  display: flex;
-  align-items: center;
-  text-decoration: none;
-  color: var(--gray-600);
-  padding: 0.6rem 1rem;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  font-size: 0.9rem;
-  font-weight: 500;
-
-  &:hover {
-    color: var(--gray-700);
-
-    svg {
-      transform: scale(1.1);
-    }
-  }
-
-  svg {
-    margin-right: 6px;
-    transition: transform 0.3s ease;
-    fill: currentColor;
-  }
-
-  .stars-count {
-    font-weight: 600;
-  }
-
-  // 暗色模式样式
-  :global(.dark) & {
-    color: var(--gray-400);
-
-    &:hover {
-      color: var(--gray-300);
-    }
-  }
-}
-
 .hero-section {
   flex: 1;
   width: 100%;
@@ -656,47 +462,6 @@ const actionLinks = computed(() => {
 
 .reveal-up.delay-1 {
   animation-delay: 120ms;
-}
-
-.hero-badge {
-  color: var(--main-600);
-  font-size: 0.92rem;
-  letter-spacing: 0.04em;
-  font-weight: 600;
-  margin: 0;
-}
-
-.hero-badge-link {
-  color: inherit;
-  text-decoration: none;
-}
-
-.hero-badge-number {
-  color: var(--main-700);
-  text-decoration: underline;
-  text-decoration-color: var(--main-500);
-  text-underline-offset: 0.15em;
-  text-decoration-thickness: 1.5px;
-  font-weight: 700;
-  transition:
-    color 0.2s ease,
-    text-decoration-color 0.2s ease;
-}
-
-.hero-badge-link:hover .hero-badge-number {
-  color: var(--main-800);
-  text-decoration-color: var(--main-700);
-}
-
-.hero-badge.typing::after {
-  content: '';
-  display: inline-block;
-  width: 1px;
-  height: 1em;
-  margin-left: 6px;
-  background: var(--main-600);
-  vertical-align: -0.1em;
-  animation: caretBlink 0.8s steps(1, end) infinite;
 }
 
 .title {
@@ -1071,23 +836,7 @@ const actionLinks = computed(() => {
   }
 }
 
-@keyframes caretBlink {
-  50% {
-    opacity: 0;
-  }
-}
-
 :global(:root.dark) {
-  .hero-badge-number {
-    color: var(--main-200);
-    text-decoration-color: var(--main-300);
-  }
-
-  .hero-badge-link:hover .hero-badge-number {
-    color: var(--main-100);
-    text-decoration-color: var(--main-100);
-  }
-
   .doc-text-link {
     color: var(--main-300);
     border-bottom-color: var(--main-500);
@@ -1105,8 +854,7 @@ const actionLinks = computed(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .reveal-up,
-  .stat-card,
-  .hero-badge.typing::after {
+  .stat-card {
     animation: none;
   }
 
@@ -1165,15 +913,6 @@ const actionLinks = computed(() => {
 
   .hero-content {
     padding: 0;
-  }
-
-  .github-link a {
-    padding: 0.5rem 0.8rem;
-    font-size: 0.85rem;
-
-    .stars-count {
-      display: none;
-    }
   }
 
   .hero-layout {

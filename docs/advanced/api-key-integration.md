@@ -22,7 +22,7 @@ API Key 是一种用于身份验证的密钥字符串，外部系统可以通过
 import requests
 import json
 
-url = "http://your-yuxi-server/api/chat/agent"
+url = "http://your-server-host/api/chat/agent"
 headers = {
     "Authorization": "Bearer yxkey_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "Content-Type": "application/json"

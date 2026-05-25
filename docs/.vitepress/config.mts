@@ -7,7 +7,7 @@ export default defineConfig({
   lang: 'zh-CN',
   title: "Yuxi",
   description: "语析",
-  base: '/Yuxi/',
+  base: '/docs/',
   ignoreDeadLinks: [
     /localhost/,
     /CONTRIBUTING$/,
@@ -43,6 +43,7 @@ export default defineConfig({
         items: [
           { text: '智能体配置', link: '/agents/agents-config' },
           { text: 'Langfuse 集成', link: '/agents/langfuse-integration' },
+          { text: '学习助手', link: '/agents/learning-assistant' },
           { text: '工具系统', link: '/agents/tools-system' },
           { text: '中间件', link: '/agents/middleware' },
           { text: '沙盒架构与设计', link: '/agents/sandbox-architecture' },
@@ -74,18 +75,9 @@ export default defineConfig({
       }
     ],
 
-    socialLinks: [
-      { icon: 'github', link: 'https://github.com/xerrors/Yuxi' }
-    ],
-
     footer: {
       message: '本项目基于 MIT License 开源，欢迎使用和贡献。',
       copyright: 'Copyright © 2025-present Yuxi'
-    },
-
-    editLink: {
-      pattern: 'https://github.com/xerrors/Yuxi/edit/main/docs/:path',
-      text: '在 GitHub 上编辑此页'
     },
 
     lastUpdated: {

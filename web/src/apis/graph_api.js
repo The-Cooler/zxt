@@ -118,23 +118,43 @@ export const neo4jApi = {
   },
 
   /**
-   * 通过JSONL文件添加图谱实体到Neo4j
-   * @param {string} file_path - JSONL文件路径
+   * 从普通文件识别全局实体关系三元组草稿
+   * @param {string} file_path - 已上传文件路径
+   * @param {string} llm_model_spec - 抽取模型 (可选)
+   * @param {number} max_triples - 最大三元组数量
+   * @returns {Promise} - 抽取结果
+   */
+  extractEntities: async (file_path, llm_model_spec = null, max_triples = 200) => {
+    return await apiPost(
+      '/api/graph/neo4j/extract-entities',
+      {
+        file_path: file_path,
+        llm_model_spec: llm_model_spec,
+        max_triples: max_triples
+      },
+      {},
+      true
+    )
+  },
+
+  /**
+   * 写入前端确认后的全局关系
+   * @param {Array} triples - 三元组数组
    * @param {string} kgdb_name - Neo4j数据库名称（默认为'neo4j'）
    * @param {string} embed_model_name - 嵌入模型名称 (可选)
    * @param {number} batch_size - 批处理大小 (可选)
    * @returns {Promise} - 添加结果
    */
-  addEntities: async (
-    file_path,
+  addTriples: async (
+    triples,
     kgdb_name = 'neo4j',
     embed_model_name = null,
     batch_size = null
   ) => {
     return await apiPost(
-      '/api/graph/neo4j/add-entities',
+      '/api/graph/neo4j/add-triples',
       {
-        file_path: file_path,
+        triples: triples,
         kgdb_name: kgdb_name,
         embed_model_name: embed_model_name,
         batch_size: batch_size
@@ -227,8 +247,8 @@ export const getGraphNode = async (params = {}) => {
 }
 
 export const addByJsonl = async (file_path, kgdb_name = 'neo4j') => {
-  console.warn('addByJsonl is deprecated, use neo4jApi.addEntities instead')
-  return neo4jApi.addEntities(file_path, kgdb_name)
+  console.warn('addByJsonl is no longer supported. Use neo4jApi.extractEntities and neo4jApi.addTriples instead')
+  throw new Error('不再支持三元组文件导入，请选择普通文件生成全局关系草稿')
 }
 
 export const indexNodes = async (kgdb_name = 'neo4j') => {

@@ -1,12 +1,17 @@
 import asyncio
 import os
 import traceback
+from collections.abc import Callable
+from contextlib import asynccontextmanager
 from functools import partial
+from types import MethodType
 
 from lightrag import LightRAG, QueryParam
+from lightrag.base import DocStatus
 from lightrag.kg.shared_storage import initialize_pipeline_status
 from lightrag.llm.openai import openai_complete_if_cache, openai_embed
 from lightrag.utils import EmbeddingFunc
+from lightrag.utils import compute_mdhash_id, get_content_summary, sanitize_text_for_encoding
 from neo4j import GraphDatabase
 
 from yuxi import config
@@ -17,6 +22,95 @@ from yuxi.models.embed import get_embedding_model_info_by_id
 from yuxi.plugins.parser.unified import Parser
 from yuxi.utils import logger
 from yuxi.utils.datetime_utils import utc_isoformat
+
+
+INDEX_MODE_FAST = "fast"
+INDEX_MODE_STANDARD = "standard"
+INDEX_MODE_GRAPH = "graph"
+INDEX_MODES = {INDEX_MODE_FAST, INDEX_MODE_STANDARD, INDEX_MODE_GRAPH}
+MAX_GRAPH_NODES_LIMIT = 1000
+MAX_GRAPH_RELATIONS_LIMIT = 3000
+
+
+def _coerce_positive_int(value, *, max_value: int) -> int | None:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed <= 0:
+        return None
+    return min(parsed, max_value)
+
+
+def resolve_ingestion_options(params: dict | None) -> dict:
+    params = params or {}
+    index_mode = str(params.get("index_mode") or INDEX_MODE_STANDARD).strip().lower()
+    if index_mode not in INDEX_MODES:
+        index_mode = INDEX_MODE_STANDARD
+
+    return {
+        "index_mode": index_mode,
+        "max_graph_nodes": _coerce_positive_int(
+            params.get("max_graph_nodes"),
+            max_value=MAX_GRAPH_NODES_LIMIT,
+        ),
+        "max_graph_relations": _coerce_positive_int(
+            params.get("max_graph_relations"),
+            max_value=MAX_GRAPH_RELATIONS_LIMIT,
+        ),
+    }
+
+
+def limit_extracted_graph_results(
+    chunk_results: list,
+    *,
+    max_nodes: int | None,
+    max_relations: int | None,
+) -> list:
+    if max_nodes is None and max_relations is None:
+        return chunk_results
+
+    allowed_nodes: set[str] | None = None
+    remaining_nodes = max_nodes
+    if max_nodes is not None:
+        allowed_nodes = set()
+        for maybe_nodes, _maybe_edges in chunk_results:
+            for entity_name in maybe_nodes:
+                if entity_name in allowed_nodes:
+                    continue
+                if remaining_nodes is not None and remaining_nodes <= 0:
+                    break
+                allowed_nodes.add(entity_name)
+                remaining_nodes -= 1
+            if remaining_nodes is not None and remaining_nodes <= 0:
+                break
+
+    remaining_relations = max_relations
+    limited_results = []
+    for maybe_nodes, maybe_edges in chunk_results:
+        if allowed_nodes is None:
+            limited_nodes = maybe_nodes
+        else:
+            limited_nodes = {
+                entity_name: entities
+                for entity_name, entities in maybe_nodes.items()
+                if entity_name in allowed_nodes
+            }
+
+        limited_edges = {}
+        for edge_key, edges in maybe_edges.items():
+            src_id, tgt_id = edge_key
+            if allowed_nodes is not None and (src_id not in allowed_nodes or tgt_id not in allowed_nodes):
+                continue
+            if remaining_relations is not None and remaining_relations <= 0:
+                break
+            limited_edges[edge_key] = edges
+            if remaining_relations is not None:
+                remaining_relations -= 1
+
+        limited_results.append((limited_nodes, limited_edges))
+
+    return limited_results
 
 
 class LightRagKB(KnowledgeBase):
@@ -57,6 +151,103 @@ class LightRagKB(KnowledgeBase):
         payload = delimiter.join(chunk["content"] for chunk in chunks if chunk.get("content"))
         return payload, delimiter, False  # 允许 LightRAG 基于进行二次切分，避免超限
 
+    @staticmethod
+    def _is_current_doc_chunks(chunks: dict, file_id: str) -> bool:
+        return bool(chunks) and all(chunk.get("full_doc_id") == file_id for chunk in chunks.values())
+
+    @asynccontextmanager
+    async def _scoped_graph_limits(
+        self,
+        rag: LightRAG,
+        *,
+        file_id: str,
+        max_nodes: int | None,
+        max_relations: int | None,
+    ):
+        if max_nodes is None and max_relations is None:
+            yield
+            return
+
+        original_method: Callable = rag._process_extract_entities
+
+        async def limited_process_extract_entities(
+            rag_self,
+            chunks: dict,
+            pipeline_status=None,
+            pipeline_status_lock=None,
+        ) -> list:
+            chunk_results = await original_method(chunks, pipeline_status, pipeline_status_lock)
+            if not self._is_current_doc_chunks(chunks, file_id):
+                return chunk_results
+
+            limited_results = limit_extracted_graph_results(
+                chunk_results,
+                max_nodes=max_nodes,
+                max_relations=max_relations,
+            )
+            logger.info(
+                f"Applied graph extraction limits for file {file_id}: "
+                f"max_nodes={max_nodes}, max_relations={max_relations}"
+            )
+            return limited_results
+
+        rag._process_extract_entities = MethodType(limited_process_extract_entities, rag)
+        try:
+            yield
+        finally:
+            rag._process_extract_entities = original_method
+
+    async def _fast_insert_chunks(
+        self,
+        rag: LightRAG,
+        *,
+        markdown_content: str,
+        chunks: list[dict],
+        file_id: str,
+        file_path: str | None,
+    ) -> None:
+        text_chunks = [chunk.get("content", "") for chunk in chunks if chunk.get("content")]
+        if not text_chunks:
+            text_chunks = [markdown_content]
+
+        sanitized_chunks = [sanitize_text_for_encoding(content) for content in text_chunks]
+        chunk_ids = [compute_mdhash_id(content, prefix="chunk-") for content in sanitized_chunks]
+
+        custom_kg = {
+            "chunks": [
+                {
+                    "content": content,
+                    "source_id": f"{file_id}_{index}",
+                    "file_path": file_path or "",
+                    "chunk_order_index": index,
+                }
+                for index, content in enumerate(sanitized_chunks)
+            ],
+            "entities": [],
+            "relationships": [],
+        }
+        await rag.ainsert_custom_kg(custom_kg, full_doc_id=file_id)
+        updated_at = utc_isoformat()
+        full_doc = {"content": sanitize_text_for_encoding(markdown_content), "file_path": file_path or "unknown_source"}
+        await rag.full_docs.upsert({file_id: full_doc})
+        await rag.doc_status.upsert(
+            {
+                file_id: {
+                    "status": DocStatus.PROCESSED,
+                    "chunks_count": len(chunk_ids),
+                    "chunks_list": chunk_ids,
+                    "content_summary": get_content_summary(markdown_content),
+                    "content_length": len(markdown_content),
+                    "created_at": updated_at,
+                    "updated_at": updated_at,
+                    "file_path": file_path or "unknown_source",
+                    "metadata": {"ingestion_mode": INDEX_MODE_FAST},
+                }
+            }
+        )
+        await rag.full_docs.index_done_callback()
+        await rag.doc_status.index_done_callback()
+
     def delete_database(self, db_id: str) -> dict:
         """删除数据库，同时清除Neo4j中的数据。LightRAG PostgreSQL 向量表由上游存储层管理。"""
         # Delete Neo4j data
@@ -87,7 +278,14 @@ class LightRagKB(KnowledgeBase):
         # Delete local files and metadata
         return super().delete_database(db_id)
 
-    def update_database(self, db_id: str, name: str, description: str, llm_info: dict = None) -> dict:
+    def update_database(
+        self,
+        db_id: str,
+        name: str,
+        description: str,
+        llm_info: dict = None,
+        additional_params: dict | None = None,
+    ) -> dict:
         """
         更新数据库配置
 
@@ -102,7 +300,7 @@ class LightRagKB(KnowledgeBase):
         logger.warning(f"old_llm_info: {old_llm_info}, new_llm_info: {llm_info}, llm_info_changed: {llm_info_changed}")
 
         # 调用父类方法更新基本信息
-        result = super().update_database(db_id, name, description, llm_info)
+        result = super().update_database(db_id, name, description, llm_info, additional_params)
 
         # 如果 llm_info 发生变化，清除缓存的实例，确保下次使用新模型
         if llm_info_changed and db_id in self.instances:
@@ -353,6 +551,7 @@ class LightRagKB(KnowledgeBase):
                     file_processing_params=file_meta.get("processing_params"),
                     request_params=params,
                 )
+                ingestion_options = resolve_ingestion_options(params)
                 self.files_meta[file_id]["processing_params"] = params
                 await self._save_metadata()
 
@@ -365,18 +564,34 @@ class LightRagKB(KnowledgeBase):
                 await self.delete_file_chunks_only(db_id, file_id)
 
                 # Insert
-                await rag.ainsert(
-                    input=chunk_input,
-                    ids=file_id,
-                    file_paths=file_path,
-                    split_by_character=split_by_character,
-                    split_by_character_only=split_by_character_only,
-                )
-                await self._ensure_doc_processed(rag, file_id)
+                if ingestion_options["index_mode"] == INDEX_MODE_FAST:
+                    await self._fast_insert_chunks(
+                        rag,
+                        markdown_content=markdown_content,
+                        chunks=chunks,
+                        file_id=file_id,
+                        file_path=file_path,
+                    )
+                else:
+                    async with self._scoped_graph_limits(
+                        rag,
+                        file_id=file_id,
+                        max_nodes=ingestion_options["max_graph_nodes"],
+                        max_relations=ingestion_options["max_graph_relations"],
+                    ):
+                        await rag.ainsert(
+                            input=chunk_input,
+                            ids=file_id,
+                            file_paths=file_path,
+                            split_by_character=split_by_character,
+                            split_by_character_only=split_by_character_only,
+                        )
+                    await self._ensure_doc_processed(rag, file_id)
 
                 logger.info(
                     f"Indexed file {file_id} into LightRAG with {len(chunks)} chunks, "
-                    f"chunk_preset_id={params.get('chunk_preset_id')}"
+                    f"chunk_preset_id={params.get('chunk_preset_id')}, "
+                    f"index_mode={ingestion_options['index_mode']}"
                 )
 
                 # Update status

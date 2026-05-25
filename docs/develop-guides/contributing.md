@@ -4,16 +4,12 @@
 
 如果你只是想快速了解仓库入口信息，可以先看根目录的 [CONTRIBUTING.md](../../CONTRIBUTING.md)。
 
-<a href="https://github.com/xerrors/Yuxi/contributors">
-    <img src="https://contributors.nn.ci/api?repo=xerrors/Yuxi" alt="贡献者名单">
-</a>
-
 ## 开始之前
 
 提交前建议先完成以下检查：
 
-- 搜索已有 [Issues](https://github.com/xerrors/Yuxi/issues) 和 [Discussions](https://github.com/xerrors/Yuxi/discussions)
-- 对较大的功能改动，先发 Issue 讨论设计和边界
+- 搜索本地已有文档、开发路线图和相关模块实现
+- 对较大的功能改动，先讨论设计和边界
 - 保持一次 PR 只解决一个明确问题，避免把无关重构混在一起
 
 ## 开发原则
@@ -205,7 +201,7 @@ cp test/.env.test.example test/.env.test
 
 ## 反馈渠道
 
-- Bug 反馈：<https://github.com/xerrors/Yuxi/issues>
-- 功能讨论：<https://github.com/xerrors/Yuxi/discussions>
+- Bug 反馈：通过当前项目约定的协作渠道提交
+- 功能讨论：先补充需求背景、验收标准和影响范围
 
 感谢每一位贡献者的投入。

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import yaml
 from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi.responses import FileResponse
 
 from yuxi.storage.postgres.models_business import User
 from server.utils.auth_middleware import get_admin_user
@@ -11,6 +12,7 @@ from yuxi import config, get_version
 from yuxi.utils.logging_config import logger
 
 system = APIRouter(prefix="/system", tags=["system"])
+STATIC_CONFIG_DIR = Path("package/yuxi/config/static")
 
 # =============================================================================
 # === 健康检查分组 ===
@@ -107,7 +109,7 @@ async def load_info_config():
         # 检查文件是否存在
         if not config_path.exists():
             logger.debug(f"The config file {config_path} does not exist, using default config")
-            config_path = Path("package/yuxi/config/static/info.template.yaml")
+            config_path = STATIC_CONFIG_DIR / "info.template.yaml"
 
         # 异步读取配置文件
         async with aiofiles.open(config_path, encoding="utf-8") as file:
@@ -134,6 +136,15 @@ async def get_info_config():
     except Exception as e:
         logger.error(f"获取信息配置失败: {e}")
         raise HTTPException(status_code=500, detail="获取信息配置失败")
+
+
+@system.get("/logo")
+async def get_logo():
+    """获取系统 Logo（公开接口，无需认证）"""
+    logo_path = STATIC_CONFIG_DIR / "logo.png"
+    if not logo_path.exists():
+        raise HTTPException(status_code=404, detail="Logo 文件不存在")
+    return FileResponse(logo_path, media_type="image/png")
 
 
 @system.post("/info/reload")

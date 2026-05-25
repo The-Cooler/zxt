@@ -15,6 +15,7 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 async def test_chat_endpoints_require_authentication(test_client):
     assert (await test_client.get("/api/chat/default_agent")).status_code == 401
     assert (await test_client.get("/api/chat/agent")).status_code == 401
+    assert (await test_client.get("/api/chat/learning/overview")).status_code == 401
 
 
 async def _create_thread_for_user(test_client, headers: dict[str, str]) -> str:
@@ -57,6 +58,43 @@ async def test_admin_can_read_default_agent(test_client, admin_headers):
     response = await test_client.get("/api/chat/default_agent", headers=admin_headers)
     assert response.status_code == 200, response.text
     assert "default_agent_id" in response.json()
+
+
+async def test_learning_overview_reads_current_user_workspace(test_client, standard_user):
+    headers = standard_user["headers"]
+    user_id = str(standard_user["user"]["id"])
+    thread_id = f"learning-overview-{uuid.uuid4().hex[:8]}"
+    ensure_thread_dirs(thread_id, user_id)
+    workspace_dir = sandbox_workspace_dir(thread_id, user_id)
+    (workspace_dir / "learning-profile.md").write_text("# 学习画像\n", encoding="utf-8")
+    plans_dir = workspace_dir / "learning-plans"
+    plans_dir.mkdir(parents=True, exist_ok=True)
+    (plans_dir / "index.md").write_text(
+        "\n".join(
+            [
+                "| 主题 | 文件路径 | 状态 | 最近更新时间 |",
+                "| --- | --- | --- | --- |",
+                "| Java | /home/gem/user-data/workspace/learning-plans/java.md | 进行中 | 2026-06-08 |",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    response = await test_client.get("/api/chat/learning/overview", headers=headers)
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["profile_exists"] is True
+    assert payload["index_exists"] is True
+    assert payload["new_topic_prompt"] == "我想开始一个新的学习主题："
+    assert payload["plans"] == [
+        {
+            "topic": "Java",
+            "file_path": "/home/gem/user-data/workspace/learning-plans/java.md",
+            "status": "进行中",
+            "updated_at": "2026-06-08",
+        }
+    ]
 
 
 async def test_setting_default_agent_requires_admin(test_client, admin_headers, standard_user):

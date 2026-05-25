@@ -110,6 +110,7 @@ import { getKbTypeLabel } from '@/utils/kb_utils'
 import { unifiedApi } from '@/apis/graph_api'
 import { message } from 'ant-design-vue'
 import { useGraph } from '@/composables/useGraph'
+import { databaseApi } from '@/apis/knowledge_api'
 
 const props = defineProps({
   active: {
@@ -126,8 +127,15 @@ const kbTypeLabel = computed(() => getKbTypeLabel(kbType.value || 'lightrag'))
 
 const graphRef = ref(null)
 const showSettings = ref(false)
-const graphLimit = ref(50)
-const graphDepth = ref(2)
+const DEFAULT_GRAPH_LIMIT = 20
+const DEFAULT_GRAPH_DEPTH = 2
+const GRAPH_LIMIT_MIN = 10
+const GRAPH_LIMIT_MAX = 1000
+const GRAPH_DEPTH_MIN = 1
+const GRAPH_DEPTH_MAX = 5
+
+const graphLimit = ref(DEFAULT_GRAPH_LIMIT)
+const graphDepth = ref(DEFAULT_GRAPH_DEPTH)
 const searchInput = ref('')
 
 const graph = reactive(useGraph(graphRef))
@@ -139,6 +147,43 @@ const isGraphSupported = computed(() => {
 })
 
 let pendingLoadTimer = null
+
+const clampNumber = (value, min, max, fallback) => {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.min(max, Math.max(min, Math.trunc(parsed)))
+}
+
+const loadGraphSettings = () => {
+  graphLimit.value = DEFAULT_GRAPH_LIMIT
+  graphDepth.value = DEFAULT_GRAPH_DEPTH
+  if (!databaseId.value) return
+
+  const saved = store.database?.additional_params?.graph_view || {}
+  graphLimit.value = clampNumber(saved.max_nodes, GRAPH_LIMIT_MIN, GRAPH_LIMIT_MAX, DEFAULT_GRAPH_LIMIT)
+  graphDepth.value = clampNumber(saved.max_depth, GRAPH_DEPTH_MIN, GRAPH_DEPTH_MAX, DEFAULT_GRAPH_DEPTH)
+}
+
+const saveGraphSettings = async () => {
+  if (!databaseId.value) return
+
+  const additionalParams = {
+    ...(store.database?.additional_params || {}),
+    graph_view: {
+      ...(store.database?.additional_params?.graph_view || {}),
+      max_nodes: graphLimit.value,
+      max_depth: graphDepth.value
+    }
+  }
+
+  await databaseApi.updateDatabase(databaseId.value, {
+    name: store.database?.name || databaseId.value,
+    description: store.database?.description || '',
+    llm_info: store.database?.llm_info || null,
+    additional_params: additionalParams
+  })
+  store.database.additional_params = additionalParams
+}
 
 const loadGraph = async () => {
   if (!databaseId.value || !isGraphSupported.value) return
@@ -163,9 +208,17 @@ const loadGraph = async () => {
   }
 }
 
-const applySettings = () => {
-  showSettings.value = false
-  loadGraph()
+const applySettings = async () => {
+  graphLimit.value = clampNumber(graphLimit.value, GRAPH_LIMIT_MIN, GRAPH_LIMIT_MAX, DEFAULT_GRAPH_LIMIT)
+  graphDepth.value = clampNumber(graphDepth.value, GRAPH_DEPTH_MIN, GRAPH_DEPTH_MAX, DEFAULT_GRAPH_DEPTH)
+  try {
+    await saveGraphSettings()
+    showSettings.value = false
+    await loadGraph()
+  } catch (error) {
+    console.error('Failed to save graph settings:', error)
+    message.error('保存图谱设置失败')
+  }
 }
 
 const onSearch = () => {
@@ -200,11 +253,12 @@ watch(
 )
 
 watch(databaseId, () => {
+  loadGraphSettings()
   graph.clearGraph()
   if (isGraphSupported.value) {
     scheduleGraphLoad(300)
   }
-})
+}, { immediate: true })
 
 watch(isGraphSupported, (supported) => {
   if (!supported) {

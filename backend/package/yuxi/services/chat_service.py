@@ -8,7 +8,9 @@ from typing import Any
 
 from langchain.messages import AIMessage, AIMessageChunk, HumanMessage
 from langgraph.types import Command
-from yuxi import config as conf
+from yuxi import config as conf, knowledge_base
+from yuxi.agents.context import BaseContext
+from yuxi.agents.backends.knowledge_base_backend import resolve_visible_knowledge_bases_for_context
 from yuxi.agents.backends.sandbox.paths import sandbox_workspace_agents_prompt_file
 from yuxi.agents.buildin import agent_manager
 from yuxi.agents.state import AgentStatePayload
@@ -32,6 +34,9 @@ from yuxi.utils.question_utils import (
 )
 
 WORKSPACE_AGENTS_PROMPT_MAX_BYTES = 64 * 1024
+RAG_CONTEXT_MAX_CHARS_PER_KB = 6000
+RAG_CONTEXT_MAX_TOTAL_CHARS = 18000
+STRICT_RAG_INSUFFICIENT_MESSAGE = "知识库中未检索到足够依据，无法基于指定知识库回答该问题。"
 
 
 def _load_workspace_agents_prompt(thread_id: str, user_id: str) -> str:
@@ -56,14 +61,183 @@ def _load_workspace_agents_prompt(thread_id: str, user_id: str) -> str:
     return prompt
 
 
-async def _build_agent_input_context(agent_config: dict, *, thread_id: str, user_id: str) -> dict:
+def _format_rag_result(result: Any) -> str:
+    if result is None:
+        return ""
+
+    if isinstance(result, str):
+        return result.strip()
+
+    if isinstance(result, list):
+        parts: list[str] = []
+        for index, item in enumerate(result, 1):
+            if isinstance(item, dict):
+                content = str(item.get("content") or item.get("text") or "").strip()
+                metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+                source = metadata.get("source") or metadata.get("file_name") or metadata.get("filename")
+                if content:
+                    prefix = f"[{index}]"
+                    if source:
+                        prefix = f"{prefix} 来源：{source}"
+                    parts.append(f"{prefix}\n{content}")
+            elif item:
+                parts.append(f"[{index}]\n{item}")
+        return "\n\n".join(parts).strip()
+
+    if isinstance(result, dict):
+        content = result.get("content") or result.get("text") or result.get("answer")
+        if content:
+            return str(content).strip()
+        return json.dumps(result, ensure_ascii=False, default=str)
+
+    return str(result).strip()
+
+
+def _resolve_rag_policy(agent_config: dict, rag_policy: dict | None = None) -> dict:
+    merged_policy: dict[str, Any] = {}
+    config_policy = (agent_config or {}).get("_rag_policy")
+    if isinstance(config_policy, dict):
+        merged_policy.update(config_policy)
+    if isinstance(rag_policy, dict):
+        merged_policy.update(rag_policy)
+
+    names = merged_policy.get("knowledges")
+    if names is not None:
+        merged_policy["knowledges"] = [str(name).strip() for name in names if str(name).strip()]
+
+    db_ids = merged_policy.get("db_ids")
+    if db_ids is not None:
+        merged_policy["db_ids"] = {str(db_id).strip() for db_id in db_ids if str(db_id).strip()}
+
+    merged_policy["strict"] = bool(merged_policy.get("strict"))
+    return merged_policy
+
+
+async def _build_rag_context(
+    query: str,
+    agent_config: dict,
+    *,
+    thread_id: str,
+    user_id: str,
+    rag_policy: dict | None = None,
+) -> tuple[str, dict]:
+    policy = _resolve_rag_policy(agent_config, rag_policy)
+    strict = bool(policy.get("strict"))
+    rag_meta: dict[str, Any] = {"enabled": False, "strict": strict, "sources": [], "insufficient": False}
+
+    if not query.strip():
+        rag_meta["insufficient"] = strict
+        return "", rag_meta
+
+    runtime_context = BaseContext(thread_id=thread_id, user_id=user_id)
+    runtime_context.update_from_dict(agent_config or {})
+    runtime_context.thread_id = thread_id
+    runtime_context.user_id = user_id
+    if policy.get("knowledges") is not None:
+        runtime_context.knowledges = policy["knowledges"]
+
+    try:
+        visible_kbs = await resolve_visible_knowledge_bases_for_context(runtime_context)
+    except Exception as exc:
+        logger.warning(f"RAG 预检索解析可见知识库失败: {exc}")
+        rag_meta["insufficient"] = strict
+        return "", rag_meta
+
+    policy_db_ids = policy.get("db_ids")
+    if policy_db_ids:
+        visible_kbs = [kb for kb in visible_kbs if str(kb.get("db_id") or "").strip() in policy_db_ids]
+
+    if not visible_kbs:
+        rag_meta["insufficient"] = strict
+        return "", rag_meta
+
+    retrievers = knowledge_base.get_retrievers()
+    sections: list[str] = []
+    sources: list[dict] = []
+    total_chars = 0
+    for kb in visible_kbs:
+        db_id = str(kb.get("db_id") or "")
+        kb_name = str(kb.get("name") or db_id)
+        retriever_info = retrievers.get(db_id)
+        retriever = retriever_info.get("retriever") if isinstance(retriever_info, dict) else None
+        if retriever is None:
+            continue
+
+        try:
+            result = await retriever(query)
+        except Exception as exc:
+            logger.warning(f"RAG 预检索失败 kb={kb_name} db_id={db_id}: {exc}")
+            continue
+
+        formatted = _format_rag_result(result)
+        if not formatted:
+            continue
+
+        sources.append({"db_id": db_id, "name": kb_name})
+        formatted = formatted[:RAG_CONTEXT_MAX_CHARS_PER_KB]
+        section = f"知识库：{kb_name}\n{formatted}"
+        remaining = RAG_CONTEXT_MAX_TOTAL_CHARS - total_chars
+        if remaining <= 0:
+            break
+        section = section[:remaining]
+        sections.append(section)
+        total_chars += len(section)
+
+    if not sections:
+        rag_meta["insufficient"] = strict
+        return "", rag_meta
+
+    rag_meta.update({"enabled": True, "sources": sources, "insufficient": False})
+
+    return "\n\n".join(
+        [
+            "<| RAG 检索上下文 |>",
+            (
+                "本轮处于严格知识库回答模式。必须仅依据以下知识库内容回答；"
+                "不得使用模型自身知识补全，不得优先读取 /home/gem/user-data。"
+            )
+            if strict
+            else (
+                "本轮已自动检索以下知识库内容。回答与知识库相关的问题时，必须优先依据这些内容；"
+                "如果内容不足，请说明未检索到足够依据，再考虑使用 query_kb 或 /home/gem/kbs 进一步查找。"
+                "不要优先读取 /home/gem/user-data，除非用户明确要求处理本轮上传文件。"
+            ),
+            *sections,
+        ]
+    ), rag_meta
+
+
+async def _build_agent_input_context(
+    agent_config: dict,
+    *,
+    thread_id: str,
+    user_id: str,
+    query: str = "",
+    rag_policy: dict | None = None,
+) -> dict:
     input_context = dict(agent_config or {})
     agents_prompt = await asyncio.to_thread(_load_workspace_agents_prompt, thread_id, user_id)
+    prompt_sections = [str(input_context.get("system_prompt") or "").rstrip()]
+
+    rag_context, rag_meta = await _build_rag_context(
+        query,
+        input_context,
+        thread_id=thread_id,
+        user_id=user_id,
+        rag_policy=rag_policy,
+    )
+    if rag_meta.get("strict") or rag_context:
+        input_context["_rag_context"] = rag_meta
+    if rag_context:
+        prompt_sections.append(rag_context)
 
     if agents_prompt:
         agents_section = f"用户工作区 agents/AGENTS.md 内容：\n{agents_prompt}"
-        base_prompt = str(input_context.get("system_prompt") or "").rstrip()
-        input_context["system_prompt"] = f"{base_prompt}\n\n{agents_section}" if base_prompt else agents_section
+        prompt_sections.append(agents_section)
+
+    merged_prompt = "\n\n".join(section for section in prompt_sections if section)
+    if merged_prompt:
+        input_context["system_prompt"] = merged_prompt
 
     input_context.update({"user_id": user_id, "thread_id": thread_id})
     return input_context
@@ -580,7 +754,56 @@ async def agent_chat(
         thread_id = str(uuid.uuid4())
         logger.warning(f"No thread_id provided, generated new thread_id: {thread_id}")
 
-    input_context = await _build_agent_input_context(agent_config, thread_id=thread_id, user_id=user_id)
+    rag_policy = meta.get("rag_policy") if isinstance(meta.get("rag_policy"), dict) else None
+    input_context = await _build_agent_input_context(
+        agent_config,
+        thread_id=thread_id,
+        user_id=user_id,
+        query=query,
+        rag_policy=rag_policy,
+    )
+    rag_context_meta = input_context.get("_rag_context") if isinstance(input_context, dict) else None
+    if rag_context_meta and rag_context_meta.get("strict") and rag_context_meta.get("insufficient"):
+        try:
+            conv_repo = ConversationRepository(db)
+            agent_config_repo = AgentConfigRepository(db)
+            await _ensure_thread_bound_agent_config(
+                conv_repo=conv_repo,
+                agent_config_repo=agent_config_repo,
+                thread_id=thread_id,
+                user_id=user_id,
+                agent_id=agent_id,
+                agent_config_id=agent_config_id,
+            )
+            await conv_repo.add_message_by_thread_id(
+                thread_id=thread_id,
+                role="user",
+                content=query,
+                message_type=message_type,
+                image_content=image_content,
+                extra_metadata={
+                    "raw_message": human_message.model_dump(),
+                    "request_id": meta.get("request_id"),
+                },
+            )
+            await conv_repo.add_message_by_thread_id(
+                thread_id=thread_id,
+                role="assistant",
+                content=STRICT_RAG_INSUFFICIENT_MESSAGE,
+                message_type="text",
+                extra_metadata={"request_id": meta.get("request_id"), "rag": rag_context_meta},
+            )
+        except Exception as exc:
+            logger.error(f"保存严格 RAG 拒答消息失败: {exc}")
+        return {
+            "status": "finished",
+            "response": STRICT_RAG_INSUFFICIENT_MESSAGE,
+            "request_id": meta.get("request_id"),
+            "thread_id": thread_id,
+            "agent_state": {},
+            "rag": rag_context_meta,
+            "time_cost": asyncio.get_event_loop().time() - start_time,
+        }
     langfuse_run = _build_langfuse_run_context(
         current_user=current_user,
         thread_id=thread_id,
@@ -791,7 +1014,74 @@ async def stream_agent_chat(
         thread_id = str(uuid.uuid4())
         logger.warning(f"No thread_id provided, generated new thread_id: {thread_id}")
 
-    input_context = await _build_agent_input_context(agent_config, thread_id=thread_id, user_id=user_id)
+    rag_policy = meta.get("rag_policy") if isinstance(meta.get("rag_policy"), dict) else None
+    input_context = await _build_agent_input_context(
+        agent_config,
+        thread_id=thread_id,
+        user_id=user_id,
+        query=query,
+        rag_policy=rag_policy,
+    )
+    rag_context_meta = input_context.get("_rag_context") if isinstance(input_context, dict) else None
+    if rag_context_meta and rag_context_meta.get("enabled"):
+        yield make_chunk(
+            status="rag_search",
+            message=f"已检索 {len(rag_context_meta.get('sources') or [])} 个知识库",
+            rag=rag_context_meta,
+            meta=meta,
+        )
+    if rag_context_meta and rag_context_meta.get("strict") and rag_context_meta.get("insufficient"):
+        yield make_chunk(
+            status="rag_search",
+            message="未检索到足够知识库依据",
+            rag=rag_context_meta,
+            meta=meta,
+        )
+        yield make_chunk(
+            content=STRICT_RAG_INSUFFICIENT_MESSAGE,
+            status="loading",
+            msg={
+                "id": str(uuid.uuid4()),
+                "type": "ai",
+                "content": STRICT_RAG_INSUFFICIENT_MESSAGE,
+            },
+            meta=meta,
+        )
+        meta["time_cost"] = asyncio.get_event_loop().time() - start_time
+        try:
+            conv_repo = ConversationRepository(db)
+            agent_config_repo = AgentConfigRepository(db)
+            await _ensure_thread_bound_agent_config(
+                conv_repo=conv_repo,
+                agent_config_repo=agent_config_repo,
+                thread_id=thread_id,
+                user_id=user_id,
+                agent_id=agent_id,
+                agent_config_id=agent_config_id,
+            )
+            await conv_repo.add_message_by_thread_id(
+                thread_id=thread_id,
+                role="user",
+                content=query,
+                message_type=message_type,
+                image_content=image_content,
+                extra_metadata={
+                    "raw_message": human_message.model_dump(),
+                    "request_id": meta.get("request_id"),
+                },
+            )
+            await conv_repo.add_message_by_thread_id(
+                thread_id=thread_id,
+                role="assistant",
+                content=STRICT_RAG_INSUFFICIENT_MESSAGE,
+                message_type="text",
+                extra_metadata={"request_id": meta.get("request_id"), "rag": rag_context_meta},
+            )
+        except Exception as exc:
+            logger.error(f"保存严格 RAG 拒答消息失败: {exc}")
+            yield make_chunk(status="warning", message=f"消息保存失败: {exc}", meta=meta)
+        yield make_chunk(status="finished", meta=meta)
+        return
     langfuse_run = _build_langfuse_run_context(
         current_user=current_user,
         thread_id=thread_id,

@@ -75,6 +75,8 @@ services:
       retries: 8
       start_period: 180s
     depends_on:
+      graph:
+        condition: service_healthy
       postgres:
         condition: service_healthy
       redis:
@@ -114,6 +116,8 @@ services:
     command: arq server.worker_main.WorkerSettings
     restart: unless-stopped
     depends_on:
+      graph:
+        condition: service_healthy
       postgres:
         condition: service_healthy
       redis:
@@ -192,14 +196,33 @@ services:
       - "5173:5173"
     depends_on:
       - api
+      - docs
     networks:
       - app-network
     environment:
       - NODE_ENV=development
       - VITE_API_URL=http://api:5050
+      - VITE_DOCS_URL=http://docs:5174
       - VITE_USE_RUNS_API=${VITE_USE_RUNS_API:-false}
       - VITE_LITE_MODE=${LITE_MODE:-}
     command: pnpm run server
+    restart: unless-stopped
+
+  docs:
+    build:
+      context: .
+      dockerfile: docker/docs.Dockerfile
+      target: development
+    image: docs-dev:${YUXI_VERSION:-0.6.2.beta}
+    container_name: docs-dev
+    working_dir: /app
+    volumes:
+      - ./docs:/app/docs
+    ports:
+      - "5174:5174"
+    networks:
+      - app-network
+    command: npm run dev -- docs --host 0.0.0.0 --port 5174
     restart: unless-stopped
 
   # region neo4j
@@ -212,6 +235,8 @@ services:
     volumes:
       - ./docker/volumes/neo4j/data:/data
       - ./docker/volumes/neo4j/logs:/var/lib/neo4j/logs
+    tmpfs:
+      - /tmp:mode=1777,exec
     healthcheck:
       test: ["CMD-SHELL", "cypher-shell -a bolt://localhost:7687 -u ${NEO4J_USERNAME:-neo4j} -p ${NEO4J_PASSWORD:-0123456789} 'RETURN 1;' >/dev/null || exit 1"]
       interval: 20s

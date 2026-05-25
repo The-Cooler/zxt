@@ -174,6 +174,13 @@ export function useAgentStreamHandler({
         }
         return false
 
+      case 'rag_search':
+        threadState.ragSearch = chunk.rag || null
+        if (chunkMessage) {
+          message.info(chunkMessage)
+        }
+        return false
+
       case 'finished':
         streamSmoother?.flushThread(threadId)
         // 先标记流式结束，但保持消息显示直到历史记录加载完成
