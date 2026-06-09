@@ -7,8 +7,8 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException, UploadFile
 
-from yuxi.agents.backends.sandbox import paths as workspace_paths
-from yuxi.services import workspace_service as svc
+from zixuetong.agents.backends.sandbox import paths as workspace_paths
+from zixuetong.services import workspace_service as svc
 
 
 def test_workspace_root_creates_default_agents_prompt_file(tmp_path: Path, monkeypatch) -> None:

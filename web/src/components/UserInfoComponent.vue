@@ -288,7 +288,7 @@ const goToLogin = () => {
 }
 
 const openDocs = () => {
-  router.push('/')
+  window.open('/docs/', '_blank', 'noopener,noreferrer')
 }
 
 const toggleTheme = () => {

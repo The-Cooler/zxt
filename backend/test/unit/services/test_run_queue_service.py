@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-import yuxi.services.run_queue_service as run_queue_service
+import zixuetong.services.run_queue_service as run_queue_service
 
 
 class _FakeRedisClient:

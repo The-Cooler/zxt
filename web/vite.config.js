@@ -4,7 +4,13 @@ import vue from '@vitejs/plugin-vue'
 
 export default defineConfig(({ mode }) => {
   // eslint-disable-next-line no-undef
-  const env = loadEnv(mode, process.cwd(), '')
+  const env = {
+    ...loadEnv(mode, process.cwd(), ''),
+    // loadEnv 只读取 env 文件，这里合并容器和命令行注入的环境变量。
+    // 这样 Docker Compose 中的 VITE_DOCS_URL 才能生效。
+    // eslint-disable-next-line no-undef
+    ...process.env
+  }
   return {
     plugins: [vue()],
     resolve: {

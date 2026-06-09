@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from yuxi.agents.toolkits.kbs import tools
+from zixuetong.agents.toolkits.kbs import tools
 
 
 def _query_kb_callable():
@@ -60,7 +60,7 @@ async def test_query_kb_returns_chunk_result_without_filepath_injection(monkeypa
     monkeypatch.setattr(tools, "_resolve_visible_knowledge_bases_for_query", _fake_visible_kbs)
 
     monkeypatch.setattr(
-        "yuxi.agents.backends.knowledge_base_backend.inject_filepaths_into_retrieval_result",
+        "zixuetong.agents.backends.knowledge_base_backend.inject_filepaths_into_retrieval_result",
         pytest.fail,
     )
 
@@ -101,7 +101,7 @@ async def test_query_kb_returns_lightrag_result_without_filepath_injection(monke
 
     monkeypatch.setattr(tools, "_resolve_visible_knowledge_bases_for_query", _fake_visible_kbs)
     monkeypatch.setattr(
-        "yuxi.agents.backends.knowledge_base_backend.inject_filepaths_into_retrieval_result",
+        "zixuetong.agents.backends.knowledge_base_backend.inject_filepaths_into_retrieval_result",
         pytest.fail,
     )
 

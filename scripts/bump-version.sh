@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # =============================================================================
-# Yuxi 版本号升级脚本
+# 自学通 版本号升级脚本
 # =============================================================================
 # 用法: ./scripts/bump-version.sh [--dev] <新版本号>
 # 示例: ./scripts/bump-version.sh 0.6.2
@@ -101,22 +101,22 @@ sed -i -E "s/\"version\": \"[^\"]+\"/\"version\": \"${NEW_VERSION}\"/" \
 # 4. 更新 Docker Compose 镜像标签默认值
 # -----------------------------------------------------------------------------
 echo "→ 更新 docker-compose.yml"
-sed -i -E "s/\\\$\{YUXI_VERSION:-[^}]+\}/\${YUXI_VERSION:-${NEW_VERSION}}/g" \
+sed -i -E "s/\\\$\{ZIXUETONG_VERSION:-[^}]+\}/\${ZIXUETONG_VERSION:-${NEW_VERSION}}/g" \
     "${PROJECT_ROOT}/docker-compose.yml"
 
 echo "→ 更新 docker-compose.prod.yml"
-sed -i -E "s/\\\$\{YUXI_VERSION:-[^}]+\}/\${YUXI_VERSION:-${NEW_VERSION}}/g" \
+sed -i -E "s/\\\$\{ZIXUETONG_VERSION:-[^}]+\}/\${ZIXUETONG_VERSION:-${NEW_VERSION}}/g" \
     "${PROJECT_ROOT}/docker-compose.prod.yml"
 
 # -----------------------------------------------------------------------------
 # 5. 更新 uv.lock 中的项目版本号
 # -----------------------------------------------------------------------------
 echo "→ 更新 backend/uv.lock"
-# yuxi 包版本
-sed -i -E "/^name = \"yuxi\"$/{n;s/^version = \"[^\"]+\"/version = \"${NEW_VERSION}\"/;}" \
+# zixuetong 包版本
+sed -i -E "/^name = \"zixuetong\"$/{n;s/^version = \"[^\"]+\"/version = \"${NEW_VERSION}\"/;}" \
     "${PROJECT_ROOT}/backend/uv.lock"
-# yuxi-workspace 版本
-sed -i -E "/^name = \"yuxi-workspace\"$/{n;s/^version = \"[^\"]+\"/version = \"${NEW_VERSION}\"/;}" \
+# zixuetong-workspace 版本
+sed -i -E "/^name = \"zixuetong-workspace\"$/{n;s/^version = \"[^\"]+\"/version = \"${NEW_VERSION}\"/;}" \
     "${PROJECT_ROOT}/backend/uv.lock"
 
 # -----------------------------------------------------------------------------
@@ -153,10 +153,10 @@ echo "  web/package.json:"
 grep -E '"version"' "${PROJECT_ROOT}/web/package.json" | head -1 | sed 's/^/    /'
 
 echo "  docker-compose.yml (api):"
-grep -E "image: yuxi-api:" "${PROJECT_ROOT}/docker-compose.yml" | head -1 | sed 's/^/    /'
+grep -E "image: zixuetong-api:" "${PROJECT_ROOT}/docker-compose.yml" | head -1 | sed 's/^/    /'
 
 echo "  docker-compose.prod.yml (web):"
-grep -E "image: yuxi-web:" "${PROJECT_ROOT}/docker-compose.prod.yml" | head -1 | sed 's/^/    /'
+grep -E "image: zixuetong-web:" "${PROJECT_ROOT}/docker-compose.prod.yml" | head -1 | sed 's/^/    /'
 
 echo ""
 echo "后续步骤:"

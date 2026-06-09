@@ -10,8 +10,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from server.utils.auth_middleware import get_admin_user, get_db
-from yuxi.services.remote_skill_install_service import install_remote_skill, install_remote_skills_batch, list_remote_skills
-from yuxi.services.skill_service import (
+from zixuetong.services.remote_skill_install_service import install_remote_skill, install_remote_skills_batch, list_remote_skills
+from zixuetong.services.skill_service import (
     BuiltinSkillUpdateConflictError,
     create_skill_node,
     delete_skill,
@@ -28,8 +28,8 @@ from yuxi.services.skill_service import (
     update_skill_dependencies,
     update_skill_file,
 )
-from yuxi.storage.postgres.models_business import User
-from yuxi.utils.logging_config import logger
+from zixuetong.storage.postgres.models_business import User
+from zixuetong.utils.logging_config import logger
 
 skills = APIRouter(prefix="/system/skills", tags=["skills"])
 

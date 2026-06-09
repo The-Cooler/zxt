@@ -1,10 +1,10 @@
 # ARCHITECTURE.md
 
-本文档是 Yuxi 的代码地图，参考 matklad 的 `ARCHITECTURE.md` 建议维护：只描述相对稳定的系统边界、目录职责和跨切面约束，避免同步易变的实现细节。新贡献者如果不确定“某个能力应该改哪里”，先读这里，再用符号搜索定位具体类型、函数或路由。
+本文档是自学通 / 自学通 的代码地图，参考 matklad 的 `ARCHITECTURE.md` 建议维护：只描述相对稳定的系统边界、目录职责和跨切面约束，避免同步易变的实现细节。新贡献者如果不确定“某个能力应该改哪里”，先读这里，再用符号搜索定位具体类型、函数或路由。
 
 ## 鸟瞰
 
-Yuxi 是一个面向 RAG、知识图谱和多智能体工作流的知识库平台。用户在 Vue 前端中配置智能体、知识库、工具、Skills、MCP 与 SubAgents；前端通过 `/api` 调用 FastAPI；后端服务层协调数据库、对象存储、向量库、图数据库、LangGraph 运行态和沙盒；长耗时智能体运行交给 worker 异步执行，并通过事件流回到前端。
+自学通 / 自学通 是一个面向个人学习、RAG、知识图谱和多智能体工作流的知识库平台。用户在 Vue 前端中使用学习助手、工作区、知识库、工具、Skills、MCP 与 SubAgents；前端通过 `/api` 调用 FastAPI；后端服务层协调数据库、对象存储、向量库、图数据库、LangGraph 运行态和沙盒；长耗时智能体运行交给 worker 异步执行，并通过事件流回到前端。
 
 开发与运行拓扑以 `docker-compose.yml` 为准。核心开发服务包括：
 
@@ -17,14 +17,14 @@ Yuxi 是一个面向 RAG、知识图谱和多智能体工作流的知识库平�
 
 ## 后端代码地图
 
-后端分成两个顶层边界：`backend/server` 是 Web 应用入口与 HTTP 适配层，`backend/package/yuxi` 是可复用业务包。新增业务逻辑通常优先放在 `yuxi` 包中，路由层只做请求解析、认证上下文和响应装配。
+后端分成两个顶层边界：`backend/server` 是 Web 应用入口与 HTTP 适配层，`backend/package/zixuetong` 是可复用业务包。新增业务逻辑通常优先放在 `zixuetong` 包中，路由层只做请求解析、认证上下文和响应装配。
 
 - `server/main.py` 创建 FastAPI 应用，注册中间件，并把所有业务接口统一挂到 `/api`。
 - `server/routers` 是 HTTP 路由边界。路由按领域拆分，集中在 `server/routers/__init__.py` 注册；知识库、图谱、评估和思维导图接口在 `LITE_MODE` 下不会注册。
 - `server/utils` 放 Web 层通用能力，例如生命周期、认证、日志与迁移辅助。
-- `server/worker_main.py` 是 worker 入口，实际 worker 设置来自 `yuxi.services.run_worker`。
+- `server/worker_main.py` 是 worker 入口，实际 worker 设置来自 `zixuetong.services.run_worker`。
 
-`backend/package/yuxi` 是后端主体：
+`backend/package/zixuetong` 是后端主体：
 
 - `agents` 定义 LangGraph 智能体体系。`BaseAgent` 是智能体基类，`BaseContext` 是运行配置上下文；`buildin` 放内置智能体；`middlewares` 负责把知识库、Skills、MCP、附件、运行配置等能力挂到运行时；`toolkits` 放工具注册与内置工具；`backends` 对接沙盒、知识库和 Skills 等外部执行/资源后端。
 - `services` 是用例层，负责串联 repositories、agents、knowledge、storage 和外部系统。聊天、运行队列、文件视图、Skills、MCP、SubAgents、评估等跨模块流程都从这里找入口。
@@ -54,7 +54,7 @@ Yuxi 是一个面向 RAG、知识图谱和多智能体工作流的知识库平�
 
 1. `AgentView` 及相关组件收集输入、附件和智能体配置。
 2. `web/src/apis` 调用 `/api/chat` 相关接口。
-3. `server/routers/chat_router.py` 进入后端，委托 `yuxi.services.chat_service` 或 `agent_run_service`。
+3. `server/routers/chat_router.py` 进入后端，委托 `zixuetong.services.chat_service` 或 `agent_run_service`。
 4. 服务层读取 conversation、agent config、tools、skills、knowledge 等配置，必要时创建后台 run。
 5. `worker-dev` 执行 LangGraph 智能体；中间件按上下文挂载知识库、工具、Skills、MCP、附件与沙盒能力。
 6. 运行事件写入 Redis，最终状态和业务记录写入 Postgres；文件和产物落到 `saves`、MinIO 或沙盒映射目录。
@@ -63,7 +63,7 @@ Yuxi 是一个面向 RAG、知识图谱和多智能体工作流的知识库平�
 ## 架构不变量
 
 - Docker Compose 是开发环境的事实来源。开发时优先检查容器、日志和热重载，不要默认要求本地裸跑服务。
-- HTTP 路由层应保持薄；领域流程放在 `yuxi.services`，持久化查询放在 `yuxi.repositories`。
+- HTTP 路由层应保持薄；领域流程放在 `zixuetong.services`，持久化查询放在 `zixuetong.repositories`。
 - 前端 API 调用应集中在 `web/src/apis`，组件不要散落拼接后端 URL。
 - 智能体能力通过 context、middleware、toolkits、backends 组合，不要把知识库、MCP、Skills 或沙盒逻辑硬编码进单个页面或路由。
 - LITE 模式必须允许跳过知识库、图谱、评估等重依赖能力；新增相关接口或初始化逻辑时要尊重这个边界。
@@ -72,7 +72,7 @@ Yuxi 是一个面向 RAG、知识图谱和多智能体工作流的知识库平�
 
 ## 跨切面关注点
 
-- **配置**：环境变量来自 Compose 和 `.env`，用户持久化配置由 `yuxi.config.app.Config` 管理，运行时配置通过智能体 context 进入 LangGraph。
+- **配置**：环境变量来自 Compose 和 `.env`，用户持久化配置由 `zixuetong.config.app.Config` 管理，运行时配置通过智能体 context 进入 LangGraph。
 - **权限**：前端路由守卫提供页面级跳转，后端认证与权限检查仍是最终边界。
 - **状态与存储**：Postgres 存业务与知识库元数据，LangGraph checkpoint 使用独立连接池或 SQLite fallback，Redis 承载运行事件和取消信号，MinIO/本地 `saves`/沙盒目录承载文件。
 - **文档处理**：上传文件先进入解析和分块边界，再进入知识库实现；解析插件和知识库实现应保持可替换。

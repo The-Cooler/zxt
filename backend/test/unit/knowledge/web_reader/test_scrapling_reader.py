@@ -1,6 +1,6 @@
 import pytest
 
-from yuxi.knowledge.web_reader import scrapling_reader
+from zixuetong.knowledge.web_reader import scrapling_reader
 
 
 def test_extract_same_domain_links_normalizes_and_deduplicates():

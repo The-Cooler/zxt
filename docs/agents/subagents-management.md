@@ -77,7 +77,7 @@ graph = create_agent(
 
 SubAgent 存储在业务库表 subagents 中，核心字段定义在：
 
-- backend/package/yuxi/storage/postgres/models_business.py
+- backend/package/zixuetong/storage/postgres/models_business.py
 
 模型转换方法：
 
@@ -89,8 +89,8 @@ SubAgent 存储在业务库表 subagents 中，核心字段定义在：
 SubAgent 采用 Router -> Service -> Repository 的标准分层：
 
 - 路由：backend/server/routers/subagent_router.py
-- 服务：backend/package/yuxi/services/subagent_service.py
-- 仓储：backend/package/yuxi/repositories/subagent_repository.py
+- 服务：backend/package/zixuetong/services/subagent_service.py
+- 仓储：backend/package/zixuetong/repositories/subagent_repository.py
 
 职责划分：
 
@@ -108,8 +108,8 @@ Deep Agent 构图时会动态加载 SubAgent：
 
 关键代码：
 
-- backend/package/yuxi/agents/buildin/deep_agent/graph.py
-- backend/package/yuxi/services/subagent_service.py
+- backend/package/zixuetong/agents/buildin/deep_agent/graph.py
+- backend/package/zixuetong/services/subagent_service.py
 
 在当前实现中，子智能体默认模型由 DeepContext.subagents_model 提供；单个 SubAgent 若配置了 model，会在子智能体级别覆盖默认模型。
 
@@ -122,7 +122,7 @@ Deep Agent 构图时会动态加载 SubAgent：
 
 初始化逻辑：
 
-- backend/package/yuxi/services/subagent_service.py 中的 _DEFAULT_SUBAGENTS 和 init_builtin_subagents
+- backend/package/zixuetong/services/subagent_service.py 中的 _DEFAULT_SUBAGENTS 和 init_builtin_subagents
 - backend/server/utils/lifespan.py 启动阶段调用
 
 内置项保护规则：

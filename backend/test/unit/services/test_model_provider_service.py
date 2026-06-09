@@ -4,8 +4,8 @@ import pytest
 
 os.environ.setdefault("OPENAI_API_KEY", "test-key")
 
-from yuxi.config.builtin_providers import BUILTIN_PROVIDERS
-from yuxi.services.model_provider_service import (
+from zixuetong.config.builtin_providers import BUILTIN_PROVIDERS
+from zixuetong.services.model_provider_service import (
     check_credential_status,
     _normalize_payload,
     _normalize_remote_model,
@@ -96,7 +96,7 @@ async def test_fetch_remote_models_loads_embedding_only_when_capability_enabled(
         calls.append((endpoint, model_type))
         return [{"id": f"{model_type}-model", "type": model_type}]
 
-    monkeypatch.setattr("yuxi.services.model_provider_service._fetch_models_from_endpoint", fake_fetch)
+    monkeypatch.setattr("zixuetong.services.model_provider_service._fetch_models_from_endpoint", fake_fetch)
 
     class Provider:
         base_url = "https://example.com/v1"

@@ -1,15 +1,15 @@
 # 工具系统
 
-Yuxi 的工具系统基于注册机制，支持多种工具类型的动态组装。
+自学通 的工具系统基于注册机制，支持多种工具类型的动态组装。
 
 ## 工具注册机制
 
-Yuxi 的工具系统采用 `@tool` 装饰器注册机制，核心位于 `backend/package/yuxi/agents/toolkits/registry.py`。
+自学通 的工具系统采用 `@tool` 装饰器注册机制，核心位于 `backend/package/zixuetong/agents/toolkits/registry.py`。
 
 ### @tool 装饰器
 
 ```python
-from yuxi.agents.toolkits.registry import tool
+from zixuetong.agents.toolkits.registry import tool
 
 @tool(category="buildin", tags=["计算"], display_name="计算器")
 def calculator(a: float, b: float, operation: str) -> float:
@@ -28,7 +28,7 @@ def calculator(a: float, b: float, operation: str) -> float:
 导入 `toolkits` 包时会自动触发注册：
 
 ```python
-from yuxi.agents.toolkits import buildin, mysql  # 触发 @tool 装饰器执行
+from zixuetong.agents.toolkits import buildin, mysql  # 触发 @tool 装饰器执行
 ```
 
 `toolkits/__init__.py` 中已包含 `buildin`、`mysql`、`debug` 模块的导入，这些模块加载时会自动注册所有带 `@tool` 装饰器的函数。
@@ -58,7 +58,7 @@ from yuxi.agents.toolkits import buildin, mysql  # 触发 @tool 装饰器执行
 知识库工具通过 `get_common_kb_tools()` 获取，不通过 `@tool` 装饰器注册：
 
 ```python
-from yuxi.agents.toolkits.kbs import get_common_kb_tools
+from zixuetong.agents.toolkits.kbs import get_common_kb_tools
 
 kb_tools = get_common_kb_tools()
 # 返回: [list_kbs, get_mindmap, query_kb]

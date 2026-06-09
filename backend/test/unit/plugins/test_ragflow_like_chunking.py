@@ -5,17 +5,17 @@ import sys
 
 sys.path.append(os.getcwd())
 
-from yuxi.knowledge.chunking.ragflow_like.dispatcher import chunk_markdown
-from yuxi.knowledge.chunking.ragflow_like.nlp import bullets_category, count_tokens
-from yuxi.knowledge.chunking.ragflow_like.utils.semantic_utils import split_sentences_chinese
-from yuxi.knowledge.chunking.ragflow_like.presets import (
+from zixuetong.knowledge.chunking.ragflow_like.dispatcher import chunk_markdown
+from zixuetong.knowledge.chunking.ragflow_like.nlp import bullets_category, count_tokens
+from zixuetong.knowledge.chunking.ragflow_like.utils.semantic_utils import split_sentences_chinese
+from zixuetong.knowledge.chunking.ragflow_like.presets import (
     CHUNK_ENGINE_VERSION,
     CHUNK_PRESET_IDS,
     get_chunk_preset_options,
     map_to_internal_parser_id,
     resolve_chunk_processing_params,
 )
-from yuxi.knowledge.utils.kb_utils import sanitize_processing_params
+from zixuetong.knowledge.utils.kb_utils import sanitize_processing_params
 
 
 def test_general_maps_to_naive() -> None:

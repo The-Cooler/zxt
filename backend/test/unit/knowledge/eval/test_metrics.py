@@ -2,7 +2,7 @@ import os
 
 os.environ.setdefault("OPENAI_API_KEY", "test-key")
 
-from yuxi.knowledge.eval.metrics import EvaluationMetricsCalculator, RetrievalMetrics
+from zixuetong.knowledge.eval.metrics import EvaluationMetricsCalculator, RetrievalMetrics
 
 
 def test_retrieval_metrics_use_metadata_chunk_id():

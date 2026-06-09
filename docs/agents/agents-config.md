@@ -1,6 +1,6 @@
 # 智能体配置
 
-Yuxi 的智能体系统基于 LangGraph 构建。对开发者来说，最重要的不是单独理解某个页面或某个字段，而是理解三件事：
+自学通 的智能体系统基于 LangGraph 构建。对开发者来说，最重要的不是单独理解某个页面或某个字段，而是理解三件事：
 
 - Agent 如何被定义和发现
 - Context 如何驱动配置界面
@@ -24,10 +24,10 @@ Yuxi 的智能体系统基于 LangGraph 构建。对开发者来说，最重要�
 
 ## 2. Agent 的代码组织
 
-建议在 `backend/package/yuxi/agents` 下按包组织一个智能体：
+建议在 `backend/package/zixuetong/agents` 下按包组织一个智能体：
 
 ```text
-backend/package/yuxi/agents/
+backend/package/zixuetong/agents/
 └── my_agent/
     ├── __init__.py
     ├── context.py
@@ -43,7 +43,7 @@ backend/package/yuxi/agents/
 示例：
 
 ```python
-from yuxi.agents import BaseAgent, BaseContext, load_chat_model
+from zixuetong.agents import BaseAgent, BaseContext, load_chat_model
 from langchain.agents import create_agent
 
 
@@ -66,7 +66,7 @@ class MyAgent(BaseAgent):
 
 ### 3.1 `BaseContext` 的角色
 
-`BaseContext` 定义在 `backend/package/yuxi/agents/context.py`，它不是一个普通的数据类，而是整个智能体配置链路的核心：
+`BaseContext` 定义在 `backend/package/zixuetong/agents/context.py`，它不是一个普通的数据类，而是整个智能体配置链路的核心：
 
 - 它定义了 Agent 可以配置哪些字段
 - 它定义了这些字段在前端如何展示
@@ -138,7 +138,7 @@ context_schema
 
 ```python
 from dataclasses import dataclass, field
-from yuxi.agents import BaseContext
+from zixuetong.agents import BaseContext
 
 
 @dataclass(kw_only=True)
@@ -286,7 +286,7 @@ class MyAgent(BaseAgent):
 | `file_upload` | 启用上传入口 |
 | `files` | 启用文件面板 |
 
-像 todo 这类运行态信息，不建议再放进 `capabilities`。Yuxi 当前会直接从 LangGraph state 中提取 `agent_state.todos`，前端按运行时是否真的存在任务来决定是否展示待办入口与状态卡片。
+像 todo 这类运行态信息，不建议再放进 `capabilities`。自学通 当前会直接从 LangGraph state 中提取 `agent_state.todos`，前端按运行时是否真的存在任务来决定是否展示待办入口与状态卡片。
 
 它解决的是“Agent 先天支持什么固定入口”，而不是“运行时当前产生了什么状态”。
 

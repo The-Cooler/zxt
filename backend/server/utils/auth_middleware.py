@@ -6,9 +6,9 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from yuxi.storage.postgres.manager import pg_manager
-from yuxi.storage.postgres.models_business import APIKey, User
-from yuxi.utils.datetime_utils import utc_now_naive
+from zixuetong.storage.postgres.manager import pg_manager
+from zixuetong.storage.postgres.models_business import APIKey, User
+from zixuetong.utils.datetime_utils import utc_now_naive
 
 from server.utils.auth_utils import AuthUtils
 

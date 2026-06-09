@@ -11,23 +11,23 @@ from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Reques
 from fastapi.responses import FileResponse
 from starlette.responses import StreamingResponse
 
-from yuxi.services.task_service import TaskContext, tasker
+from zixuetong.services.task_service import TaskContext, tasker
 from server.utils.auth_middleware import get_admin_user, get_required_user
-from yuxi import config, knowledge_base
-from yuxi.knowledge.chunking.ragflow_like.presets import ensure_chunk_defaults_in_additional_params
-from yuxi.plugins.parser import Parser, SUPPORTED_FILE_EXTENSIONS, is_supported_file_extension
-from yuxi.knowledge.utils import calculate_content_hash
-from yuxi.knowledge.utils.kb_utils import parse_minio_url
-from yuxi.knowledge.web_reader.cleaner import clean_web_page_to_markdown
-from yuxi.knowledge.web_reader.models import CleanedWebPage, DiscoveredLink, WebReadSession
-from yuxi.knowledge.web_reader.scrapling_reader import ScraplingWebReader
-from yuxi.knowledge.web_reader.session_store import load_session, save_session
-from yuxi.knowledge.web_reader.similarity import compute_similarities
-from yuxi.models.embed import test_all_embedding_models_status, test_embedding_model_status
-from yuxi.services.model_cache import is_v2_spec_format
-from yuxi.storage.postgres.models_business import User
-from yuxi.storage.minio.client import MinIOClient, StorageError, aupload_file_to_minio, get_minio_client
-from yuxi.utils import logger
+from zixuetong import config, knowledge_base
+from zixuetong.knowledge.chunking.ragflow_like.presets import ensure_chunk_defaults_in_additional_params
+from zixuetong.plugins.parser import Parser, SUPPORTED_FILE_EXTENSIONS, is_supported_file_extension
+from zixuetong.knowledge.utils import calculate_content_hash
+from zixuetong.knowledge.utils.kb_utils import parse_minio_url
+from zixuetong.knowledge.web_reader.cleaner import clean_web_page_to_markdown
+from zixuetong.knowledge.web_reader.models import CleanedWebPage, DiscoveredLink, WebReadSession
+from zixuetong.knowledge.web_reader.scrapling_reader import ScraplingWebReader
+from zixuetong.knowledge.web_reader.session_store import load_session, save_session
+from zixuetong.knowledge.web_reader.similarity import compute_similarities
+from zixuetong.models.embed import test_all_embedding_models_status, test_embedding_model_status
+from zixuetong.services.model_cache import is_v2_spec_format
+from zixuetong.storage.postgres.models_business import User
+from zixuetong.storage.minio.client import MinIOClient, StorageError, aupload_file_to_minio, get_minio_client
+from zixuetong.utils import logger
 
 knowledge = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
@@ -171,7 +171,7 @@ async def create_database(
 
         # V2 embedding model (spec 格式: provider_id:model_id，第一个特殊字符为冒号)
         if is_v2_spec_format(embed_model_name):
-            from yuxi.services.model_cache import model_cache
+            from zixuetong.services.model_cache import model_cache
 
             info = model_cache.get_model_info(embed_model_name)
             if not info or info.model_type != "embedding":
@@ -200,7 +200,7 @@ async def create_database(
         )
 
         # 需要重新加载所有智能体，因为工具刷新了
-        from yuxi.agents.buildin import agent_manager
+        from zixuetong.agents.buildin import agent_manager
 
         await agent_manager.reload_all()
 
@@ -281,7 +281,7 @@ async def delete_database(db_id: str, current_user: User = Depends(get_admin_use
         await knowledge_base.delete_database(db_id)
 
         # 需要重新加载所有智能体，因为工具刷新了
-        from yuxi.agents.buildin import agent_manager
+        from zixuetong.agents.buildin import agent_manager
 
         await agent_manager.reload_all()
 
@@ -359,7 +359,7 @@ async def add_documents(
 
     # 安全检查：验证文件路径
     if content_type == "file":
-        from yuxi.knowledge.utils.kb_utils import validate_file_path
+        from zixuetong.knowledge.utils.kb_utils import validate_file_path
 
         for item in items:
             try:
@@ -1284,7 +1284,7 @@ async def download_document(db_id: str, doc_id: str, request: Request, current_u
         media_type = media_types.get(ext.lower(), "application/octet-stream")
 
         # 根据path类型选择下载方式
-        from yuxi.knowledge.utils.kb_utils import is_minio_url
+        from zixuetong.knowledge.utils.kb_utils import is_minio_url
 
         if is_minio_url(file_path):
             # MinIO下载
@@ -1292,7 +1292,7 @@ async def download_document(db_id: str, doc_id: str, request: Request, current_u
 
             try:
                 # 使用通用函数解析MinIO URL
-                from yuxi.knowledge.utils.kb_utils import parse_minio_url
+                from zixuetong.knowledge.utils.kb_utils import parse_minio_url
 
                 bucket_name, object_name = parse_minio_url(file_path)
 
@@ -1446,7 +1446,7 @@ async def update_knowledge_base_query_params(
             updated_query_params = kb_instance.databases_meta[db_id]["query_params"]
 
         # 直接通过 Repository 更新单条记录，避免调用 _save_metadata() 遍历所有数据库和文件
-        from yuxi.repositories.knowledge_base_repository import KnowledgeBaseRepository
+        from zixuetong.repositories.knowledge_base_repository import KnowledgeBaseRepository
 
         kb_repo = KnowledgeBaseRepository()
         await kb_repo.update(db_id, {"query_params": updated_query_params})
@@ -1545,7 +1545,7 @@ async def generate_sample_questions(
         if not db_info:
             raise HTTPException(status_code=404, detail=f"知识库 {db_id} 不存在")
 
-        from yuxi.models import select_model
+        from zixuetong.models import select_model
 
         # 从请求体中提取参数
         count = request_body.get("count", 10)
@@ -1619,7 +1619,7 @@ async def generate_sample_questions(
 
             # 保存问题到知识库元数据
             try:
-                from yuxi.repositories.knowledge_base_repository import KnowledgeBaseRepository
+                from zixuetong.repositories.knowledge_base_repository import KnowledgeBaseRepository
 
                 await KnowledgeBaseRepository().update(db_id, {"sample_questions": questions})
                 logger.info(f"成功保存 {len(questions)} 个问题到知识库 {db_id}")
@@ -1657,7 +1657,7 @@ async def get_sample_questions(db_id: str, current_user: User = Depends(get_admi
         问题列表
     """
     try:
-        from yuxi.repositories.knowledge_base_repository import KnowledgeBaseRepository
+        from zixuetong.repositories.knowledge_base_repository import KnowledgeBaseRepository
 
         kb_repo = KnowledgeBaseRepository()
         kb = await kb_repo.get_by_id(db_id)
@@ -1730,9 +1730,9 @@ async def fetch_url(
     """
     logger.debug(f"Fetching URL: {url} for db_id: {db_id}")
     try:
-        from yuxi.knowledge.utils.url_fetcher import fetch_url_content
-        from yuxi.storage.minio import get_minio_client
-        from yuxi.knowledge.utils import calculate_content_hash
+        from zixuetong.knowledge.utils.url_fetcher import fetch_url_content
+        from zixuetong.storage.minio import get_minio_client
+        from zixuetong.knowledge.utils import calculate_content_hash
 
         # 1. 下载内容 (包含白名单校验、大小限制、类型检查)
         content_bytes, final_url = await fetch_url_content(url)
@@ -1976,7 +1976,7 @@ async def generate_description(
 
     根据知识库名称和现有描述，使用 LLM 生成适合作为智能体工具描述的内容。
     """
-    from yuxi.models import select_model
+    from zixuetong.models import select_model
 
     logger.debug(f"Generating description for knowledge base: {name}, files: {len(file_list)}")
 

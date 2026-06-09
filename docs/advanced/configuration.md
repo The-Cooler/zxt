@@ -17,12 +17,12 @@
 
 ## 应用配置
 
-配置项定义于 `backend/package/yuxi/config/app.py`，用户修改保存至 `saves/config/base.toml`。
+配置项定义于 `backend/package/zixuetong/config/app.py`，用户修改保存至 `saves/config/base.toml`。
 
 ### 修改配置
 
 ```python
-from yuxi.config import config
+from zixuetong.config import config
 
 config.enable_reranker = True
 config.save()

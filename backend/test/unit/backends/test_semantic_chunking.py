@@ -2,8 +2,8 @@ import pytest
 import numpy as np
 
 # 现在可以安全地导入了，因为顶层不再有重型依赖
-from yuxi.knowledge.chunking.ragflow_like.parsers import semantic
-from yuxi.models import select_embedding_model
+from zixuetong.knowledge.chunking.ragflow_like.parsers import semantic
+from zixuetong.models import select_embedding_model
 
 @pytest.fixture
 def embed_fn():
@@ -310,7 +310,7 @@ def test_semantic_chunking_basic(embed_fn, sample_markdown):
    
 def test_heading_inference():
     """测试标题层级推断工具类"""
-    from yuxi.knowledge.chunking.ragflow_like.utils.md_parser_utils import infer_heading_level
+    from zixuetong.knowledge.chunking.ragflow_like.utils.md_parser_utils import infer_heading_level
     
     assert infer_heading_level("1. 简介") == 1
     assert infer_heading_level("1.1 详细设计") == 2

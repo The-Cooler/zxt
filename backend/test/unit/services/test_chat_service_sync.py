@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 from langchain.messages import AIMessage, HumanMessage
 
-from yuxi.services import chat_service as svc
+from zixuetong.services import chat_service as svc
 
 
 def _empty_agents_prompt(_thread_id: str, _user_id: str) -> str:
@@ -120,7 +120,7 @@ async def test_agent_chat_uses_invoke_messages_and_persists_langgraph_state(monk
         return SimpleNamespace(
             callbacks=["handler-1"],
             metadata={"langfuse_user_id": kwargs["current_user"].id, "langfuse_session_id": kwargs["thread_id"]},
-            tags=["yuxi", "chat"],
+            tags=["zixuetong", "chat"],
             trace_id="trace-seeded",
         )
 
@@ -164,7 +164,7 @@ async def test_agent_chat_uses_invoke_messages_and_persists_langgraph_state(monk
     assert calls["invoke_kwargs"] == {
         "callbacks": ["handler-1"],
         "metadata": {"langfuse_user_id": "user-1", "langfuse_session_id": "thread-1"},
-        "tags": ["yuxi", "chat"],
+        "tags": ["zixuetong", "chat"],
     }
     assert calls["saved_state"]["thread_id"] == "thread-1"
     assert calls["saved_state"]["config_dict"] == {"configurable": {"thread_id": "thread-1", "user_id": "user-1"}}

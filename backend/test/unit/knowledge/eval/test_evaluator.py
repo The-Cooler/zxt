@@ -2,7 +2,7 @@ import os
 
 os.environ.setdefault("OPENAI_API_KEY", "test-key")
 
-from yuxi.knowledge.eval.evaluator import aggregate_metrics, build_answer_prompt, normalize_query_result
+from zixuetong.knowledge.eval.evaluator import aggregate_metrics, build_answer_prompt, normalize_query_result
 
 
 def test_normalize_query_result_supports_dict_and_list():

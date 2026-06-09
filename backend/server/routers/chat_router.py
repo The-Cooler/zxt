@@ -8,21 +8,21 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from yuxi.storage.postgres.models_business import User
+from zixuetong.storage.postgres.models_business import User
 from server.utils.auth_middleware import get_admin_user, get_db, get_required_user
-from yuxi import config as conf
-from yuxi.agents.buildin import agent_manager
-from yuxi.models import select_model
-from yuxi.services.chat_service import agent_chat, get_agent_state_view, stream_agent_chat, stream_agent_resume
-from yuxi.services.agent_run_service import (
+from zixuetong import config as conf
+from zixuetong.agents.buildin import agent_manager
+from zixuetong.models import select_model
+from zixuetong.services.chat_service import agent_chat, get_agent_state_view, stream_agent_chat, stream_agent_resume
+from zixuetong.services.agent_run_service import (
     cancel_agent_run_view,
     create_agent_run_view,
     get_active_run_by_thread,
     get_agent_run_view,
     stream_agent_run_events,
 )
-from yuxi.repositories.conversation_repository import ConversationRepository
-from yuxi.services.conversation_service import (
+from zixuetong.repositories.conversation_repository import ConversationRepository
+from zixuetong.services.conversation_service import (
     create_thread_view,
     delete_thread_attachment_view,
     delete_thread_view,
@@ -32,18 +32,18 @@ from yuxi.services.conversation_service import (
     update_thread_view,
     upload_thread_attachment_view,
 )
-from yuxi.services.thread_files_service import (
+from zixuetong.services.thread_files_service import (
     list_thread_files_view,
     read_thread_file_content_view,
     resolve_thread_artifact_view,
     save_thread_artifact_to_workspace_view,
 )
-from yuxi.services.feedback_service import get_message_feedback_view, submit_message_feedback_view
-from yuxi.services.learning_plan_service import get_learning_overview
-from yuxi.repositories.agent_config_repository import AgentConfigRepository
-from yuxi.utils.logging_config import logger
-from yuxi.utils.image_processor import process_uploaded_image
-from yuxi.utils.paths import VIRTUAL_PATH_PREFIX
+from zixuetong.services.feedback_service import get_message_feedback_view, submit_message_feedback_view
+from zixuetong.services.learning_plan_service import get_learning_overview
+from zixuetong.repositories.agent_config_repository import AgentConfigRepository
+from zixuetong.utils.logging_config import logger
+from zixuetong.utils.image_processor import process_uploaded_image
+from zixuetong.utils.paths import VIRTUAL_PATH_PREFIX
 
 
 # TODO：当前文件的功能过于庞杂，路由标签混乱

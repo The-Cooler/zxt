@@ -2,10 +2,10 @@ x-api-worker-env: &api-worker-env
   HOST_IP: ${HOST_IP:-}
   LITE_MODE: ${LITE_MODE:-}
   RUNNING_IN_DOCKER: "true"
-  YUXI_ENV: production
+  ZIXUETONG_ENV: production
   MODEL_DIR_IN_DOCKER: /models
   PYTHONPATH: /app/package
-  POSTGRES_URL: ${POSTGRES_URL:-postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-yuxi_know}}
+  POSTGRES_URL: ${POSTGRES_URL:-postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-zixuetong_know}}
   REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
   RUN_CANCEL_KEY_TTL_SECONDS: ${RUN_CANCEL_KEY_TTL_SECONDS:-1800}
   RUN_EVENTS_STREAM_TTL_SECONDS: ${RUN_EVENTS_STREAM_TTL_SECONDS:-7200}
@@ -27,7 +27,7 @@ services:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
-    image: yuxi-api:${YUXI_VERSION:-0.6.2.beta}
+    image: zixuetong-api:${ZIXUETONG_VERSION:-0.6.2.beta}
     container_name: api-prod
     working_dir: /app
     networks:
@@ -64,7 +64,7 @@ services:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
-    image: yuxi-api:${YUXI_VERSION:-0.6.2.beta}
+    image: zixuetong-api:${ZIXUETONG_VERSION:-0.6.2.beta}
     container_name: worker-prod
     working_dir: /app
     networks:
@@ -117,16 +117,16 @@ services:
       - HTTPS_PROXY=${SANDBOX_HTTPS_PROXY:-}
       - NO_PROXY=localhost,127.0.0.1,host.docker.internal
       # Docker backend only
-      - DOCKER_NETWORK=${SANDBOX_DOCKER_NETWORK:-yuxi-know_app-network}
+      - DOCKER_NETWORK=${SANDBOX_DOCKER_NETWORK:-zixuetong-know_app-network}
       - DOCKER_THREADS_HOST_PATH=${SANDBOX_DOCKER_THREADS_HOST_PATH:-}
-      - DOCKER_SANDBOX_PREFIX=${SANDBOX_DOCKER_SANDBOX_PREFIX:-yuxi-sandbox}
+      - DOCKER_SANDBOX_PREFIX=${SANDBOX_DOCKER_SANDBOX_PREFIX:-zixuetong-sandbox}
       - DOCKER_SANDBOX_HOST=${SANDBOX_DOCKER_SANDBOX_HOST:-host.docker.internal}
       # Kubernetes backend only
-      - K8S_NAMESPACE=${SANDBOX_K8S_NAMESPACE:-yuxi-know}
+      - K8S_NAMESPACE=${SANDBOX_K8S_NAMESPACE:-zixuetong-know}
       - NODE_HOST=${SANDBOX_NODE_HOST:-host.docker.internal}
       - KUBECONFIG_PATH=${KUBECONFIG_PATH:-}
-      - THREAD_PVC=${THREAD_PVC:-yuxi-thread}
-      - SKILLS_PVC=${SKILLS_PVC:-yuxi-skills}
+      - THREAD_PVC=${THREAD_PVC:-zixuetong-thread}
+      - SKILLS_PVC=${SKILLS_PVC:-zixuetong-skills}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health').read()"]
       interval: 10s
@@ -140,7 +140,7 @@ services:
       context: .
       dockerfile: docker/web.Dockerfile
       target: production
-    image: yuxi-web:${YUXI_VERSION:-0.6.2.beta}
+    image: zixuetong-web:${ZIXUETONG_VERSION:-0.6.2.beta}
     container_name: web-prod
     ports:
       - "80:80"
@@ -203,12 +203,12 @@ services:
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
-      - POSTGRES_DB=${POSTGRES_DB:-yuxi_know}
+      - POSTGRES_DB=${POSTGRES_DB:-zixuetong_know}
       - TZ=${TZ:-Asia/Shanghai}
     volumes:
       - ./docker/volumes/postgresql:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-yuxi_know} || exit 1"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-zixuetong_know} || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 30

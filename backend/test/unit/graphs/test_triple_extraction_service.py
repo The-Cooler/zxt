@@ -1,6 +1,6 @@
 import pytest
 
-from yuxi.knowledge.graphs.triple_extraction_service import normalize_triples
+from zixuetong.knowledge.graphs.triple_extraction_service import normalize_triples
 
 
 def test_normalize_triples_accepts_legacy_and_extended_formats():

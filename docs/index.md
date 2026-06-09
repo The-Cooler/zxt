@@ -3,42 +3,42 @@
 layout: home
 
 hero:
-  name: "Yuxi"
-  text: "智能知识库与知识图谱智能体开发平台"
-  tagline: 基于 LangGraph v1 + Vue.js + FastAPI + LightRAG，统一构建 RAG、知识图谱与多智能体应用
+  name: "自学通"
+  text: "个人自学平台"
+  tagline: 整理资料、沉淀笔记、追踪进度，用 AI 陪你完成长期学习
   image:
-    src: /bb.png
-    alt: Yuxi
+    src: /logo.png
+    alt: 自学通
   actions:
     - theme: brand
       text: 快速开始
       link: /intro/quick-start
     - theme: alt
-      text: 智能体开发
-      link: /agents/agents-config
+      text: 学习助手
+      link: /agents/learning-assistant
 
 features:
-  - title: 🤖 智能体开发
-    details: 基于 LangGraph v1，支持 Agents、SubAgents、Tools、MCP、Skills 与中间件配置，适合搭建真实业务智能体
-  - title: 📚 知识库与 RAG
-    details: 支持多格式文档上传、网页读取、清洗预览、解析、分块、向量检索与评估，兼容结构化与非结构化知识管理场景
-  - title: 🕸️ 知识图谱
-    details: 基于 LightRAG 构建图谱问答与图谱检索，支持自动图谱生成、属性图谱导入与可视化分析
-  - title: 🎓 学习助手
-    details: 基于个人工作区维护学习画像和 Markdown 学习计划，结合知识库持续推进学习主题
+  - title: 资料整理
+    details: 集中保存课程资料、网页摘录和学习文档，让零散输入变成可检索的学习资产。
+  - title: 知识连接
+    details: 围绕概念、主题和问题建立学习脉络，帮助你看清知识之间的关系。
+  - title: AI 辅导
+    details: 针对个人资料提问、总结重点、拆解难点，让学习过程有即时反馈。
+  - title: 学习工作区
+    details: 保存笔记、练习和阶段成果，持续复盘目标、进度和薄弱点。
 ---
 
 ## 项目定位
 
-Yuxi（语析）不是单一的问答页面，而是一个面向开发者与团队的 AI 应用平台。它把知识库、知识图谱和智能体开发放在同一套系统里，适合从原型验证一路走到团队内部落地。
+自学通不是单一的问答页面，而是一个面向个人长期学习的自学平台。它把学习资料、知识库、知识图谱、AI 辅导和个人工作区放在同一套系统里，帮助你从零散资料逐步形成自己的知识体系。
 
 你可以用它完成这些事情：
 
-- 构建面向业务场景的 RAG + 知识图谱智能体
-- 将 PDF、Word、Markdown、图片和网页资料转为可检索、可推理的知识资产
-- 基于 LangGraph v1 搭建多智能体、子智能体和工具调用流程
-- 围绕个人知识库维护学习计划、工作区文件和智能体产物
-- 为内部系统提供可管理、可扩展的 AI 能力底座
+- 将课程资料、PDF、Word、Markdown、图片和网页资料转为可检索的个人知识库
+- 围绕学习目标维护计划、笔记、练习记录和阶段成果
+- 通过 AI 辅导总结重点、解释难点、生成复习问题
+- 使用知识图谱梳理概念关系，发现薄弱环节
+- 在个人工作区持续沉淀自己的学习材料和复盘记录
 
 ## 文档入口
 

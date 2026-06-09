@@ -1,12 +1,12 @@
-# Contributing to Yuxi
+# Contributing to 自学通
 
-感谢你关注 Yuxi。欢迎提交 Issue、改进文档、修复 Bug 或贡献新功能。
+感谢你关注 自学通。欢迎提交 Issue、改进文档、修复 Bug 或贡献新功能。
 
 更完整的开发文档可参考 [docs/develop-guides/contributing.md](docs/develop-guides/contributing.md)。
 
 ## 开始之前
 
-- 提交前请先搜索现有 [Issues](https://github.com/xerrors/Yuxi/issues)
+- 提交前请先搜索现有 [Issues](https://github.com/xerrors/自学通/issues)
 - 对于较大的功能改动，建议先开 Issue 讨论方案
 - 保持改动聚焦，避免在一次 PR 中混入无关重构
 
@@ -89,6 +89,6 @@ docker compose exec api uv run pytest
 
 ## 问题反馈
 
-- Bug 反馈/功能讨论：<https://github.com/xerrors/Yuxi/issues>
+- Bug 反馈/功能讨论：<https://github.com/xerrors/自学通/issues>
 
 感谢你的贡献 ❤️。

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from yuxi.services.mcp_service import (
+from zixuetong.services.mcp_service import (
     create_mcp_server,
     get_mcp_tools_stats,
     delete_mcp_server,
@@ -15,8 +15,8 @@ from yuxi.services.mcp_service import (
     toggle_tool_enabled,
     update_mcp_server,
 )
-from yuxi.storage.postgres.models_business import User
-from yuxi.utils import logger
+from zixuetong.storage.postgres.models_business import User
+from zixuetong.utils import logger
 from server.utils.auth_middleware import get_admin_user, get_db
 
 mcp = APIRouter(prefix="/system/mcp-servers", tags=["mcp"])

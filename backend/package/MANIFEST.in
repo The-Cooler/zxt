@@ -1,2 +1,2 @@
-recursive-include yuxi/config/static *.txt *.yaml *.png
-recursive-include yuxi/agents/skills *.md
+recursive-include zixuetong/config/static *.txt *.yaml *.png
+recursive-include zixuetong/agents/skills *.md

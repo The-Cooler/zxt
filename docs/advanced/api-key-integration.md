@@ -1,10 +1,10 @@
 # API Key 外部集成
 
-Yuxi 平台提供了 API Key 认证机制，允许外部系统在无需用户登录的情况下调用智能体对话接口。本文档详细介绍 API Key 的使用方法、接口调用方式以及安全注意事项。
+自学通 平台提供了 API Key 认证机制，允许外部系统在无需用户登录的情况下调用智能体对话接口。本文档详细介绍 API Key 的使用方法、接口调用方式以及安全注意事项。
 
 ## API Key 概述
 
-API Key 是一种用于身份验证的密钥字符串，外部系统可以通过它在请求头中携带凭据来访问 Yuxi 的对话接口。与传统的用户名密码登录方式相比，API Key 更加适合用于系统间的自动化调用场景。Yuxi 的 API Key 以 `yxkey_` 为前缀，长度为 56 个字符，采用 SHA-256 哈希存储，确保密钥本身不会在数据库中明文保存。系统会记录每个 API Key 的最后使用时间，方便管理员追踪使用情况。
+API Key 是一种用于身份验证的密钥字符串，外部系统可以通过它在请求头中携带凭据来访问 自学通 的对话接口。与传统的用户名密码登录方式相比，API Key 更加适合用于系统间的自动化调用场景。自学通 的 API Key 以 `yxkey_` 为前缀，长度为 56 个字符，采用 SHA-256 哈希存储，确保密钥本身不会在数据库中明文保存。系统会记录每个 API Key 的最后使用时间，方便管理员追踪使用情况。
 
 ## 创建 API Key
 
@@ -14,7 +14,7 @@ API Key 是一种用于身份验证的密钥字符串，外部系统可以通过
 
 ## 接口调用方式
 
-外部系统通过 HTTP 请求调用 Yuxi 的对话接口，需要在请求头中携带 API Key。流式接口地址为 `POST /api/chat/agent`，非流式接口地址为 `POST /api/chat/agent/sync`（不支持 HITL）。请求头需要包含 `Authorization` 字段，值格式为 `Bearer <api_key>`，其中 `<api_key>` 是创建 API Key 时获取的完整密钥。请求体为 JSON 格式，必填字段为 `query` 和 `agent_config_id`，可选字段为 `thread_id`、`image_content` 和 `meta`。
+外部系统通过 HTTP 请求调用 自学通 的对话接口，需要在请求头中携带 API Key。流式接口地址为 `POST /api/chat/agent`，非流式接口地址为 `POST /api/chat/agent/sync`（不支持 HITL）。请求头需要包含 `Authorization` 字段，值格式为 `Bearer <api_key>`，其中 `<api_key>` 是创建 API Key 时获取的完整密钥。请求体为 JSON 格式，必填字段为 `query` 和 `agent_config_id`，可选字段为 `thread_id`、`image_content` 和 `meta`。
 
 以下是一个典型的 Python 调用示例：
 
@@ -51,7 +51,7 @@ for line in response.iter_lines():
 
 ## 认证方式
 
-Yuxi 的 API 接口统一支持两种认证方式：
+自学通 的 API 接口统一支持两种认证方式：
 
 1. **API Key 认证**：使用 `Authorization: Bearer <api_key>` 格式，其中 API Key 必须以 `yxkey_` 前缀开头
 2. **JWT Token 认证**：使用 `Authorization: Bearer <jwt_token>` 格式

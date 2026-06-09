@@ -1,12 +1,12 @@
-from yuxi.agents.backends.sandbox import (
+from zixuetong.agents.backends.sandbox import (
     VIRTUAL_PATH_PREFIX,
     ensure_thread_dirs,
     sandbox_outputs_dir,
     sandbox_uploads_dir,
 )
-from yuxi.agents.state import merge_artifacts
-from yuxi.agents.toolkits.buildin.tools import _normalize_presented_artifact_path
-from yuxi.services.chat_service import extract_agent_state
+from zixuetong.agents.state import merge_artifacts
+from zixuetong.agents.toolkits.buildin.tools import _normalize_presented_artifact_path
+from zixuetong.services.chat_service import extract_agent_state
 
 
 def _runtime_with_thread(thread_id: str, user_id: str = "user-1"):

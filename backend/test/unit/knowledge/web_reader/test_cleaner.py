@@ -1,5 +1,5 @@
-from yuxi.knowledge.web_reader.cleaner import clean_web_page_to_markdown
-from yuxi.knowledge.web_reader.models import WebPageSnapshot
+from zixuetong.knowledge.web_reader.cleaner import clean_web_page_to_markdown
+from zixuetong.knowledge.web_reader.models import WebPageSnapshot
 
 
 def test_clean_web_page_to_markdown_keeps_article_text_and_removes_navigation():

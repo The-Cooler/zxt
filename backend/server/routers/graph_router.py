@@ -4,12 +4,12 @@ from typing import Any
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 
 from server.utils.auth_middleware import get_admin_user
-from yuxi import graph_base, knowledge_base
-from yuxi.knowledge.graphs.adapters.base import GraphAdapter
-from yuxi.knowledge.graphs.adapters.factory import GraphAdapterFactory
-from yuxi.knowledge.graphs.triple_extraction_service import extract_triples_from_file, normalize_triples
-from yuxi.storage.postgres.models_business import User
-from yuxi.utils.logging_config import logger
+from zixuetong import graph_base, knowledge_base
+from zixuetong.knowledge.graphs.adapters.base import GraphAdapter
+from zixuetong.knowledge.graphs.adapters.factory import GraphAdapterFactory
+from zixuetong.knowledge.graphs.triple_extraction_service import extract_triples_from_file, normalize_triples
+from zixuetong.storage.postgres.models_business import User
+from zixuetong.utils.logging_config import logger
 
 graph = APIRouter(prefix="/graph", tags=["graph"])
 
@@ -65,7 +65,7 @@ async def get_graphs(current_user: User = Depends(get_admin_user)):
         neo4j_info = graph_base.get_graph_info()
         if neo4j_info:
             # 直接使用 Upload 适配器的默认 metadata
-            from yuxi.knowledge.graphs.adapters.upload import UploadGraphAdapter
+            from zixuetong.knowledge.graphs.adapters.upload import UploadGraphAdapter
 
             capabilities = _get_capabilities_from_metadata(UploadGraphAdapter._get_metadata(None))
 
@@ -86,7 +86,7 @@ async def get_graphs(current_user: User = Depends(get_admin_user)):
         # 2. 获取 LightRAG 数据库信息
         lightrag_dbs = await knowledge_base.get_lightrag_databases()
         # 直接使用 LightRAG 适配器的默认 metadata
-        from yuxi.knowledge.graphs.adapters.lightrag import LightRAGGraphAdapter
+        from zixuetong.knowledge.graphs.adapters.lightrag import LightRAGGraphAdapter
 
         capabilities = _get_capabilities_from_metadata(LightRAGGraphAdapter._get_metadata(None))
 

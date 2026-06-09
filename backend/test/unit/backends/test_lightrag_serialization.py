@@ -6,9 +6,9 @@ from types import SimpleNamespace
 import pytest
 
 from server.routers import knowledge_router
-from yuxi.knowledge.base import FileStatus
-from yuxi.knowledge.implementations import lightrag as lightrag_module
-from yuxi.knowledge.implementations.lightrag import LightRagKB
+from zixuetong.knowledge.base import FileStatus
+from zixuetong.knowledge.implementations import lightrag as lightrag_module
+from zixuetong.knowledge.implementations.lightrag import LightRagKB
 
 
 pytestmark = pytest.mark.asyncio
@@ -209,7 +209,7 @@ async def test_add_documents_auto_index_uses_latest_parsed_metadata(monkeypatch:
             await coroutine(FakeTaskContext())
             return SimpleNamespace(id="task-1")
 
-    monkeypatch.setattr("yuxi.knowledge.utils.kb_utils.validate_file_path", lambda _item, _db_id: None)
+    monkeypatch.setattr("zixuetong.knowledge.utils.kb_utils.validate_file_path", lambda _item, _db_id: None)
     monkeypatch.setattr(knowledge_router, "knowledge_base", FakeKnowledgeBase())
     monkeypatch.setattr(knowledge_router, "tasker", FakeTasker())
 

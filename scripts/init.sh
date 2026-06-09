@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Yuxi Initialization Script for Bash/Linux/macOS
-# This script helps set up the environment for the Yuxi project
+# 自学通 Initialization Script for Bash/Linux/macOS
+# This script helps set up the environment for the 自学通 project
 
 set -e
 
@@ -15,7 +15,7 @@ generate_hex() {
 }
 
 ensure_jwt_env() {
-    if grep -Eq '^JWT_SECRET_KEY=.+' .env && grep -Eq '^YUXI_INSTANCE_ID=.+' .env; then
+    if grep -Eq '^JWT_SECRET_KEY=.+' .env && grep -Eq '^ZIXUETONG_INSTANCE_ID=.+' .env; then
         return
     fi
 
@@ -27,21 +27,21 @@ ensure_jwt_env() {
         echo "Generated JWT_SECRET_KEY and saved it to .env."
     fi
 
-    read -p "Please enter your YUXI_INSTANCE_ID (press Enter to auto-generate): " YUXI_INSTANCE_ID
-    if [ -z "$YUXI_INSTANCE_ID" ]; then
-        YUXI_INSTANCE_ID="instance-$(generate_hex 8)"
-        echo "Generated YUXI_INSTANCE_ID and saved it to .env."
+    read -p "Please enter your ZIXUETONG_INSTANCE_ID (press Enter to auto-generate): " ZIXUETONG_INSTANCE_ID
+    if [ -z "$ZIXUETONG_INSTANCE_ID" ]; then
+        ZIXUETONG_INSTANCE_ID="instance-$(generate_hex 8)"
+        echo "Generated ZIXUETONG_INSTANCE_ID and saved it to .env."
     fi
 
     cat >> .env << EOF
 
 # JWT security settings
 JWT_SECRET_KEY=${JWT_SECRET_KEY}
-YUXI_INSTANCE_ID=${YUXI_INSTANCE_ID}
+ZIXUETONG_INSTANCE_ID=${ZIXUETONG_INSTANCE_ID}
 EOF
 }
 
-echo "🚀 Initializing Yuxi project..."
+echo "🚀 Initializing 自学通 project..."
 echo "=================================="
 
 # Check if .env file exists
@@ -80,10 +80,10 @@ else
         echo "Generated JWT_SECRET_KEY and saved it to .env."
     fi
 
-    read -p "Please enter your YUXI_INSTANCE_ID (press Enter to auto-generate): " YUXI_INSTANCE_ID
-    if [ -z "$YUXI_INSTANCE_ID" ]; then
-        YUXI_INSTANCE_ID="instance-$(generate_hex 8)"
-        echo "Generated YUXI_INSTANCE_ID and saved it to .env."
+    read -p "Please enter your ZIXUETONG_INSTANCE_ID (press Enter to auto-generate): " ZIXUETONG_INSTANCE_ID
+    if [ -z "$ZIXUETONG_INSTANCE_ID" ]; then
+        ZIXUETONG_INSTANCE_ID="instance-$(generate_hex 8)"
+        echo "Generated ZIXUETONG_INSTANCE_ID and saved it to .env."
     fi
 
     # Create .env file
@@ -102,7 +102,7 @@ EOF
 
 # JWT security settings
 JWT_SECRET_KEY=${JWT_SECRET_KEY}
-YUXI_INSTANCE_ID=${YUXI_INSTANCE_ID}
+ZIXUETONG_INSTANCE_ID=${ZIXUETONG_INSTANCE_ID}
 EOF
 
     echo "✅ .env file created successfully!"

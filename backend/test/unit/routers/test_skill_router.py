@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from server.routers.skill_router import skills
 from server.utils.auth_middleware import get_admin_user, get_db
-from yuxi.storage.postgres.models_business import Skill, User
+from zixuetong.storage.postgres.models_business import Skill, User
 
 
 def _build_app(*, allow_admin: bool = True) -> FastAPI:

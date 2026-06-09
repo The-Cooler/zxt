@@ -6,11 +6,11 @@ from types import SimpleNamespace
 
 import fitz
 import pytest
-import yuxi.plugins.parser.unified as parser_unified
+import zixuetong.plugins.parser.unified as parser_unified
 from docx import Document
 from PIL import Image
 
-from yuxi.plugins.parser import Parser
+from zixuetong.plugins.parser import Parser
 
 def _build_pdf(file_path: Path, text: str) -> None:
     doc = fitz.open()

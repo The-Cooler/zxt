@@ -128,6 +128,13 @@
       <div class="drawer-footer">
         <a-button @click="handleClose">取消</a-button>
         <a-button
+          :loading="props.commitLoading"
+          :disabled="!canCommit"
+          @click="handleCommit"
+        >
+          {{ commitButtonText }}
+        </a-button>
+        <a-button
           type="primary"
           :loading="cleaning"
           :disabled="!props.sessionItem?.data?.session_id"
@@ -168,10 +175,14 @@ const props = defineProps({
   defaultIndexParams: {
     type: Object,
     required: true
+  },
+  commitLoading: {
+    type: Boolean,
+    default: false
   }
 })
 
-const emit = defineEmits(['update:visible', 'payload'])
+const emit = defineEmits(['update:visible', 'payload', 'commit'])
 
 const open = computed({
   get: () => props.visible,
@@ -202,6 +213,11 @@ const treeData = computed(() => {
 
 const selectedUrls = computed(() =>
   checkedKeys.value.filter((url) => url !== props.sessionItem?.data?.root_page?.final_url)
+)
+const hasCleanedPages = computed(() => cleanedPages.value.length > 0)
+const canCommit = computed(() => Boolean(props.sessionItem?.data?.session_id) && hasCleanedPages.value)
+const commitButtonText = computed(() =>
+  cleanedViewMode.value === 'edit' && activeCleanedUrl.value ? '保存并入库' : '入库'
 )
 
 watch(
@@ -304,6 +320,7 @@ const generateCleanedPages = async () => {
     activeCleanedUrl.value = cleanedPages.value[0]?.source_url || ''
     emit('payload', {
       ...payload,
+      action: 'generated',
       cleaned_pages: cleanedPages.value,
       cleaned_count: result.cleaned_count || 0
     })
@@ -327,6 +344,7 @@ const emitCleanedState = () => {
     selected_urls: selectedUrls.value,
     index_params: buildIndexPayload(),
     next_step: 'cleaned',
+    action: 'updated',
     cleaned_pages: cleanedPages.value,
     cleaned_count: cleanedPages.value.length
   })
@@ -347,13 +365,39 @@ const saveCleanedPage = async () => {
     )
     emitCleanedState()
     cleanedViewMode.value = 'preview'
-    message.success('清洗结果已保存')
+    message.success('清洗结果已保存，可点击“入库”提交到知识库')
+    return true
   } catch (error) {
     console.error('保存清洗结果失败:', error)
     message.error(error.message || '保存清洗结果失败')
+    return false
   } finally {
     savingCleaned.value = false
   }
+}
+
+const handleCommit = async () => {
+  if (!canCommit.value) {
+    message.error('请先生成清洗结果后再入库')
+    return
+  }
+
+  if (cleanedViewMode.value === 'edit' && activeCleanedUrl.value) {
+    const saved = await saveCleanedPage()
+    if (!saved) {
+      message.error('保存清洗结果失败，未提交入库')
+      return
+    }
+  }
+
+  emit('commit', {
+    session_id: props.sessionItem?.data?.session_id,
+    root_url: props.sessionItem?.data?.root_page?.final_url,
+    selected_urls: selectedUrls.value,
+    index_params: buildIndexPayload(),
+    cleaned_pages: cleanedPages.value,
+    cleaned_count: cleanedPages.value.length
+  })
 }
 
 const deleteCleanedPage = async () => {

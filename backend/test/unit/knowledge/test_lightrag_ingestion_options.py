@@ -1,6 +1,6 @@
 import pytest
 
-from yuxi.knowledge.implementations.lightrag import LightRagKB, limit_extracted_graph_results, resolve_ingestion_options
+from zixuetong.knowledge.implementations.lightrag import LightRagKB, limit_extracted_graph_results, resolve_ingestion_options
 
 
 def test_resolve_ingestion_options_defaults_to_standard():
@@ -131,7 +131,7 @@ class FakeRag:
 
 @pytest.mark.asyncio
 async def test_fast_insert_chunks_records_doc_status_for_future_delete():
-    kb = LightRagKB("/tmp/yuxi-test")
+    kb = LightRagKB("/tmp/zixuetong-test")
     rag = FakeRag()
 
     await kb._fast_insert_chunks(

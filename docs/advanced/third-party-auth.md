@@ -1,5 +1,5 @@
 # 第三方登录认证
-Yuxi 支持以OIDC接入第三方登录认证，方便企业用户集成现有的身份认证系统。
+自学通 支持以OIDC接入第三方登录认证，方便企业用户集成现有的身份认证系统。
 > 此功能默认关闭，需要在配置文件中启用并提供相关参数。
 
 ## 配置步骤
@@ -9,10 +9,10 @@ Yuxi 支持以OIDC接入第三方登录认证，方便企业用户集成现有�
 - 客户端密钥（Client Secret）
 - ISSUER URL
 
-填入回调地址（Redirect URI）：https://<your_yuxi_host>/api/auth/oidc/callback
+填入回调地址（Redirect URI）：https://<your_zixuetong_host>/api/auth/oidc/callback
 
-### 2. 配置Yuxi
-在Yuxi的.env文件中添加以下配置项：
+### 2. 配置自学通
+在自学通的.env文件中添加以下配置项：
 
 ```sh
 # 是否启用 OIDC 认证 (true/false)
@@ -31,7 +31,7 @@ Yuxi 支持以OIDC接入第三方登录认证，方便企业用户集成现有�
 # OIDC_CLIENT_SECRET=
 
 # OIDC 回调 URL (可选，默认自动构建为 /api/auth/oidc/callback, 不建议自定义)
-# 填写完整的地址：https://<your_yuxi_host>/api/auth/oidc/callback
+# 填写完整的地址：https://<your_zixuetong_host>/api/auth/oidc/callback
 # 需要确保此 URL 在 OIDC Provider 中已注册
 # OIDC_REDIRECT_URI=
 
@@ -65,7 +65,7 @@ Yuxi 支持以OIDC接入第三方登录认证，方便企业用户集成现有�
 # 姓名映射字段 (默认: name)
 # OIDC_NAME_CLAIM=name
 
-# 是否使用原始用户名（不带 oidc: 前缀），允许映射到 语析 已有的本地账号 (true/false，默认: false)
+# 是否使用原始用户名（不带 oidc: 前缀），允许映射到 自学通 已有的本地账号 (true/false，默认: false)
 # 开启后，OIDC 返回的 username 会直接作为 user_id 登录，需要管理员提前创建好用户账号
 # OIDC_USE_RAW_USERNAME=false
 
@@ -73,7 +73,7 @@ Yuxi 支持以OIDC接入第三方登录认证，方便企业用户集成现有�
 # OIDC_FORCE_PROMPT_LOGIN=false
 
 ```
-### 3. 重启Yuxi服务使配置生效
+### 3. 重启自学通服务使配置生效
 ```bash
 docker restart api-dev web-dev
 ```
@@ -81,7 +81,7 @@ docker restart api-dev web-dev
 ## 功能说明
 
 ### 使用原始用户名（OIDC_USE_RAW_USERNAME=true）
-当你需要将 Yuxi 系统中已有的本地账号与 OIDC SSO 绑定，可以开启此选项。
+当你需要将 自学通 系统中已有的本地账号与 OIDC SSO 绑定，可以开启此选项。
 
 **绑定原理**（无需修改数据库）：
-系统会创建一个标记为删除的占位用户 `oidc:{sub}:{target_user_id}` 来记录 OIDC sub 与 Yuxi 用户的绑定关系，确保只有绑定过的 OIDC 身份才能登录对应的账号，**防止账号冒用**。
+系统会创建一个标记为删除的占位用户 `oidc:{sub}:{target_user_id}` 来记录 OIDC sub 与 自学通 用户的绑定关系，确保只有绑定过的 OIDC 身份才能登录对应的账号，**防止账号冒用**。

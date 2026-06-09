@@ -1,7 +1,7 @@
 import pytest
 
 from server.routers import knowledge_router
-from yuxi.knowledge.web_reader.models import CleanedWebPage, DiscoveredLink, WebPageSnapshot, WebReadSession
+from zixuetong.knowledge.web_reader.models import CleanedWebPage, DiscoveredLink, WebPageSnapshot, WebReadSession
 
 
 class _UploadResult:

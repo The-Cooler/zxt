@@ -4,16 +4,16 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
-from yuxi.services.task_service import tasker
-from yuxi.services.mcp_service import ensure_builtin_mcp_servers_in_db
-from yuxi.services.model_provider_service import ensure_builtin_model_providers_in_db
-from yuxi.services.subagent_service import init_builtin_subagents
-from yuxi.services.run_queue_service import close_queue_clients, get_redis_client
-from yuxi.storage.postgres.manager import pg_manager
-from yuxi.knowledge import knowledge_base
-from yuxi.utils import logger
-from yuxi.agents.backends.sandbox import init_sandbox_provider, shutdown_sandbox_provider
-from yuxi import get_version
+from zixuetong.services.task_service import tasker
+from zixuetong.services.mcp_service import ensure_builtin_mcp_servers_in_db
+from zixuetong.services.model_provider_service import ensure_builtin_model_providers_in_db
+from zixuetong.services.subagent_service import init_builtin_subagents
+from zixuetong.services.run_queue_service import close_queue_clients, get_redis_client
+from zixuetong.storage.postgres.manager import pg_manager
+from zixuetong.knowledge import knowledge_base
+from zixuetong.utils import logger
+from zixuetong.agents.backends.sandbox import init_sandbox_provider, shutdown_sandbox_provider
+from zixuetong import get_version
 
 
 @asynccontextmanager
@@ -43,8 +43,8 @@ async def lifespan(app: FastAPI):
 
     # 初始化模型缓存（v2 模型选择使用）
     try:
-        from yuxi.services.model_cache import model_cache
-        from yuxi.services.model_provider_service import get_all_model_providers
+        from zixuetong.services.model_cache import model_cache
+        from zixuetong.services.model_provider_service import get_all_model_providers
 
         async with pg_manager.get_async_session_context() as session:
             providers = await get_all_model_providers(session)
@@ -99,7 +99,7 @@ async def lifespan(app: FastAPI):
     ░██      ░█████░██ ░██    ░██ ░██  v{get_version()}
 
     """)
-    logger.info("Yuxi backend startup complete")
+    logger.info("自学通 backend startup complete")
     yield
     await tasker.shutdown()
     shutdown_sandbox_provider()

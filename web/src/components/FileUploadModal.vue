@@ -384,7 +384,9 @@
       :is-graph-based="isGraphBased"
       :database-preset-id="store.database?.additional_params?.chunk_preset_id || 'general'"
       :default-index-params="defaultIndexParams"
+      :commit-loading="webReaderCommitLoading"
       @payload="handleWebReaderPayload"
+      @commit="handleWebReaderCommit"
     />
   </a-modal>
 </template>
@@ -414,6 +416,12 @@ import {
 import { h } from 'vue'
 import ChunkParamsConfig from '@/components/ChunkParamsConfig.vue'
 import WebReaderPreviewDrawer from '@/components/WebReaderPreviewDrawer.vue'
+import {
+  buildWebReaderCommitPayload,
+  findWebReaderItemBySessionId,
+  getSuccessfulWebReaderItems,
+  getUncleanedWebReaderItems
+} from '@/utils/webReaderCommit'
 
 const props = defineProps({
   visible: {
@@ -690,6 +698,7 @@ const fetchingUrls = ref(false)
 const webReaderMaxDepth = ref(null)
 const webReaderPreviewVisible = ref(false)
 const activeWebReaderItem = ref(null)
+const webReaderCommitLoading = ref(false)
 
 // 同名文件列表（用于显示提示）
 const sameNameFiles = ref([])
@@ -838,6 +847,18 @@ const registerWebReadTask = (result, pageCount) => {
   })
 }
 
+const commitWebReaderItem = async (item) => {
+  const result = await fileApi.commitWebReadSession(
+    item.data.session_id,
+    buildWebReaderCommitPayload(item, {
+      autoIndex: autoIndex.value,
+      parentId: selectedFolderId.value
+    })
+  )
+  registerWebReadTask(result, item.cleanedPages?.length || 0)
+  return result
+}
+
 const expandSelectedLinks = async (item) => {
   const urls = getCheckedLinks(item)
   if (!item.data?.session_id || urls.length === 0) return
@@ -864,7 +885,49 @@ const handleWebReaderPayload = (payload) => {
     item.cleanedPages = payload.cleaned_pages || []
     item.indexParams = payload.index_params || null
   }
-  message.success('网页清洗结果已生成，可添加到知识库')
+  if (payload.action === 'generated') {
+    message.success('网页清洗结果已生成，可添加到知识库')
+  }
+}
+
+const handleWebReaderCommit = async (payload) => {
+  if (!databaseId.value) {
+    message.error('请先选择知识库')
+    return
+  }
+
+  const item = findWebReaderItemBySessionId(urlList.value, payload.session_id)
+  if (!item) {
+    message.error('未找到当前网页会话')
+    return
+  }
+  item.checkedUrls = payload.selected_urls || item.checkedUrls || []
+  item.cleanedPages = payload.cleaned_pages || item.cleanedPages || []
+  item.indexParams = payload.index_params || item.indexParams || null
+  if (!item.cleanedPages?.length) {
+    message.error('请先生成清洗结果后再入库')
+    return
+  }
+
+  try {
+    store.state.chunkLoading = true
+    webReaderCommitLoading.value = true
+    await commitWebReaderItem(item)
+    await store.getDatabaseInfo(undefined, true)
+
+    message.success('清洗后的网页已提交，请在任务中心查看进度')
+    emit('success')
+    webReaderPreviewVisible.value = false
+    handleCancel()
+    urlList.value = []
+    newUrl.value = ''
+  } catch (error) {
+    console.error('网页提交失败:', error)
+    message.error('网页提交失败: ' + (error.message || '未知错误'))
+  } finally {
+    store.state.chunkLoading = false
+    webReaderCommitLoading.value = false
+  }
 }
 
 const formatSimilarity = (value) => {
@@ -1424,12 +1487,12 @@ const chunkData = async () => {
 
   // URL 模式处理
   if (uploadMode.value === 'url') {
-    const successfulItems = urlList.value.filter((item) => item.status === 'success' && item.data)
+    const successfulItems = getSuccessfulWebReaderItems(urlList.value)
     if (successfulItems.length === 0) {
       message.error('请添加并等待至少一个网页读取成功')
       return
     }
-    const uncleanedItems = successfulItems.filter((item) => !item.cleanedPages?.length)
+    const uncleanedItems = getUncleanedWebReaderItems(successfulItems)
     if (uncleanedItems.length > 0) {
       message.error('请先打开“预览并清洗”，生成清洗结果后再添加到知识库')
       return
@@ -1437,19 +1500,7 @@ const chunkData = async () => {
 
     try {
       store.state.chunkLoading = true
-      const results = await Promise.all(
-        successfulItems.map((item) =>
-          fileApi.commitWebReadSession(item.data.session_id, {
-            auto_index: autoIndex.value,
-            parent_id: selectedFolderId.value,
-            chunk_params: item.indexParams || {}
-          })
-        )
-      )
-      results.forEach((result, index) => {
-        const pageCount = successfulItems[index].cleanedPages?.length || 0
-        registerWebReadTask(result, pageCount)
-      })
+      await Promise.all(successfulItems.map(commitWebReaderItem))
       await store.getDatabaseInfo(undefined, true)
 
       message.success('清洗后的网页已提交，请在任务中心查看进度')

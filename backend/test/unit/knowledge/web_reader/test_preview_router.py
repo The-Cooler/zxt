@@ -1,7 +1,7 @@
 import pytest
 
 from server.routers import knowledge_router
-from yuxi.knowledge.web_reader.models import DiscoveredLink, WebPageSnapshot, WebReadSession
+from zixuetong.knowledge.web_reader.models import DiscoveredLink, WebPageSnapshot, WebReadSession
 
 
 def _session() -> WebReadSession:

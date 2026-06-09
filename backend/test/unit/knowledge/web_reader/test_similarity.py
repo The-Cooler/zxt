@@ -1,6 +1,6 @@
 import pytest
 
-from yuxi.knowledge.web_reader.similarity import compute_similarities, cosine_similarity
+from zixuetong.knowledge.web_reader.similarity import compute_similarities, cosine_similarity
 
 
 def test_cosine_similarity_bounds():

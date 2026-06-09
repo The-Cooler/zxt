@@ -5,9 +5,9 @@ from types import SimpleNamespace
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-import yuxi.agents.middlewares.summary_middleware as summary_middleware
-from yuxi.agents.middlewares.summary_middleware import SummaryOffloadMiddleware
-from yuxi.utils.paths import VIRTUAL_PATH_OUTPUTS
+import zixuetong.agents.middlewares.summary_middleware as summary_middleware
+from zixuetong.agents.middlewares.summary_middleware import SummaryOffloadMiddleware
+from zixuetong.utils.paths import VIRTUAL_PATH_OUTPUTS
 
 
 class _DummyModel:

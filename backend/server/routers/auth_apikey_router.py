@@ -9,9 +9,9 @@ from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from yuxi.storage.postgres.models_business import User, APIKey
+from zixuetong.storage.postgres.models_business import User, APIKey
 from server.utils.auth_middleware import get_db, get_required_user, get_superadmin_user
-from yuxi.utils.datetime_utils import coerce_any_to_utc_datetime, utc_now_naive
+from zixuetong.utils.datetime_utils import coerce_any_to_utc_datetime, utc_now_naive
 
 apikey_router = APIRouter(prefix="/apikey", tags=["apikey"])
 

@@ -6,8 +6,8 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-from yuxi.agents.backends.sandbox import paths as workspace_paths
-from yuxi.services import learning_plan_service as svc
+from zixuetong.agents.backends.sandbox import paths as workspace_paths
+from zixuetong.services import learning_plan_service as svc
 
 
 def test_learning_overview_returns_empty_when_files_are_missing(tmp_path: Path, monkeypatch) -> None:
@@ -76,7 +76,7 @@ def test_learning_workspace_root_rejects_invalid_user_id(tmp_path: Path, monkeyp
 
 @pytest.mark.asyncio
 async def test_chatbot_agent_metadata_describes_learning_assistant() -> None:
-    from yuxi.agents.buildin.chatbot.graph import ChatbotAgent
+    from zixuetong.agents.buildin.chatbot.graph import ChatbotAgent
 
     info = await ChatbotAgent().get_info(include_configurable_items=False)
 

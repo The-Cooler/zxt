@@ -6,13 +6,13 @@ import yaml
 from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.responses import FileResponse
 
-from yuxi.storage.postgres.models_business import User
+from zixuetong.storage.postgres.models_business import User
 from server.utils.auth_middleware import get_admin_user
-from yuxi import config, get_version
-from yuxi.utils.logging_config import logger
+from zixuetong import config, get_version
+from zixuetong.utils.logging_config import logger
 
 system = APIRouter(prefix="/system", tags=["system"])
-STATIC_CONFIG_DIR = Path("package/yuxi/config/static")
+STATIC_CONFIG_DIR = Path("package/zixuetong/config/static")
 
 # =============================================================================
 # === 健康检查分组 ===
@@ -60,7 +60,7 @@ async def get_system_logs(levels: str | None = None, current_user: User = Depend
         levels: 可选的日志级别过滤，多个级别用逗号分隔，如 "INFO,ERROR,DEBUG,WARNING"
     """
     try:
-        from yuxi.utils.logging_config import LOG_FILE
+        from zixuetong.utils.logging_config import LOG_FILE
 
         # 解析日志级别过滤条件
         level_filter = None
@@ -103,7 +103,7 @@ async def load_info_config():
     """加载信息配置文件"""
     try:
         # 配置文件路径
-        brand_file_path = os.environ.get("YUXI_BRAND_FILE_PATH", "package/yuxi/config/static/info.local.yaml")
+        brand_file_path = os.environ.get("ZIXUETONG_BRAND_FILE_PATH", "package/zixuetong/config/static/info.local.yaml")
         config_path = Path(brand_file_path)
 
         # 检查文件是否存在
@@ -116,7 +116,7 @@ async def load_info_config():
             content = await file.read()
 
         # 注入版本号占位符
-        content = content.replace("{{YUXI_VERSION}}", get_version())
+        content = content.replace("{{ZIXUETONG_VERSION}}", get_version())
 
         config = yaml.safe_load(content)
 
@@ -169,7 +169,7 @@ async def check_ocr_services_health(current_user: User = Depends(get_admin_user)
     检查所有OCR服务的健康状态
     返回各个OCR服务的可用性信息
     """
-    from yuxi.plugins.parser.factory import DocumentProcessorFactory
+    from zixuetong.plugins.parser.factory import DocumentProcessorFactory
 
     try:
         # 使用统一的健康检查接口

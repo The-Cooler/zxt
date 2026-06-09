@@ -7,9 +7,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from yuxi.services import skill_service as svc
-from yuxi.services import tool_service
-from yuxi.storage.postgres.models_business import Skill
+from zixuetong.services import skill_service as svc
+from zixuetong.services import tool_service
+from zixuetong.storage.postgres.models_business import Skill
 
 
 def _build_zip(files: dict[str, str]) -> bytes:

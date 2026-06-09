@@ -11,16 +11,16 @@ from typing import Any
 
 import pytest
 
-from yuxi.models.chat import OpenAIBase
-from yuxi.models.embed import OllamaEmbedding, OtherEmbedding
-from yuxi.models.rerank import DashscopeReranker, OpenAIReranker
-from yuxi.services.model_provider_service import (
+from zixuetong.models.chat import OpenAIBase
+from zixuetong.models.embed import OllamaEmbedding, OtherEmbedding
+from zixuetong.models.rerank import DashscopeReranker, OpenAIReranker
+from zixuetong.services.model_provider_service import (
     _resolve_api_key,
     ensure_builtin_model_providers_in_db,
     get_model_provider_by_id,
 )
-from yuxi.storage.postgres.manager import pg_manager
-from yuxi.storage.postgres.models_business import ModelProvider
+from zixuetong.storage.postgres.manager import pg_manager
+from zixuetong.storage.postgres.models_business import ModelProvider
 
 pytestmark = [
     pytest.mark.asyncio(loop_scope="session"),
@@ -129,7 +129,7 @@ async def test_provider_db_rerank_model_connectivity():
         base_url=spec["base_url"],
         parameters=spec["parameters"],
     )
-    scores = await reranker.acompute_score(("Yuxi knowledge base", ["Yuxi is a RAG platform.", "Unrelated text."]))
+    scores = await reranker.acompute_score(("自学通 knowledge base", ["自学通 is a RAG platform.", "Unrelated text."]))
     await reranker.aclose()
 
     assert len(scores) == 2

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from pydantic import BaseModel
 
 from server.utils.auth_middleware import get_required_user
-from yuxi.services.workspace_service import (
+from zixuetong.services.workspace_service import (
     create_workspace_directory,
     delete_workspace_path,
     download_workspace_file,
@@ -13,7 +13,7 @@ from yuxi.services.workspace_service import (
     upload_workspace_file,
     write_workspace_file_content,
 )
-from yuxi.storage.postgres.models_business import User
+from zixuetong.storage.postgres.models_business import User
 
 workspace = APIRouter(prefix="/workspace", tags=["workspace"])
 

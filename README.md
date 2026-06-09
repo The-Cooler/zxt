@@ -1,71 +1,131 @@
-项目基于 YuXi 二创，当前方向是面向个人学习与知识管理的智能知识库平台。
+# 自学通 / 自学通
 
-已落地和正在完善的重点能力：
+自学通是基于 自学通 二次开发的个人自学平台，面向长期学习资料整理、知识库沉淀、知识图谱梳理和 AI 辅导。项目基于 LangGraph v1、Vue 3、FastAPI、LightRAG、PostgreSQL/pgvector 和 Neo4j 构建，开发环境通过 Docker Compose 统一管理。
 
-1. 智能网页读取：支持 URL 读取、同域页面发现、页面预览、Markdown 清洗和选择性入库。
-2. 知识库入库模式：支持快速入库、标准入库和图谱入库，并可限制图谱节点和关系数量。
-3. 自动图关系生成：支持从普通资料中识别系统级实体关系，并在写入前进行人工校对。
-4. 学习助手：空会话展示个人 workspace 中的学习计划，围绕知识库推进学习主题。
-5. vibe coding 本地知识库工具：通过 MCP/工具体系复用本地知识库检索能力。
+当前版本仍保留 自学通 的智能体平台底座，但产品方向已经收敛为个人学习与知识管理：把 PDF、Word、Markdown、网页等资料转成可检索知识库，结合学习助手、个人工作区和知识图谱持续推进学习计划。
 
-智能推荐、演示动画和教学视频生成仍属于后续规划能力，具体以 `docs/develop-guides/roadmap.md` 为准。
+## 当前能力
 
+- 学习助手：空会话展示 workspace 中的学习计划，围绕用户画像、知识库和计划推进学习主题。
+- 知识库/RAG：支持文档上传、解析、分块、向量检索、重排、问答测试和评估。
+- 网页资料入库：支持 URL 读取、同域页面发现、Markdown 清洗、人工预览编辑和提交入库。
+- 知识图谱：支持 Neo4j 图谱浏览、实体关系管理，以及从普通资料中识别系统级关系并人工校对。
+- 个人工作区：管理用户文件、智能体产物、Markdown/TXT 编辑、图片/PDF/代码预览和下载。
+- 扩展能力：支持 Tools、MCP Servers、SubAgents、Skills 管理，供智能体在运行时调用。
+- 平台能力：登录初始化、模型配置、任务中心、系统设置、API Key、文件存储和运行监控。
 
-# 完整功能模块设计
+更完整的功能边界见 [自学通功能.md](自学通功能.md)，正式用户文档见 [docs](docs/index.md)。
 
-以下内容是个人使用版本的功能设计规划，用于后续拆分实现范围；不代表当前代码已经全部实现。项目不再规划用户管理、部门管理、多组织权限隔离等多人协作能力。
+## 技术栈
 
-## 1. 知识库与文档管理模块
+| 层级 | 技术 |
+|------|------|
+| 前端 | Vue 3, Vite, Pinia, Ant Design Vue, Less |
+| 后端 | Python 3.12+, FastAPI, Uvicorn, ARQ |
+| Agent | LangGraph v1, deepagents, Tools, MCP, Skills, SubAgents |
+| 知识库 | LightRAG, PostgreSQL/pgvector |
+| 图谱 | Neo4j |
+| 存储 | PostgreSQL, Redis, MinIO, 本地 `saves` |
+| 文档解析 | Docling, Scrapling, PaddleX, RapidOCR, DeepSeek OCR |
+| 部署 | Docker, Docker Compose |
 
-1. 文档上传与解析：支持 PDF、Word、Markdown、HTML、ZIP 等资料导入，并统一转换为可检索文本。
-2. 知识库创建与维护：支持创建、编辑、删除知识库，管理文件夹、文件状态、解析结果和入库进度。
-3. 向量检索与问答：基于 PostgreSQL/pgvector 存储向量，提供面向个人知识库的 RAG 检索能力。
-4. 检索参数配置：支持分块策略、Embedding 模型、TopK、重排、示例问题等参数调整。
+## 目录结构
 
-## 2. 智能爬虫与网页采集模块
+```text
+.
+├── backend/                  # FastAPI 服务、可复用 zixuetong 包、后端测试
+│   ├── server/               # API 入口、路由和 worker 入口
+│   ├── package/zixuetong/         # Agent、service、repository、knowledge、storage 等核心代码
+│   └── test/                 # unit / integration / e2e 测试
+├── web/                      # Vue 3 前端应用
+├── docs/                     # VitePress 用户与开发文档
+├── docker/                   # API/Web/Docs 镜像和沙盒 provisioner
+├── saves/                    # 开发环境持久化数据、日志、知识库和 workspace 文件
+├── models/                   # 本地模型挂载目录
+├── scripts/                  # 初始化、镜像拉取等辅助脚本
+├── ARCHITECTURE.md           # 稳定架构地图
+├── AGENTS.md                 # 编码代理协作约束
+├── CLAUDE.md                 # Claude/Codex 类代理可读的项目约束
+├── CONTRIBUTING.md           # 贡献说明
+├── Plan.md                   # 阶段性产品计划归档
+├── fix_plan.md               # 已处理 Bug 修复计划归档
+└── 自学通功能.md               # 当前功能边界清单
+```
 
-1. URL 读取入库：输入网页地址后提取正文、标题、链接和基础元数据。
-2. 同域页面发现：自动发现同域 HTML 页面，按内容相关性筛选可继续采集的页面。
-3. 内容清洗与去重：过滤导航、页脚、重复段落和无正文页面，减少低质量入库内容。
-4. 采集会话管理：支持预览原网页、编辑清洗后的 Markdown、选择目标页面、提交入库并追踪处理状态。
+## 快速启动
 
-## 3. 知识图谱与关系生成模块
+推荐直接使用 Docker Compose 开发环境。
 
-1. 实体与关系抽取：从知识库文本中自动识别实体、概念、事件和它们之间的关系。
-2. 图谱自动构建：将抽取结果写入 Neo4j，形成可持续更新的个人知识图谱。
-3. 图谱浏览与查询：支持节点、边、标签、子图和统计信息的可视化浏览。
-4. 关系校验与补全：对自动生成的关系进行人工确认、编辑、删除和补充。
+```bash
+# 初始化环境变量与依赖镜像
+./scripts/init.sh
 
-## 4. 智能推荐与学习路径模块
+# 构建并启动服务
+docker compose up --build -d
 
-1. 关联资料推荐：根据当前文档、问题或对话上下文推荐相关知识库内容。
-2. 问题推荐：基于已入库资料自动生成可追问的问题、复习题和探索方向。
-3. 学习路径生成：把零散资料整理成主题路径，输出章节、先后顺序和重点说明。
-4. 知识盲区提示：根据检索命中、问答失败和图谱断点提示缺失资料或薄弱主题。
+# 查看服务状态
+docker ps
+docker logs api-dev --tail 100
+docker logs web-dev --tail 100
+```
 
-当前学习助手会优先维护 workspace 中的 Markdown 学习计划：
+启动后访问：
 
-- `learning-profile.md`：个人学习画像
-- `learning-plans/index.md`：总计划索引
-- `learning-plans/<topic>.md`：单个主题计划
+| 服务 | 地址 |
+|------|------|
+| Web 应用 | http://localhost:5173 |
+| API 文档 | http://localhost:5050/docs |
+| 文档站 | http://localhost:5174 |
+| Neo4j Browser | http://localhost:7474 |
+| MinIO Console | http://localhost:9001 |
 
-## 5. 智能体对话与工具调用模块
+首次访问 Web 应用时按页面提示初始化管理员账号。详细安装和故障排查见 [快速开始指南](docs/intro/quick-start.md)。
 
-1. 知识库问答：智能体可结合文档知识库、图谱和上下文回答问题。
-2. MCP 本地知识库工具：支持在 vibe coding 场景中通过 MCP 调用本地知识库检索能力。
-3. 工具调用可视化：展示工具调用过程、引用来源、检索结果、图谱结果和生成产物。
-4. 人机协作控制：支持 Human Approval、任务取消、对话线程和历史消息管理。
+## 开发工作流
 
-## 6. 演示动画与教学视频生成模块
+本项目的开发事实来源是 [docker-compose.yml](docker-compose.yml)。`api-dev`、`worker-dev`、`web-dev` 和 `docs-dev` 都挂载本地源码，通常修改代码后不需要重启容器。
 
-1. 演示大纲生成：根据知识库主题生成课程结构、讲解顺序和演示脚本。
-2. 分镜与动画脚本：把知识点拆成镜头、画面元素、动画步骤和旁白内容。
-3. 教学视频素材生成：生成字幕、讲稿、页面文案、图示说明和可复用素材清单。
-4. 产物导出与预览：在工作区中保存脚本、Markdown、素材文件，并支持预览与继续编辑。
+常用命令：
 
-## 7. 个人工作区与系统管理模块
+```bash
+# 启动开发环境
+docker compose up -d
 
-1. 个人文件工作区：管理智能体生成的文件、上传资料、下载结果和 Markdown 编辑内容。
-2. 模型与服务配置：配置大模型、Embedding、Rerank、OCR、图谱和对象存储等基础服务。
-3. API Key 管理：为个人外部调用创建、禁用、删除和重新生成 API Key。
-4. 任务中心与运行监控：查看后台任务、处理进度、错误日志、健康检查和运行状态。
+# 查看容器与日志
+docker ps
+docker logs api-dev --tail 100
+docker logs worker-dev --tail 100
+docker logs web-dev --tail 100
+
+# 后端格式化与测试
+make format
+docker compose exec api uv run pytest
+
+# 前端构建或检查
+docker compose exec web pnpm run build
+docker compose exec web pnpm run lint
+```
+
+修改不熟悉的模块前，先读 [ARCHITECTURE.md](ARCHITECTURE.md)。新增或修改后端行为时，测试放在 `backend/test`，并参考 [测试规范](docs/develop-guides/testing-guidelines.md)。
+
+## 文档入口
+
+- [项目简介](docs/intro/project-overview.md)：产品定位、技术架构和适用场景
+- [知识库与知识图谱](docs/intro/knowledge-base.md)：资料导入、检索、图谱和网页读取
+- [学习助手](docs/agents/learning-assistant.md)：学习画像、总计划和子计划文件约定
+- [模型配置](docs/intro/model-config.md)：模型供应商与模型列表配置
+- [扩展管理](docs/agents/agents-config.md)：Agent、Tools、MCP、Skills、SubAgents
+- [部署说明](docs/advanced/deployment.md)：生产部署与上线建议
+- [开发路线图](docs/develop-guides/roadmap.md)：近期看板、已落地版本记录和后续规划
+
+## 根目录文档约定
+
+- `README.md` 是项目入口，只保留当前事实、启动方式和文档导航。
+- `ARCHITECTURE.md` 只维护稳定架构边界，不记录易变实现细节。
+- `自学通功能.md` 维护当前功能边界和裁剪注意事项。
+- `Plan.md` 与 `fix_plan.md` 是历史计划归档，不作为当前待办的唯一来源。
+- 正式用户文档统一放在 `docs/`，开发过程中的临时方案文档放在 `docs/vibe/`。
+
+## 许可与贡献
+
+贡献流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。提交信息建议遵循 Conventional Commits，并使用清晰的中文说明变更目的、影响范围和验证方式。

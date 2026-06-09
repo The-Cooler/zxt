@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-import yuxi.services.agent_run_service as agent_run_service
+import zixuetong.services.agent_run_service as agent_run_service
 
 
 class FakeConfigRepo:

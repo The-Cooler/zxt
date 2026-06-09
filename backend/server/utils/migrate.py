@@ -7,8 +7,8 @@ import shutil
 import sqlite3
 from pathlib import Path
 
-from yuxi.utils import logger
-from yuxi.utils.datetime_utils import shanghai_now
+from zixuetong.utils import logger
+from zixuetong.utils.datetime_utils import shanghai_now
 
 
 class DatabaseMigrator:

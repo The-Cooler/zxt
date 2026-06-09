@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from fastapi import HTTPException
 
-from yuxi.services import thread_files_service as svc
+from zixuetong.services import thread_files_service as svc
 
 
 @pytest.mark.asyncio

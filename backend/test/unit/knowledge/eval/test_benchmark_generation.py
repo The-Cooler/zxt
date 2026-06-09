@@ -5,8 +5,8 @@ import pytest
 
 os.environ.setdefault("OPENAI_API_KEY", "test-key")
 
-from yuxi.knowledge.eval import benchmark_generation
-from yuxi.knowledge.eval.benchmark_generation import (
+from zixuetong.knowledge.eval import benchmark_generation
+from zixuetong.knowledge.eval.benchmark_generation import (
     build_benchmark_generation_prompt,
     clamp_neighbors_count,
     collect_kb_chunks,

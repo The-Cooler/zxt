@@ -8,9 +8,9 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from yuxi.storage.postgres.manager import pg_manager
-from yuxi.storage.postgres.models_business import User
-from yuxi.repositories.user_repository import UserRepository
+from zixuetong.storage.postgres.manager import pg_manager
+from zixuetong.storage.postgres.models_business import User
+from zixuetong.repositories.user_repository import UserRepository
 from server.utils.auth_middleware import (
     get_current_user,
     get_db,
@@ -19,11 +19,11 @@ from server.utils.auth_middleware import (
 from server.utils.auth_utils import AuthUtils
 from server.utils.user_utils import validate_username, is_valid_phone_number
 from server.utils.common_utils import log_operation
-from yuxi.storage.minio import aupload_file_to_minio
-from yuxi.utils.datetime_utils import utc_now_naive
+from zixuetong.storage.minio import aupload_file_to_minio
+from zixuetong.utils.datetime_utils import utc_now_naive
 
 # OIDC 认证相关导入
-from yuxi.services.oidc_service import (
+from zixuetong.services.oidc_service import (
     get_oidc_config_handler,
     oidc_callback_handler,
     oidc_exchange_code_handler,

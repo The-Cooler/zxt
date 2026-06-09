@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from yuxi.services import remote_skill_install_service as svc
+from zixuetong.services import remote_skill_install_service as svc
 
 
 def test_parse_available_skills_from_cli_output() -> None:

@@ -5814,7 +5814,16 @@ wheels = [
 ]
 
 [[package]]
-name = "yuxi"
+name = "zipp"
+version = "3.23.0"
+source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
+sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/e3/02/0f2892c661036d50ede074e376733dca2ae7c6eb617489437771209d4180/zipp-3.23.0.tar.gz", hash = "sha256:a07157588a12518c9d4034df3fbbee09c814741a33ff63c05fa29d26a2404166", size = 25547, upload-time = "2025-06-08T17:06:39.4Z" }
+wheels = [
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/2e/54/647ade08bf0db230bfea292f893923872fd20be6ac6f53b2b936ba839d75/zipp-3.23.0-py3-none-any.whl", hash = "sha256:071652d6115ed432f5ce1d34c336c0adfd6a884660d1e9712a256d3d3bd4b14e", size = 10276, upload-time = "2025-06-08T17:06:38.034Z" },
+]
+
+[[package]]
+name = "zixuetong"
 version = "0.6.2b0"
 source = { editable = "package" }
 dependencies = [
@@ -5971,7 +5980,7 @@ requires-dist = [
 ]
 
 [[package]]
-name = "yuxi-workspace"
+name = "zixuetong-workspace"
 version = "0.6.2b0"
 source = { virtual = "." }
 dependencies = [
@@ -5979,7 +5988,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "scrapling", extra = ["fetchers"] },
     { name = "uvicorn", extra = ["standard"] },
-    { name = "yuxi" },
+    { name = "zixuetong" },
 ]
 
 [package.dev-dependencies]
@@ -5999,7 +6008,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.121" },
     { name = "scrapling", extras = ["fetchers"], specifier = ">=0.4.8" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.2" },
-    { name = "yuxi", editable = "package" },
+    { name = "zixuetong", editable = "package" },
 ]
 
 [package.metadata.requires-dev]
@@ -6009,15 +6018,6 @@ test = [
     { name = "pytest-asyncio", specifier = ">=0.24.0" },
     { name = "pytest-cov", specifier = ">=6.0.0" },
     { name = "pytest-httpx", specifier = ">=0.32.0" },
-]
-
-[[package]]
-name = "zipp"
-version = "3.23.0"
-source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
-sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/e3/02/0f2892c661036d50ede074e376733dca2ae7c6eb617489437771209d4180/zipp-3.23.0.tar.gz", hash = "sha256:a07157588a12518c9d4034df3fbbee09c814741a33ff63c05fa29d26a2404166", size = 25547, upload-time = "2025-06-08T17:06:39.4Z" }
-wheels = [
-    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/2e/54/647ade08bf0db230bfea292f893923872fd20be6ac6f53b2b936ba839d75/zipp-3.23.0-py3-none-any.whl", hash = "sha256:071652d6115ed432f5ce1d34c336c0adfd6a884660d1e9712a256d3d3bd4b14e", size = 10276, upload-time = "2025-06-08T17:06:38.034Z" },
 ]
 
 [[package]]

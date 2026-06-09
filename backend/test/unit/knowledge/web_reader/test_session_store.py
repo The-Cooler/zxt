@@ -1,7 +1,7 @@
 import pytest
 
-from yuxi.knowledge.web_reader.models import WebPageSnapshot, WebReadSession
-from yuxi.knowledge.web_reader.session_store import load_session, save_session
+from zixuetong.knowledge.web_reader.models import WebPageSnapshot, WebReadSession
+from zixuetong.knowledge.web_reader.session_store import load_session, save_session
 
 
 class FakeRedis:
@@ -22,7 +22,7 @@ async def test_session_store_round_trip(monkeypatch):
     async def fake_get_redis_client():
         return redis
 
-    monkeypatch.setattr("yuxi.knowledge.web_reader.session_store.get_redis_client", fake_get_redis_client)
+    monkeypatch.setattr("zixuetong.knowledge.web_reader.session_store.get_redis_client", fake_get_redis_client)
 
     session = WebReadSession(
         session_id="s1",

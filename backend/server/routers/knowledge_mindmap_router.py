@@ -12,17 +12,17 @@ import traceback
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from server.utils.auth_middleware import get_admin_user
-from yuxi import config, knowledge_base
-from yuxi.knowledge.utils.mindmap_utils import (
+from zixuetong import config, knowledge_base
+from zixuetong.knowledge.utils.mindmap_utils import (
     MINDMAP_SYSTEM_PROMPT,
     build_database_file_list,
     build_mindmap_user_message,
     collect_mindmap_files,
     parse_mindmap_content,
 )
-from yuxi.models import select_model
-from yuxi.storage.postgres.models_business import User
-from yuxi.utils import logger
+from zixuetong.models import select_model
+from zixuetong.storage.postgres.models_business import User
+from zixuetong.utils import logger
 
 mindmap = APIRouter(prefix="/mindmap", tags=["mindmap"])
 
@@ -100,7 +100,7 @@ async def generate_mindmap(
         logger.info("思维导图生成成功")
 
         try:
-            from yuxi.repositories.knowledge_base_repository import KnowledgeBaseRepository
+            from zixuetong.repositories.knowledge_base_repository import KnowledgeBaseRepository
 
             await KnowledgeBaseRepository().update(db_id, {"mindmap": mindmap_data})
             logger.info(f"思维导图已保存到知识库: {db_id}")
@@ -158,7 +158,7 @@ async def get_databases_overview(current_user: User = Depends(get_admin_user)):
 async def get_database_mindmap(db_id: str, current_user: User = Depends(get_admin_user)):
     """获取知识库关联的思维导图。"""
     try:
-        from yuxi.repositories.knowledge_base_repository import KnowledgeBaseRepository
+        from zixuetong.repositories.knowledge_base_repository import KnowledgeBaseRepository
 
         kb = await KnowledgeBaseRepository().get_by_id(db_id)
         if kb is None:

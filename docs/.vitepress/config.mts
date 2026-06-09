@@ -5,9 +5,17 @@ import markdownItTaskCheckbox from 'markdown-it-task-checkbox'
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
   lang: 'zh-CN',
-  title: "Yuxi",
-  description: "语析",
+  title: "自学通",
+  description: "个人自学平台",
   base: '/docs/',
+  vite: {
+    server: {
+      allowedHosts: ['docs']
+    }
+  },
+  head: [
+    ['link', { rel: 'icon', type: 'image/png', href: '/docs/logo.png' }]
+  ],
   ignoreDeadLinks: [
     /localhost/,
     /CONTRIBUTING$/,
@@ -21,7 +29,7 @@ export default defineConfig({
   },
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
-    logo: "/favicon.svg",
+    logo: "/logo.png",
     nav: [
       { text: '快速开始', link: '/intro/quick-start' },
       { text: '智能体开发', link: '/agents/agents-config' }
@@ -31,7 +39,7 @@ export default defineConfig({
       {
         text: '简介',
         items: [
-          { text: '什么是 Yuxi？', link: '/intro/project-overview' },
+          { text: '什么是自学通？', link: '/intro/project-overview' },
           { text: '快速开始', link: '/intro/quick-start' },
           { text: '模型配置', link: '/intro/model-config' },
           { text: '知识库与知识图谱', link: '/intro/knowledge-base' },
@@ -77,16 +85,10 @@ export default defineConfig({
 
     footer: {
       message: '本项目基于 MIT License 开源，欢迎使用和贡献。',
-      copyright: 'Copyright © 2025-present Yuxi'
+      copyright: 'Copyright © 2025-present 自学通'
     },
 
-    lastUpdated: {
-      text: '最后更新时间',
-      formatOptions: {
-        dateStyle: 'full',
-        timeStyle: 'medium'
-      }
-    },
+    lastUpdated: false,
 
     search: {
       provider: 'local'

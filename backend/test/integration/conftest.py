@@ -17,8 +17,8 @@ import httpx
 import pytest
 import pytest_asyncio
 from dotenv import load_dotenv
-from yuxi.repositories.user_repository import UserRepository
-from yuxi.storage.postgres.manager import pg_manager
+from zixuetong.repositories.user_repository import UserRepository
+from zixuetong.storage.postgres.manager import pg_manager
 from server.utils.auth_utils import AuthUtils
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -34,7 +34,7 @@ ADMIN_PASSWORD = os.getenv("TEST_PASSWORD")
 
 _ADMIN_TOKEN_CACHE: str | None = None
 HTTP_TIMEOUT = httpx.Timeout(60.0, connect=5.0)
-SANDBOX_CONTAINER_PREFIX = os.getenv("YUXI_SANDBOX_CONTAINER_PREFIX", "yuxi-sandbox")
+SANDBOX_CONTAINER_PREFIX = os.getenv("ZIXUETONG_SANDBOX_CONTAINER_PREFIX", "zixuetong-sandbox")
 
 
 def _require_admin_credentials() -> tuple[str, str]:
@@ -159,10 +159,10 @@ def _docker_api_request(method: str, path: str) -> list[dict] | dict:
         "curl",
         "-sS",
         "--unix-socket",
-        os.getenv("YUXI_DOCKER_API_SOCKET", "/var/run/docker.sock"),
+        os.getenv("ZIXUETONG_DOCKER_API_SOCKET", "/var/run/docker.sock"),
         "-X",
         method,
-        f"{os.getenv('YUXI_DOCKER_API_BASE', 'http://localhost').rstrip('/')}{path}",
+        f"{os.getenv('ZIXUETONG_DOCKER_API_BASE', 'http://localhost').rstrip('/')}{path}",
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=15, check=False)
     if result.returncode != 0:
