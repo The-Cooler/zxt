@@ -205,12 +205,11 @@
       <div class="url-area" v-if="uploadMode === 'url'">
         <div class="url-input-wrapper">
           <div class="url-input-grid">
-            <a-textarea
+            <a-input
               v-model:value="newUrl"
-              placeholder="输入 URL，一行一个&#10;https://site1.com&#10;https://site2.com"
-              :auto-size="{ minRows: 4, maxRows: 8 }"
+              placeholder="输入网页 URL，例如 https://example.com"
               class="url-input"
-              @keydown.enter.ctrl="handleFetchUrls"
+              @keydown.enter="handleFetchUrls"
             />
             <div class="max-depth-field">
               <label for="web-reader-max-depth">最大深度</label>
@@ -226,7 +225,7 @@
           </div>
           <div class="url-actions">
             <span class="url-hint">
-              支持批量粘贴，系统会读取初始页并发现同域 HTML 子页面。
+              系统会读取初始页并发现同域 HTML 子页面，可选择入库。
             </span>
             <a-button
               type="primary"
@@ -268,8 +267,12 @@
             <div v-if="item.status === 'success'" class="web-session-body">
               <div class="root-page-summary">
                 <div class="summary-meta">
+                  <span class="summary-label">标题</span>
+                  <span class="summary-value">{{ item.data?.root_page?.title || '未命名页面' }}</span>
+                </div>
+                <div class="summary-meta" v-if="item.data?.root_page?.topic">
                   <span class="summary-label">主题</span>
-                  <span class="summary-value">{{ item.data.root_page.topic || '未识别' }}</span>
+                  <span class="summary-value">{{ item.data.root_page.topic }}</span>
                 </div>
                 <p class="summary-text">{{ item.data.root_page.text_excerpt || '无正文摘要' }}</p>
               </div>
@@ -748,48 +751,38 @@ const fetchSingleUrlItem = async (item) => {
 }
 
 const handleFetchUrls = async () => {
-  const text = newUrl.value
-  if (!text) return
+  const url = newUrl.value.trim()
+  if (!url) return
 
-  const lines = text
-    .split(/[\r\n]+/)
-    .map((l) => l.trim())
-    .filter((l) => l)
-  if (lines.length === 0) return
-
-  // 1. 预处理：添加到列表
-  const newItems = []
-  for (const url of lines) {
-    if (!isValidUrl(url)) {
-      continue
-    }
-    if (urlList.value.some((u) => u.url === url)) continue
-
-    const item = {
-      url,
-      status: 'pending',
-      data: null,
-      error: '',
-      checkedUrls: [],
-      cleanedPages: [],
-      indexParams: null,
-      expanding: false
-    }
-    urlList.value.push(item)
-    newItems.push(item)
-  }
-
-  if (newItems.length === 0) {
-    if (lines.length > 0) {
-      message.warning('没有检测到有效的新 URL')
-    }
+  // 验证 URL 格式
+  if (!isValidUrl(url)) {
+    message.warning('请输入有效的 URL（以 http:// 或 https:// 开头）')
     return
   }
 
+  // 检查是否已存在
+  if (urlList.value.some((u) => u.url === url)) {
+    message.warning('该 URL 已存在于列表中')
+    return
+  }
+
+  // 创建单个项
+  const item = {
+    url,
+    status: 'pending',
+    data: null,
+    error: '',
+    checkedUrls: [],
+    cleanedPages: [],
+    indexParams: null,
+    expanding: false
+  }
+
+  urlList.value.push(item)
   newUrl.value = '' // 清空输入框
   fetchingUrls.value = true
 
-  await Promise.all(newItems.map(fetchSingleUrlItem))
+  await fetchSingleUrlItem(item)
   fetchingUrls.value = false
 }
 

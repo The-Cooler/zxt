@@ -16,7 +16,6 @@
         <a-menu-item-group v-for="(providerData, providerId) in v2Models" :key="`v2-${providerId}`">
           <template #title>
             <span>{{ providerId }}</span>
-            <a-tag color="success" size="small" class="provider-tag">新</a-tag>
           </template>
           <a-menu-item
             v-for="model in providerData.models"
@@ -33,27 +32,6 @@
                 :class="getV2StatusClass(model.spec)"
                 :title="getV2StatusTooltip(model.spec)"
                 >{{ getV2StatusIcon(model.spec) }}</span
-              >
-            </div>
-          </a-menu-item>
-        </a-menu-item-group>
-
-        <!-- V1 模型列表（过时，仅保留兼容） -->
-        <a-menu-item-group v-if="v1EmbedModels.length" key="v1" title="V1 版本（过时）">
-          <a-menu-item v-for="name in v1EmbedModels" :key="name" @click="handleSelect(name)">
-            <div class="model-option">
-              <span class="model-option-name">
-                {{ name }}
-                <span class="model-dimension"
-                  >({{ configStore.config?.embed_model_names[name]?.dimension }})</span
-                >
-              </span>
-              <a-tag color="default" size="small" class="provider-tag">过时</a-tag>
-              <span
-                class="model-status-icon"
-                :class="getV1StatusClass(name)"
-                :title="getV1StatusTooltip(name)"
-                >{{ getV1StatusIcon(name) }}</span
               >
             </div>
           </a-menu-item>

@@ -42,6 +42,12 @@
 
       <div v-else-if="parsedData.reasoning_content" class="empty-block"></div>
 
+      <AnimationDemoCard
+        v-for="demo in animationDemos"
+        :key="demo.id"
+        :demo="demo"
+      />
+
       <!-- 错误提示块 -->
       <div v-if="displayError" class="error-hint">
         <span v-if="getErrorMessage">{{ getErrorMessage }}</span>
@@ -98,6 +104,7 @@ import RefsComponent from '@/components/RefsComponent.vue'
 import { Copy, Check } from 'lucide-vue-next'
 import ToolCallsGroupComponent from '@/components/ToolCallsGroupComponent.vue'
 import MarkdownPreview from '@/components/common/MarkdownPreview.vue'
+import AnimationDemoCard from '@/components/animation-demo/AnimationDemoCard.vue'
 import { useAgentStore } from '@/stores/agent'
 import { useInfoStore } from '@/stores/info'
 import { storeToRefs } from 'pinia'
@@ -235,6 +242,49 @@ const validToolCalls = computed(() => {
         toolCall.tool_call_result !== undefined)
     )
   })
+})
+
+const parseToolResultContent = (content) => {
+  if (!content) return null
+  if (typeof content === 'object') return content
+  if (typeof content !== 'string') return null
+  try {
+    return JSON.parse(content)
+  } catch {
+    return null
+  }
+}
+
+const normalizeAnimationDemo = (value) => {
+  const demo = value?.type === 'animation_demo' && value?.demo ? value.demo : value
+  if (!demo || demo.type !== 'animation_demo' || !Array.isArray(demo.scenes)) return null
+  return demo
+}
+
+const animationDemos = computed(() => {
+  const demos = []
+  const appendDemo = (value) => {
+    const demo = normalizeAnimationDemo(value)
+    if (demo && !demos.some((item) => item.id === demo.id)) {
+      demos.push(demo)
+    }
+  }
+
+  const metadata = props.message.extra_metadata || {}
+  if (Array.isArray(metadata.animation_demos)) {
+    metadata.animation_demos.forEach(appendDemo)
+  }
+  if (Array.isArray(metadata.artifacts)) {
+    metadata.artifacts.forEach(appendDemo)
+  }
+
+  for (const toolCall of props.message.tool_calls || []) {
+    const toolName = toolCall?.name || toolCall?.function?.name
+    if (toolName !== 'create_animation_demo') continue
+    appendDemo(parseToolResultContent(toolCall?.tool_call_result?.content))
+  }
+
+  return demos
 })
 
 const parsedData = computed(() => {

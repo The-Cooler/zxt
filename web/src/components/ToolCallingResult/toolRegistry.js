@@ -7,6 +7,7 @@ import {
   FileEdit,
   FilePen,
   FileText,
+  Film,
   Folder,
   FolderOutput,
   FolderSearch,
@@ -22,6 +23,7 @@ export const TOOL_ICON_MAP = {
   bash: Terminal,
   calculator: Calculator,
   cmd: Terminal,
+  create_animation_demo: Film,
   edit_file: FilePen,
   execute: Terminal,
   get_mindmap: Network,
@@ -48,7 +50,7 @@ export const TOOL_ICON_MAP = {
 }
 
 // Keep intentionally hidden tool calls centralized so group summaries and renderers stay consistent.
-export const HIDDEN_TOOL_CALL_IDS = ['present_artifacts']
+export const HIDDEN_TOOL_CALL_IDS = ['present_artifacts', 'create_animation_demo']
 
 export const getToolCallId = (toolCall) => toolCall?.name || toolCall?.function?.name || ''
 

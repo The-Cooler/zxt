@@ -280,19 +280,6 @@ export const queryApi = {
 // =============================================================================
 
 export const fileApi = {
-  /**
-   * 抓取 URL 内容
-   * @param {string} url - 目标 URL
-   * @param {string} dbId - 知识库 ID
-   * @returns {Promise} - 抓取结果
-   */
-  fetchUrl: async (url, dbId = null) => {
-    return apiAdminPost('/api/knowledge/files/fetch-url', {
-      url,
-      db_id: dbId
-    })
-  },
-
   createWebReadSession: async (url, dbId, maxDepth = null) => {
     return apiAdminPost('/api/knowledge/web-reader/sessions', {
       url,

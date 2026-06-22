@@ -451,6 +451,70 @@ const deleteCleanedPage = async () => {
 .web-reader-tree {
   max-height: calc(100vh - 280px);
   overflow: auto;
+
+  :deep(.ant-tree-treenode) {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 0;
+    height: 32px;
+
+    .ant-tree-switcher {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 32px;
+      line-height: 32px;
+    }
+
+    .ant-tree-indent {
+      display: flex;
+      align-items: center;
+      align-self: stretch;
+
+      &-unit {
+        width: 16px;
+      }
+    }
+
+    .ant-tree-node-content-wrapper {
+      display: flex;
+      align-items: center;
+      flex: 1;
+      min-width: 0;
+      height: 32px;
+      line-height: 32px;
+      padding: 0 6px;
+      border-radius: 4px;
+      transition: background-color 0.2s;
+
+      .ant-tree-title {
+        display: flex;
+        align-items: center;
+        flex: 1;
+        min-width: 0;
+        height: 100%;
+        overflow: hidden;
+        font-size: 13px;
+        color: var(--gray-800);
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      &:hover {
+        background-color: var(--gray-50);
+      }
+
+      &.ant-tree-node-selected {
+        background-color: var(--main-50);
+      }
+    }
+
+    .ant-tree-checkbox {
+      margin-right: 6px;
+    }
+  }
 }
 
 .sidebar-head {

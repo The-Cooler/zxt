@@ -249,6 +249,36 @@ class PostgresManager(metaclass=SingletonMeta):
             for stmt in stmts:
                 await conn.execute(text(stmt))
 
+        # 确保默认部门存在
+        await self.ensure_default_department()
+
+    async def ensure_default_department(self):
+        """确保默认部门（个人配置作用域）存在。
+
+        ID=1 的部门用于存储用户的个人智能体配置（PERSONAL_AGENT_CONFIG_SCOPE_ID）。
+        """
+        self._check_initialized()
+        from zixuetong.repositories.agent_config_repository import PERSONAL_AGENT_CONFIG_SCOPE_ID
+        from zixuetong.utils.datetime_utils import utc_now_naive
+
+        async with self.get_async_session_context() as session:
+            from zixuetong.storage.postgres.models_business import Department
+
+            # 检查是否已存在
+            result = await session.execute(text("SELECT id FROM departments WHERE id = :id"), {"id": PERSONAL_AGENT_CONFIG_SCOPE_ID})
+            exists = result.scalar_one_or_none()
+
+            if not exists:
+                # 创建默认部门
+                dept = Department(
+                    id=PERSONAL_AGENT_CONFIG_SCOPE_ID,
+                    name="个人配置",
+                    description="用户个人智能体配置作用域",
+                    created_at=utc_now_naive(),
+                )
+                session.add(dept)
+                logger.info(f"Created default department (ID={PERSONAL_AGENT_CONFIG_SCOPE_ID}) for personal agent configs")
+
     @property
     def is_postgresql(self) -> bool:
         """检查是否是 PostgreSQL 数据库"""

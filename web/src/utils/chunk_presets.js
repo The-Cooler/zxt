@@ -2,32 +2,32 @@ export const CHUNK_PRESET_OPTIONS = [
   {
     value: 'general',
     label: 'General',
-    description: '通用分块：按分隔符和长度切分，适合大多数普通文档。'
+    description: '通用：适合大多数文档'
   },
   {
     value: 'qa',
     label: 'QA',
-    description: '问答分块：优先抽取问题-回答结构，适合 FAQ、题库、问答手册。'
+    description: '问答：适合FAQ题库'
   },
   {
     value: 'book',
     label: 'Book',
-    description: '书籍分块：强化章节标题识别并做层级合并，适合教材、手册、长章节文档。'
+    description: '书籍：适合教材手册'
   },
   {
     value: 'laws',
     label: 'Laws',
-    description: '法规分块：按法条层级组织与合并，适合法律法规、制度规范类文本。'
+    description: '法规：适合法律规范'
   },
   {
     value: 'semantic',
     label: 'Semantic',
-    description: '语义分块：利用嵌入和聚类算法进行语义切分，并自动增强标题上下文。'
+    description: '语义：智能语义切分'
   },
   {
     value: 'separator',
     label: 'Separator',
-    description: '严格分隔：命中分隔符即切分，仅超长片段内部继续按长度切分。'
+    description: '分隔：按分隔符切分'
   }
 ]
 

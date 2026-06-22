@@ -86,9 +86,15 @@
             </div>
             <a-select
               v-model:value="newDatabase.chunk_preset_id"
-              :options="chunkPresetOptions"
               class="full-width"
-            />
+            >
+              <a-select-option v-for="option in chunkPresetOptions" :key="option.value" :value="option.value">
+                <div class="chunk-option">
+                  <span class="chunk-option-label">{{ option.label }}</span>
+                  <span class="chunk-option-desc">{{ getChunkPresetDescription(option.value) }}</span>
+                </div>
+              </a-select-option>
+            </a-select>
           </div>
         </div>
 
@@ -545,6 +551,25 @@ onMounted(() => {
     color: var(--gray-500);
     cursor: help;
     font-size: 14px;
+  }
+
+  .chunk-option {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px 0;
+  }
+
+  .chunk-option-label {
+    font-weight: 500;
+    color: var(--gray-800);
+  }
+
+  .chunk-option-desc {
+    font-size: 12px;
+    color: var(--gray-600);
+    line-height: 1.4;
+    white-space: normal;
   }
 
   .kb-type-guide {

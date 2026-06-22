@@ -1,4 +1,5 @@
 import os
+import json
 import traceback
 import uuid
 from pathlib import Path
@@ -12,6 +13,7 @@ from langgraph.types import Command, interrupt
 from pydantic import BaseModel, Field
 
 from zixuetong import config, graph_base
+from zixuetong.animation import AnimationDemoRequest, create_animation_demo as build_animation_demo
 from zixuetong.agents.toolkits.registry import ToolExtraMetadata, _all_tool_instances, _extra_registry, tool
 from zixuetong.storage.minio import aupload_file_to_minio
 from zixuetong.utils import logger
@@ -68,6 +70,20 @@ class PresentArtifactsInput(BaseModel):
     """Expose artifact files to the frontend after the agent finishes."""
 
     filepaths: list[str] = Field(description=f"需要展示给用户的文件绝对路径列表，只允许位于 {VIRTUAL_PATH_OUTPUTS} 下")
+
+
+class CreateAnimationDemoInput(BaseModel):
+    """Create a structured animation demo artifact for the chat window."""
+
+    concept: str = Field(description="需要用动画解释的知识点或概念", min_length=1, max_length=120)
+    query: str = Field(description="用户原始问题或你整理后的动画说明需求", min_length=1, max_length=1000)
+    explanation_steps: list[str] = Field(
+        default_factory=list,
+        description="建议拆成 3-6 个短步骤，每个步骤描述一个动态变化或理解节点",
+        max_length=10,
+    )
+    subject: str = Field(default="general", description="学科或主题，例如 math、physics、algorithm", max_length=64)
+    audience: str = Field(default="", description="目标用户水平，例如 初学者、大学生、考研复习", max_length=80)
 
 
 def _normalize_presented_artifact_path(filepath: str, runtime: ToolRuntime) -> str:
@@ -171,6 +187,56 @@ def present_artifacts(
             "messages": [ToolMessage(content="已将交付物展示给用户", tool_call_id=tool_call_id)],
         }
     )
+
+
+CREATE_ANIMATION_DEMO_DESCRIPTION = """
+在聊天窗口生成一个结构化动画演示，用于解释用户不理解的知识点。
+
+适用场景：
+1. 用户明确要求“用动画演示”“动态解释”“过程可视化”
+2. 概念涉及步骤、变化、传递、流程、公式变形、算法执行或知识关系展开
+3. 普通文字解释不足以说明过程
+
+使用规范：
+1. concept 写需要解释的核心知识点
+2. query 写用户原始问题或你整理后的动画需求
+3. explanation_steps 优先给 3-6 个短步骤，每步描述一个动态变化
+4. 不要传入代码；工具会生成受限的动画 Artifact
+
+返回结果：
+返回 type=animation_demo 的 JSON。前端会把它渲染成聊天里的动画卡片。
+""".strip()
+
+
+@tool(
+    category="buildin",
+    tags=["学习", "动画", "可视化"],
+    display_name="生成动画演示",
+    description=CREATE_ANIMATION_DEMO_DESCRIPTION,
+    args_schema=CreateAnimationDemoInput,
+)
+def create_animation_demo(
+    concept: str,
+    query: str,
+    runtime: ToolRuntime,
+    tool_call_id: Annotated[str, InjectedToolCallId],
+    explanation_steps: list[str] | None = None,
+    subject: str = "general",
+    audience: str = "",
+) -> Command:
+    """生成聊天窗口可渲染的动画演示 Artifact。"""
+    runtime_context = runtime.context
+    request = AnimationDemoRequest(
+        concept=concept,
+        query=query,
+        explanation_steps=explanation_steps or [],
+        subject=subject,
+        audience=audience,
+        thread_id=getattr(runtime_context, "thread_id", None),
+    )
+    demo = build_animation_demo(request)
+    content = json.dumps({"type": "animation_demo", "demo": demo.model_dump(mode="json")}, ensure_ascii=False)
+    return Command(update={"messages": [ToolMessage(content=content, tool_call_id=tool_call_id)]})
 
 
 ASK_USER_QUESTION_DESCRIPTION = """

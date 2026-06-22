@@ -9,10 +9,14 @@ import httpx
 from bs4 import BeautifulSoup
 
 from zixuetong.knowledge.utils import calculate_content_hash
-from zixuetong.knowledge.utils.url_fetcher import ALLOWED_CONTENT_TYPES, MAX_DOWNLOAD_SIZE
 from zixuetong.utils import logger
 
 from .models import WebPageSnapshot
+
+# 最大允许下载大小 (10MB)
+MAX_DOWNLOAD_SIZE = 10 * 1024 * 1024
+# 允许的 Content-Type
+ALLOWED_CONTENT_TYPES = ["text/html", "application/xhtml+xml"]
 
 MAX_REDIRECTS = 5
 REQUEST_HEADERS = {
@@ -25,30 +29,66 @@ REQUEST_HEADERS = {
 
 
 async def _is_private_hostname(hostname: str | None) -> bool:
+    """检查主机名是否解析到私有 IP 地址。
+
+    只阻止明确的内网地址（localhost、192.168.x.x 等）。
+    特殊保留地址（如 198.18.x.x 用于 VPN/代理）将被允许。
+    """
     if not hostname:
         return True
     try:
         ip_list = await asyncio.to_thread(socket.getaddrinfo, hostname, None)
     except Exception as e:
         logger.warning(f"Failed to resolve hostname {hostname}: {e}")
-        return True
+        # DNS 解析失败时，允许继续尝试
+        return False
 
     for item in ip_list:
         ip_addr = item[4][0]
-        ip_obj = ipaddress.ip_address(ip_addr)
-        if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local:
-            return True
+        try:
+            ip_obj = ipaddress.ip_address(ip_addr)
+
+            # 只阻止明确的私有地址
+            if ip_obj.is_loopback:
+                # 127.0.0.0/8 - 本地回环
+                logger.info(f"Blocked loopback address: {ip_addr}")
+                return True
+            if ip_obj.is_link_local:
+                # 169.254.0.0/16 - 链路本地地址
+                logger.info(f"Blocked link-local address: {ip_addr}")
+                return True
+
+            # 检查内网私有地址段
+            if ip_obj.version == 4:
+                private_networks = [
+                    ipaddress.ip_network('10.0.0.0/8'),      # Class A 私有地址
+                    ipaddress.ip_network('172.16.0.0/12'),   # Class B 私有地址
+                    ipaddress.ip_network('192.168.0.0/16'),  # Class C 私有地址
+                ]
+                for network in private_networks:
+                    if ip_obj in network:
+                        logger.info(f"Blocked private network address: {ip_addr}")
+                        return True
+
+            # 允许 198.18.0.0/15 等特殊保留地址（可能用于 VPN/代理）
+
+        except ValueError:
+            continue
+
     return False
 
 
 async def validate_public_http_url(url: str) -> None:
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
-        raise ValueError("URL must use HTTP or HTTPS protocol")
+        raise ValueError("URL 必须使用 HTTP 或 HTTPS 协议")
     if not parsed.hostname:
-        raise ValueError("Invalid URL: no hostname found")
+        raise ValueError("无效的 URL：无法找到主机名")
     if await _is_private_hostname(parsed.hostname):
-        raise ValueError("Access to private, loopback, or link-local addresses is forbidden")
+        raise ValueError(
+            "禁止访问私有地址、回环地址或本地地址。"
+            "请使用公网可访问的 URL，例如 https://example.com"
+        )
 
 
 async def _resolve_final_html_url(url: str) -> str:
@@ -56,7 +96,8 @@ async def _resolve_final_html_url(url: str) -> str:
     current_url = url
     redirect_count = 0
 
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=False) as client:
+    # 明确禁用代理，直接连接目标服务器
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=False, proxy=None) as client:
         while True:
             async with client.stream("GET", current_url, headers=REQUEST_HEADERS) as response:
                 if response.status_code in (301, 302, 303, 307, 308):

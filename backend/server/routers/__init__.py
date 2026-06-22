@@ -2,6 +2,7 @@ import os
 
 from fastapi import APIRouter
 
+from server.routers.animation_demo_router import animation_demos
 from server.routers.auth_router import auth
 from server.routers.chat_router import chat
 from server.routers.dashboard_router import dashboard
@@ -24,6 +25,7 @@ router = APIRouter()
 router.include_router(system)  # /api/system/* 系统状态与全局配置
 router.include_router(auth)  # /api/auth/* 登录与用户信息
 router.include_router(chat)  # /api/chat/* 对话、消息流、运行态
+router.include_router(animation_demos)  # /api/animation-demos/* 动画演示 Artifact
 
 # 管理与工作台接口：后台任务以及工具体系配置。
 router.include_router(dashboard)  # /api/dashboard/* 仪表盘聚合数据

@@ -835,7 +835,17 @@ class LightRagKB(KnowledgeBase):
 
         # 使用 LightRAG 获取 chunks
         content_info = {"lines": []}
-        rag = await self._get_lightrag_instance(db_id)
+
+        # 添加超时保护，避免 LightRAG 实例初始化卡住
+        try:
+            rag = await asyncio.wait_for(
+                self._get_lightrag_instance(db_id),
+                timeout=30.0  # 30 秒超时
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout getting LightRAG instance for {db_id}")
+            rag = None
+
         if rag:
             try:
                 # 获取文档的所有 chunks
@@ -866,8 +876,14 @@ class LightRagKB(KnowledgeBase):
         file_meta = self.files_meta[file_id]
         if file_meta.get("markdown_file"):
             try:
-                content = await self._read_markdown_from_minio(file_meta["markdown_file"])
+                # 添加超时保护，避免 MinIO 下载永久挂起
+                content = await asyncio.wait_for(
+                    self._read_markdown_from_minio(file_meta["markdown_file"]),
+                    timeout=10.0  # 10 秒超时
+                )
                 content_info["content"] = content
+            except asyncio.TimeoutError:
+                logger.error(f"Timeout reading markdown file for {file_id}")
             except Exception as e:
                 logger.error(f"Failed to read markdown file for {file_id}: {e}")
 
