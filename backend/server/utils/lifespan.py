@@ -88,6 +88,17 @@ async def lifespan(app: FastAPI):
     print("LangGraph Checkpoint tables verified/created!")
 
     await tasker.start()
+
+    # 启动 OpenClaw 桥接（可选，失败不阻塞）
+    try:
+        from zixuetong.services.openclaw.bridge_service import openclaw_bridge
+        from zixuetong.services.openclaw.scheduler import reminder_scheduler
+
+        await openclaw_bridge.start()
+        await reminder_scheduler.start()
+    except Exception as e:
+        logger.warning(f"OpenClaw bridge startup skipped: {e}")
+
     logger.info(f"""
 
 ░██     ░██                       ░██
@@ -102,6 +113,17 @@ async def lifespan(app: FastAPI):
     logger.info("自学通 backend startup complete")
     yield
     await tasker.shutdown()
+
+    # 停止 OpenClaw 桥接
+    try:
+        from zixuetong.services.openclaw.bridge_service import openclaw_bridge
+        from zixuetong.services.openclaw.scheduler import reminder_scheduler
+
+        await reminder_scheduler.stop()
+        await openclaw_bridge.stop()
+    except Exception as e:
+        logger.warning(f"OpenClaw bridge shutdown error: {e}")
+
     shutdown_sandbox_provider()
     await close_queue_clients()
     await pg_manager.close()

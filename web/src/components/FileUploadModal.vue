@@ -239,107 +239,7 @@
           </div>
         </div>
 
-        <div class="web-session-list" v-if="urlList.length > 0">
-          <div v-for="(item, index) in urlList" :key="item.url" class="web-session-card">
-            <div class="web-session-header">
-              <div class="url-icon-wrapper">
-                <Link v-if="item.status === 'success'" :size="14" class="url-icon success" />
-                <Info
-                  v-else-if="item.status === 'error'"
-                  :size="14"
-                  class="url-icon error"
-                  :title="item.error"
-                />
-                <RotateCw v-else :size="14" class="url-icon spinning" />
-              </div>
-              <div class="url-content">
-                <span class="url-text" :title="item.url">{{ item.url }}</span>
-                <span v-if="item.status === 'error'" class="url-error-msg">{{ item.error }}</span>
-                <span v-else-if="item.data?.root_page?.title" class="url-title">
-                  {{ item.data.root_page.title }}
-                </span>
-              </div>
-              <a-button type="text" size="small" class="remove-url-btn" @click="removeUrl(index)">
-                <X :size="14" />
-              </a-button>
-            </div>
-
-            <div v-if="item.status === 'success'" class="web-session-body">
-              <div class="root-page-summary">
-                <div class="summary-meta">
-                  <span class="summary-label">标题</span>
-                  <span class="summary-value">{{ item.data?.root_page?.title || '未命名页面' }}</span>
-                </div>
-                <div class="summary-meta" v-if="item.data?.root_page?.topic">
-                  <span class="summary-label">主题</span>
-                  <span class="summary-value">{{ item.data.root_page.topic }}</span>
-                </div>
-                <p class="summary-text">{{ item.data.root_page.text_excerpt || '无正文摘要' }}</p>
-              </div>
-
-              <div class="link-table-toolbar">
-                <span>
-                  已发现 {{ getDiscoveredLinks(item).length }} 个页面
-                  <template v-if="item.cleanedPages?.length">
-                    ，已清洗 {{ item.cleanedPages.length }} 页
-                  </template>
-                </span>
-                <div class="link-table-actions">
-                  <a-button size="small" @click="openWebReaderPreview(item)">
-                    {{ item.cleanedPages?.length ? '查看清洗结果' : '预览并清洗' }}
-                  </a-button>
-                  <a-button
-                    size="small"
-                    @click="expandSelectedLinks(item)"
-                    :loading="item.expanding"
-                    :disabled="getCheckedLinks(item).length === 0"
-                  >
-                    展开选中链接
-                  </a-button>
-                </div>
-              </div>
-
-              <div class="discovered-table" v-if="getDiscoveredLinks(item).length > 0">
-                <div class="discovered-row discovered-row-head">
-                  <span></span>
-                  <span>页面</span>
-                  <span>相似度</span>
-                  <span>深度</span>
-                  <span>状态</span>
-                </div>
-                <label
-                  v-for="linkItem in getDiscoveredLinks(item)"
-                  :key="linkItem.url"
-                  class="discovered-row"
-                >
-                  <a-checkbox
-                    :checked="item.checkedUrls.includes(linkItem.url)"
-                    @change="toggleDiscoveredLink(item, linkItem.url, $event.target.checked)"
-                  />
-                  <span class="discovered-page">
-                    <span class="discovered-title" :title="linkItem.title || linkItem.url">
-                      {{ linkItem.title || linkItem.topic || linkItem.url }}
-                    </span>
-                    <span class="discovered-url" :title="linkItem.url">{{ linkItem.url }}</span>
-                    <span class="discovered-source" :title="linkItem.base_url">
-                      来源 {{ linkItem.base_url }}
-                    </span>
-                  </span>
-                  <span class="similarity-badge" :class="getSimilarityClass(linkItem.similarity)">
-                    {{ formatSimilarity(linkItem.similarity) }}
-                  </span>
-                  <span>{{ linkItem.depth }}</span>
-                  <span>{{ getLinkStatusText(linkItem.status) }}</span>
-                </label>
-              </div>
-              <div class="url-empty-tip compact" v-else>
-                <Info :size="16" />
-                <span>未发现可继续探索的同域 HTML 页面</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="url-empty-tip" v-else>
+        <div class="url-empty-tip" v-if="urlList.length === 0">
           <Info :size="16" />
           <span>输入 URL 后点击读取网页，选择发现的子页面后可继续展开或入库</span>
         </div>
@@ -784,6 +684,11 @@ const handleFetchUrls = async () => {
 
   await fetchSingleUrlItem(item)
   fetchingUrls.value = false
+
+  // 读取成功后直接打开预览界面
+  if (item.status === 'success') {
+    openWebReaderPreview(item)
+  }
 }
 
 const removeUrl = (index) => {
@@ -2244,9 +2149,8 @@ const chunkData = async () => {
   display: grid;
   grid-template-columns: 32px minmax(0, 1fr) 76px 48px 64px;
   gap: 8px;
-  align-items: center;
-  min-height: 44px;
-  padding: 8px 10px;
+  align-items: start;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--gray-150);
   font-size: 12px;
   color: var(--gray-700);
@@ -2255,24 +2159,35 @@ const chunkData = async () => {
   &:last-child {
     border-bottom: none;
   }
+
+  // checkbox、相似度、深度、状态徽章垂直居中
+  > a-checkbox,
+  > span:not(.discovered-page):not(.similarity-badge),
+  > .similarity-badge {
+    align-self: center;
+  }
 }
 
 .discovered-row-head {
   position: sticky;
   top: 0;
   z-index: 1;
-  min-height: 34px;
+  min-height: 36px;
+  padding: 8px 12px;
   background: var(--gray-50);
   color: var(--gray-500);
   font-weight: 600;
   cursor: default;
+  align-items: center;
 }
 
 .discovered-page {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
+  padding: 2px 0;
+  overflow: hidden;
 }
 
 .discovered-title,
@@ -2281,24 +2196,32 @@ const chunkData = async () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: block;
+  line-height: 1.4;
 }
 
 .discovered-title {
-  color: var(--gray-800);
-  font-weight: 500;
+  color: var(--gray-900);
+  font-weight: 600;
+  font-size: 13px;
 }
 
-.discovered-url,
+.discovered-url {
+  color: var(--gray-600);
+  font-size: 12px;
+}
+
 .discovered-source {
-  color: var(--gray-500);
+  color: var(--gray-400);
+  font-size: 11px;
 }
 
 .similarity-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 24px;
-  padding: 0 8px;
+  min-height: 22px;
+  padding: 2px 10px;
   border-radius: 999px;
   font-size: 12px;
   font-variant-numeric: tabular-nums;

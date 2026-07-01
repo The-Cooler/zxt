@@ -23,6 +23,8 @@ class DiscoveredLink(BaseModel):
     similarity: float = 0.0
     topic: str = ""
     title: str = ""
+    text: str = ""  # 页面文本内容
+    html: str = ""  # 清理后的 HTML（已移除链接和图片）
     depth: int = 1
     status: str = "pending"
     selected: bool = False

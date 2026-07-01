@@ -34,6 +34,11 @@ x-api-worker-env: &api-worker-env
   # 其他环境变量
   NO_PROXY: localhost,127.0.0.1,graph,minio,paddlex,sandbox-provisioner,api.siliconflow.cn
   no_proxy: localhost,127.0.0.1,graph,minio,paddlex,sandbox-provisioner,api.siliconflow.cn
+  # OpenClaw 集成
+  OPENCLAW_GATEWAY_URL: ${OPENCLAW_GATEWAY_URL:-}
+  OPENCLAW_API_KEY: ${OPENCLAW_API_KEY:-}
+  OPENCLAW_ENABLED: ${OPENCLAW_ENABLED:-false}
+  OPENCLAW_REMINDER_INTERVAL_MINUTES: ${OPENCLAW_REMINDER_INTERVAL_MINUTES:-120}
 
 services:
   api:

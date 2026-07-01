@@ -46,12 +46,12 @@
 - 优化网页读取错误提示：将私有地址访问错误改为中文提示，并给出友好的使用建议。
 - 优化网页读取默认信息展示：优先显示页面标题而非主题，当有主题时作为补充信息展示。
 - 移除废弃代码：删除过时的 `url_fetcher.py` 文件及其相关 API（`/files/fetch-url`），避免代码混淆和维护负担。
-- 优化网页读取发现页面列表样式：修复树形结构节点的显示问题，统一字体大小、行高、对齐方式，规范复选框和节点内容的间距，确保横线分割和文字排版清晰整齐。
+- 优化网页读取发现页面列表样式：修复树形结构节点的显示问题，统一字体大小、行高、对齐方式，规范复选框和节点内容的间距，确保横线分割和文字排版清晰整齐；修复已发现页面列表文字重叠问题，调整为三行布局（标题 13px/URL 12px/来源 11px），行高 1.4，间距清晰。
 - 修复知识库文档详情加载卡死：为 `get_file_content` 添加 LightRAG 实例获取和 MinIO Markdown 读取的超时保护（30 秒/10 秒），避免因 LightRAG 表不存在或 MinIO 连接问题导致请求永久挂起。
 - 新增 AI 动画演示 MVP：后端提供 `zixuetong.animation` 独立模块和 `/api/animation-demos` 接口，内置 `create_animation_demo` 工具可生成受限结构化动画 Artifact；前端在聊天消息中识别动画工具结果并渲染可播放、暂停、重播和调速的 2D 动画卡片。
 - 优化知识库文档入库：新增快速入库、标准入库、图谱入库三种模式；快速入库仅写入 chunks 与向量，标准/图谱入库支持限制本次新增节点和关系数量，避免小文档生成过多图谱数据并改善入库耗时。
 - 优化全局知识图谱构建：Neo4j 图谱支持从普通文件自动识别系统级实体关系，前端提供写入前的关系增删改校对流程；面向用户移除 JSONL 三元组文件入口，并明确单个知识库内 LightRAG 图谱仍由文档入库自动构建。
-- 新增知识库网页读取会话：URL 导入支持读取初始网页、发现同域 HTML 子页面、按 embedding 相似度排序、手动选择展开和入库；提交前先将所选页面清洗为 Markdown 产物并保存到 MinIO，用户可查看、编辑或删除清洗结果，再复用现有知识库文档处理任务。
+- 优化网页读取预览内容：清除预览 HTML 中的跳转链接、图片、视频等多媒体元素，移除 href/src/srcset/data-src 属性，避免预览时加载外部资源或触发跳转。：URL 导入支持读取初始网页、发现同域 HTML 子页面、按 embedding 相似度排序、手动选择展开和入库；提交前先将所选页面清洗为 Markdown 产物并保存到 MinIO，用户可查看、编辑或删除清洗结果，再复用现有知识库文档处理任务。
 - 下放扩展管理权限：普通管理员现在可进入扩展管理并完整管理 Tools、MCP、SubAgent、Skills；同步放开 Skill 管理接口权限并补充权限测试。
 - 调整 Agent 知识库默认选择：未显式配置知识库时默认启用当前用户可访问的全部知识库，显式保存空列表仍表示不启用知识库。
 - 优化评估基准自动生成：默认参考 chunks 数量改为 1；多 chunk 场景复用知识库向量检索选择相似 chunks，不再对全量 chunks 重新计算 embedding，并移除前端 Embedding 模型选择。
@@ -69,6 +69,7 @@
 - 统一前端 Markdown 预览渲染：新增共享 `MarkdownPreview` 组件与 `markdown_preview` 渲染工具，替换 Agent 消息、文件预览、知识库 chunk、任务工具结果、聊天导出等场景中的旧 `md-editor-v3/marked` 预览；支持 KaTeX、任务列表、frontmatter 卡片、Shiki 代码高亮、DOMPurify 清洗和浅层渲染缓存，并抽取 HTML 转义与代码语言归一化工具。Skill 详情页复用 `AgentFilePreview`，统一文件预览、编辑、保存和全屏交互。
 - 优化远程 Skill 批量安装：`remote_skill_install_service.py` 新增 `install_remote_skills_batch()`，利用 `npx skills add --skill A --skill B --skill C` 原生多 skill 支持，将安装 N 个 skill 的仓库克隆次数从 2N 降至 1；配套新增路由 `POST /remote/install-batch`、前端 `installRemoteSkillsBatch()` API 方法和批处理 UI 逻辑。
 - 调整内置 `ChatbotAgent` 为学习助手：新增只读学习计划概览接口，空会话展示当前用户 workspace 中登记的学习计划；提示词约束新主题先匹配历史计划、候选知识库需确认后再写入 Markdown 计划。
+- 新增 OpenClaw 集成：接入 OpenClaw Gateway 协议（WebSocket + RPC），实现定期学习通知、历史警告学习、双向知识共享；新增通知系统（Notification 模型/服务/API/前端铃铛组件）；新增知识库 MCP 服务器（`zixuetong-knowledge-mcp`），将知识库查询能力暴露为 MCP 工具供 OpenClaw 直接调用；新增 `openclaw-zixuetong` Skill 和 `query_openclaw`/`share_knowledge_to_openclaw` Agent 工具。
 - 更新正式文档：补充网页读取会话、清洗结果编辑、入库模式、学习助手文件约定和导航入口，并移除面向用户的 JSONL 三元组导入说明。
 
 ---

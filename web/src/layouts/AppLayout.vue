@@ -27,6 +27,7 @@ import DebugComponent from '@/components/DebugComponent.vue'
 import TaskCenterDrawer from '@/components/TaskCenterDrawer.vue'
 import SettingsModal from '@/components/SettingsModal.vue'
 import ConversationNavSection from '@/components/ConversationNavSection.vue'
+import NotificationBell from '@/components/NotificationBell.vue'
 
 const configStore = useConfigStore()
 const agentStore = useAgentStore()
@@ -310,6 +311,9 @@ provide('settingsModal', {
         <div class="nav-item user-info" @click.stop>
           <UserInfoComponent :show-role="!sidebarCollapsed">
             <template v-if="userStore.isAdmin" #actions>
+              <a-tooltip placement="top" title="通知">
+                <NotificationBell />
+              </a-tooltip>
               <a-tooltip placement="top" title="任务中心">
                 <button
                   class="user-task-center"

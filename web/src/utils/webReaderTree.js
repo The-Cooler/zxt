@@ -1,5 +1,10 @@
 const pageTitle = (page) => page?.title || page?.topic || page?.final_url || page?.url || '未命名页面'
 
+const formatSimilarity = (value) => {
+  const percent = Math.round((Number(value) || 0) * 100)
+  return `${percent}%`
+}
+
 export const buildWebReaderTree = ({ rootPage, discoveredMap } = {}) => {
   if (!rootPage?.final_url && !rootPage?.url) return []
 
@@ -17,8 +22,10 @@ export const buildWebReaderTree = ({ rootPage, discoveredMap } = {}) => {
   for (const link of Object.values(discoveredMap || {})) {
     const url = link.url
     if (!url) continue
+    // 在标题后添加相似度信息
+    const similarityText = link.similarity ? ` (${formatSimilarity(link.similarity)})` : ''
     nodes.set(url, {
-      title: pageTitle(link),
+      title: `${pageTitle(link)}${similarityText}`,
       key: url,
       url,
       page: link,

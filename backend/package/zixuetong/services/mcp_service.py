@@ -53,6 +53,13 @@ _DEFAULT_MCP_SERVERS = {
         "icon": "📊",
         "tags": ["内置", "图表"],
     },
+    "zixuetong-knowledge-mcp": {
+        "url": "http://api:5050/mcp/knowledge/mcp",
+        "transport": "streamable_http",
+        "description": "自学通知识库 RAG 查询服务，支持跨知识库语义检索",
+        "icon": "📚",
+        "tags": ["内置", "知识库", "RAG"],
+    },
 }
 
 _SYNCED_MCP_FIELDS = (

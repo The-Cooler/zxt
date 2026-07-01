@@ -46,6 +46,15 @@
             <KeyIcon class="icon" :size="18" />
             <span>API Key</span>
           </div>
+          <div
+            class="sider-item"
+            :class="{ activesec: activeTab === 'openclaw' }"
+            @click="activeTab = 'openclaw'"
+            v-if="userStore.isAdmin"
+          >
+            <Plug class="icon" :size="18" />
+            <span>OpenClaw</span>
+          </div>
         </div>
 
       </div>
@@ -76,6 +85,14 @@
         >
           API Key
         </div>
+        <div
+          class="nav-item"
+          :class="{ active: activeTab === 'openclaw' }"
+          @click="activeTab = 'openclaw'"
+          v-if="userStore.isAdmin"
+        >
+          OpenClaw
+        </div>
       </div>
 
       <!-- 内容区域 -->
@@ -92,6 +109,10 @@
           <div v-show="activeTab === 'apikey'" v-if="userStore.isLoggedIn">
             <ApiKeyManagementComponent />
           </div>
+
+          <div v-show="activeTab === 'openclaw'" v-if="userStore.isAdmin">
+            <OpenClawSettingsSection />
+          </div>
         </div>
       </div>
     </div>
@@ -105,11 +126,13 @@ import {
   Key as KeyIcon,
   Settings,
   SquareCode,
+  Plug,
   X
 } from 'lucide-vue-next'
 import BasicSettingsSection from '@/components/BasicSettingsSection.vue'
 import ModelProvidersComponent from '@/components/ModelProvidersComponent.vue'
 import ApiKeyManagementComponent from '@/components/ApiKeyManagementComponent.vue'
+import OpenClawSettingsSection from '@/components/OpenClawSettingsSection.vue'
 
 const props = defineProps({
   visible: {

@@ -185,12 +185,12 @@ class ScraplingWebReader:
             raise ValueError(f"Content size exceeds limit of {MAX_DOWNLOAD_SIZE} bytes")
 
         soup = BeautifulSoup(html, "html.parser")
-        for tag in soup(["script", "style", "noscript"]):
-            tag.decompose()
+
+        # 提取同域链接
+        links = _extract_same_domain_links(soup, final_url)
 
         title = soup.title.get_text(" ", strip=True) if soup.title else ""
         text = soup.get_text(" ", strip=True)
-        links = _extract_same_domain_links(soup, final_url)
         content_hash = await calculate_content_hash(html_bytes)
 
         return WebPageSnapshot(
@@ -199,7 +199,7 @@ class ScraplingWebReader:
             title=title,
             topic=_extract_topic(soup, title, text),
             text=text,
-            html=html,
+            html=html,  # 保留原始 HTML
             content_hash=content_hash,
             links=links,
             depth=depth,

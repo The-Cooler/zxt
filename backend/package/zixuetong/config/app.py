@@ -85,6 +85,13 @@ class Config(BaseModel):
     sandbox_keepalive_interval_seconds: int = Field(default=30, description="沙箱保活间隔（秒）")
 
     # ============================================================
+    # OpenClaw 集成配置
+    # ============================================================
+    openclaw_gateway_url: str = Field(default="", description="OpenClaw Gateway WebSocket URL")
+    openclaw_api_key: str = Field(default="", description="OpenClaw 认证 API Key")
+    openclaw_enabled: bool = Field(default=False, description="是否启用 OpenClaw 集成")
+
+    # ============================================================
     # 模型信息（只读，不持久化）
     # ============================================================
     model_names: dict[str, ChatModelProvider] = Field(
@@ -271,6 +278,16 @@ class Config(BaseModel):
             raise ValueError("SANDBOX_PROVISIONER_URL is required when sandbox provider is provisioner.")
         if not self.sandbox_virtual_path_prefix.startswith("/"):
             self.sandbox_virtual_path_prefix = f"/{self.sandbox_virtual_path_prefix}"
+
+        # 处理 OpenClaw 配置
+        openclaw_url = os.getenv("OPENCLAW_GATEWAY_URL", "").strip()
+        if openclaw_url:
+            self.openclaw_gateway_url = openclaw_url
+        openclaw_key = os.getenv("OPENCLAW_API_KEY", "").strip()
+        if openclaw_key:
+            self.openclaw_api_key = openclaw_key
+        if os.getenv("OPENCLAW_ENABLED", "").strip().lower() in ("true", "1"):
+            self.openclaw_enabled = True
 
         if not self.valuable_model_provider:
             raise ValueError("No model provider available, please check your `.env` file.")

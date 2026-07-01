@@ -41,6 +41,23 @@ async def update_config_single(key=Body(...), value=Body(...), current_user: Use
     """更新单个配置项"""
     config[key] = value
     config.save()
+
+    # OpenClaw 配置变更时动态启停桥接
+    if key in {"openclaw_enabled", "openclaw_gateway_url", "openclaw_api_key"}:
+        try:
+            from zixuetong.services.openclaw.bridge_service import openclaw_bridge
+            from zixuetong.services.openclaw.scheduler import reminder_scheduler
+
+            if config.openclaw_enabled and config.openclaw_gateway_url:
+                if not openclaw_bridge.is_connected:
+                    await openclaw_bridge.start()
+                    await reminder_scheduler.start()
+            else:
+                await reminder_scheduler.stop()
+                await openclaw_bridge.stop()
+        except Exception as e:
+            logger.warning(f"OpenClaw 桥接动态启停失败: {e}")
+
     return config.dump_config()
 
 
@@ -49,6 +66,24 @@ async def update_config_batch(items: dict = Body(...), current_user: User = Depe
     """批量更新配置项"""
     config.update(items)
     config.save()
+
+    # OpenClaw 配置变更时动态启停桥接
+    _openclaw_keys = {"openclaw_enabled", "openclaw_gateway_url", "openclaw_api_key"}
+    if _openclaw_keys & set(items.keys()):
+        try:
+            from zixuetong.services.openclaw.bridge_service import openclaw_bridge
+            from zixuetong.services.openclaw.scheduler import reminder_scheduler
+
+            if config.openclaw_enabled and config.openclaw_gateway_url:
+                if not openclaw_bridge.is_connected:
+                    await openclaw_bridge.start()
+                    await reminder_scheduler.start()
+            else:
+                await reminder_scheduler.stop()
+                await openclaw_bridge.stop()
+        except Exception as e:
+            logger.warning(f"OpenClaw 桥接动态启停失败: {e}")
+
     return config.dump_config()
 
 

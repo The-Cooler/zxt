@@ -802,6 +802,27 @@ class KnowledgeBase(ABC):
         Returns:
             bool: 文件是否在处理队列中
         """
+        # 先检查 Redis 任务队列
+        try:
+            from zixuetong.services.run_queue_service import get_redis_client
+
+            redis = get_redis_client()
+            # 查找所有运行中的任务
+            task_keys = redis.keys("task:*")
+            for key in task_keys:
+                task_data = redis.get(key)
+                if task_data:
+                    import json
+                    data = json.loads(task_data)
+                    # 检查任务的 payload 中是否包含该文件
+                    payload = data.get("payload", {})
+                    file_ids = payload.get("file_ids", [])
+                    if file_id in file_ids:
+                        return True
+        except Exception as e:
+            logger.warning(f"Failed to check Redis task queue: {e}")
+
+        # 再检查内存队列
         with cls._processing_lock:
             return file_id in cls._processing_files
 

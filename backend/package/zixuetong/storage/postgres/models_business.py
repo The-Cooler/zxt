@@ -723,6 +723,39 @@ class APIKey(Base):
         return True
 
 
+class Notification(Base):
+    """通知模型 - 学习提醒、警告、知识更新、OpenClaw 事件等"""
+
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(64), index=True, nullable=False, comment="接收用户 ID")
+    type = Column(String(32), nullable=False, comment="类型: learning_reminder/warning/knowledge_update/openclaw_event")
+    title = Column(String(255), nullable=False)
+    body = Column(Text, nullable=True)
+    severity = Column(String(16), default="info", comment="严重程度: info/warning/error")
+    is_read = Column(Boolean, default=False, index=True)
+    source = Column(String(64), nullable=True, comment="来源: openclaw/system/agent")
+    extra_data = Column(JSON, nullable=True, comment="附加数据（如 kb_id, thread_id 等）")
+    created_at = Column(DateTime, default=utc_now_naive)
+    read_at = Column(DateTime, nullable=True)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "type": self.type,
+            "title": self.title,
+            "body": self.body,
+            "severity": self.severity,
+            "is_read": bool(self.is_read),
+            "source": self.source,
+            "extra_data": self.extra_data or {},
+            "created_at": format_utc_datetime(self.created_at),
+            "read_at": format_utc_datetime(self.read_at),
+        }
+
+
 class AgentRun(Base):
     """AgentRun table - 运行任务表"""
 

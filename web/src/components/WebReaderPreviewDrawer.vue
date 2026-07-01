@@ -7,13 +7,18 @@
     @close="handleClose"
   >
     <div class="web-reader-preview-layout">
-      <aside class="web-reader-sidebar">
+      <aside class="web-reader-sidebar" v-show="!sidebarCollapsed">
         <div class="sidebar-head">
           <div>
             <div class="sidebar-title">页面结构</div>
             <div class="sidebar-subtitle">勾选需要清洗并入库的页面</div>
           </div>
-          <a-tag>{{ selectedUrls.length }} 页</a-tag>
+          <div class="sidebar-actions">
+            <a-tag>{{ selectedUrls.length }} 页</a-tag>
+            <a-button size="small" type="text" @click="sidebarCollapsed = true">
+              收起
+            </a-button>
+          </div>
         </div>
         <a-tree
           v-if="treeData.length"
@@ -24,12 +29,17 @@
           :tree-data="treeData"
           :checked-keys="checkedKeys"
           :selected-keys="activeUrl ? [activeUrl] : []"
-          :default-expand-all="true"
+          :default-expand-all="false"
           @check="handleCheck"
           @select="handleSelect"
         />
         <a-empty v-else description="暂无网页会话" />
       </aside>
+      <div v-if="sidebarCollapsed" class="sidebar-collapsed-bar">
+        <a-button size="small" type="text" @click="sidebarCollapsed = false">
+          展开侧边栏
+        </a-button>
+      </div>
 
       <main class="web-reader-main">
         <div class="preview-toolbar">
@@ -46,16 +56,22 @@
         <div class="preview-frame-shell">
           <a-spin v-if="previewLoading" />
           <iframe
-            v-else-if="previewData?.html"
+            v-else-if="activeUrl"
             class="preview-frame"
-            sandbox=""
-            :srcdoc="previewData.html"
+            sandbox="allow-scripts allow-same-origin"
+            :src="activeUrl"
           />
           <a-empty v-else description="选择左侧页面查看预览" />
         </div>
       </main>
 
-      <aside class="web-reader-config">
+      <aside class="web-reader-config" v-show="!configCollapsed">
+        <div class="config-head">
+          <span class="config-title">{{ activePanel === 'config' ? '入库参数' : '清洗结果' }}</span>
+          <a-button size="small" type="text" @click="configCollapsed = true">
+            收起
+          </a-button>
+        </div>
         <a-tabs v-model:activeKey="activePanel" size="small">
           <a-tab-pane key="config" tab="入库参数">
             <div class="sidebar-subtitle">先设置参数，再生成清洗结果</div>
@@ -122,6 +138,11 @@
           </a-tab-pane>
         </a-tabs>
       </aside>
+      <div v-if="configCollapsed" class="config-collapsed-bar">
+        <a-button size="small" type="text" @click="configCollapsed = false">
+          展开配置
+        </a-button>
+      </div>
     </div>
 
     <template #footer>
@@ -203,6 +224,8 @@ const cleanedViewMode = ref('preview')
 const cleanedLoading = ref(false)
 const savingCleaned = ref(false)
 const deletingCleaned = ref(false)
+const sidebarCollapsed = ref(false)
+const configCollapsed = ref(false)
 
 const treeData = computed(() => {
   return buildWebReaderTree({
@@ -428,24 +451,66 @@ const deleteCleanedPage = async () => {
 <style scoped>
 .web-reader-preview-layout {
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr) 420px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 16px;
   min-height: calc(100vh - 180px);
 }
 
-.web-reader-sidebar,
-.web-reader-main,
-.web-reader-config {
+.web-reader-sidebar {
+  width: 300px;
   min-height: 0;
+  border: 1px solid var(--gray-150);
+  border-radius: 8px;
+  background: var(--gray-10);
+  padding: 14px;
+  overflow: auto;
+}
+
+.sidebar-collapsed-bar,
+.config-collapsed-bar {
+  display: flex;
+  align-items: center;
+  padding: 8px;
   border: 1px solid var(--gray-150);
   border-radius: 8px;
   background: var(--gray-10);
 }
 
-.web-reader-sidebar,
+.web-reader-main {
+  min-height: 0;
+  border: 1px solid var(--gray-150);
+  border-radius: 8px;
+  background: var(--gray-10);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .web-reader-config {
+  width: 420px;
+  min-height: 0;
+  border: 1px solid var(--gray-150);
+  border-radius: 8px;
+  background: var(--gray-10);
   padding: 14px;
   overflow: auto;
+}
+
+.sidebar-actions,
+.config-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.config-head {
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.config-title {
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .web-reader-tree {

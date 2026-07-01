@@ -536,10 +536,38 @@ async def create_web_reader_session(
     max_depth: int | None = Body(None),
     current_user: User = Depends(get_admin_user),
 ):
-    """创建网页读取会话，抓取初始页和第一层同域 HTML 候选页。"""
+    """创建网页读取会话，抓取初始页和第一层同域 HTML 候选页。优先复用已有缓存。"""
     embed_info = await _get_database_embed_info(db_id)
     if max_depth is not None and max_depth < 0:
         raise HTTPException(status_code=400, detail="max_depth 不能小于 0")
+
+    # 检查是否已有相同 URL 的缓存 session
+    from zixuetong.knowledge.web_reader.session_store import (
+        SESSION_KEY_PREFIX,
+        load_session,
+    )
+    from zixuetong.services.run_queue_service import get_redis_client
+
+    cache_key = f"{SESSION_KEY_PREFIX}url:{url}"
+    redis = await get_redis_client()
+    cached_session_id = await redis.get(cache_key)
+    if cached_session_id:
+        if isinstance(cached_session_id, bytes):
+            cached_session_id = cached_session_id.decode("utf-8")
+        try:
+            session = await load_session(cached_session_id)
+            # 检查 session 是否属于当前知识库且 max_depth 参数一致
+            if session.db_id == db_id and session.max_depth == max_depth:
+                logger.info(f"Reusing cached web read session for {url}: {cached_session_id}")
+                return {
+                    "session_id": session.session_id,
+                    "root_page": _public_page_snapshot(session.root_snapshot),
+                    "discovered_map": {
+                        key: _model_to_dict(value) for key, value in session.discovered_map.items()
+                    },
+                }
+        except Exception as e:
+            logger.warning(f"Failed to load cached session {cached_session_id}: {e}, creating new one")
 
     reader = ScraplingWebReader()
     try:
@@ -573,6 +601,8 @@ async def create_web_reader_session(
                 similarity=similarity,
                 topic=snapshot.topic,
                 title=snapshot.title,
+                text=snapshot.text[:500],  # 保存前 500 字符文本
+                html=snapshot.html,  # 保存清理后的 HTML
                 depth=snapshot.depth,
                 status="ready",
                 selected=False,
@@ -589,6 +619,10 @@ async def create_web_reader_session(
             created_by=current_user.user_id,
         )
         await save_session(session)
+        # 缓存 URL → session_id 映射，TTL 与 session 相同（24 小时）
+        from zixuetong.knowledge.web_reader.session_store import SESSION_TTL_SECONDS
+
+        await redis.set(cache_key, session.session_id, ex=SESSION_TTL_SECONDS)
         return {
             "session_id": session.session_id,
             "root_page": _public_page_snapshot(root_snapshot),
@@ -681,6 +715,8 @@ async def expand_web_reader_session(
                 similarity=similarity,
                 topic=snapshot.topic,
                 title=snapshot.title,
+                text=snapshot.text[:500],  # 保存前 500 字符文本
+                html=snapshot.html,  # 保存清理后的 HTML
                 depth=snapshot.depth,
                 status="ready",
                 selected=False,
@@ -1109,8 +1145,43 @@ async def index_documents(
             raise
 
         failed_count = len([p for p in processed_items if "error" in p])
-        message = f"入库完成，失败 {failed_count} 个"
-        await context.set_result({"items": processed_items})
+        success_count = len([p for p in processed_items if "error" not in p])
+
+        # 解析错误信息，提取关键提示
+        def parse_error(error_msg: str) -> str:
+            """解析错误信息，提取用户友好的提示"""
+            # SiliconFlow 余额不足
+            if "account balance is insufficient" in error_msg:
+                return "SiliconFlow 账户余额不足，请充值或更换 embedding 提供商"
+            # 其他常见错误
+            if "Error code: 403" in error_msg:
+                return "API 权限不足或配额已用尽"
+            if "Error code: 401" in error_msg:
+                return "API Key 无效或已过期"
+            if "Error code: 429" in error_msg:
+                return "API 请求频率超限，请稍后重试"
+            if "Error code: 500" in error_msg:
+                return "API 服务内部错误"
+            # 返回原始错误（去除多余信息）
+            return error_msg
+
+        # 根据失败数量设置任务状态和消息
+        if failed_count > 0 and success_count == 0:
+            # 全部失败，汇总所有错误原因
+            error_messages = [parse_error(p.get("error", "未知错误")) for p in processed_items]
+            message = f"入库失败，共 {failed_count} 个文件:\n" + "\n".join(error_messages)
+            await context.set_result({"items": processed_items, "success": False, "errors": error_messages})
+            raise Exception(message)
+        elif failed_count > 0:
+            # 部分失败，汇总失败文件的原因
+            error_messages = [parse_error(p.get("error", "未知错误")) for p in processed_items if "error" in p]
+            message = f"入库完成，成功 {success_count} 个，失败 {failed_count} 个:\n" + "\n".join(error_messages)
+            await context.set_result({"items": processed_items, "success": True, "failed_count": failed_count, "errors": error_messages})
+        else:
+            # 全部成功
+            message = f"入库完成，成功 {success_count} 个"
+            await context.set_result({"items": processed_items, "success": True})
+
         await context.set_progress(100.0, message)
         return {"items": processed_items}
 

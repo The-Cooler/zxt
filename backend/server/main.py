@@ -41,6 +41,16 @@ app = FastAPI(lifespan=lifespan)
 # 所有业务接口统一挂载到 /api，具体分组在 server.routers 中集中注册。
 app.include_router(router, prefix="/api")
 
+# 挂载知识库 MCP 服务器（LITE 模式下跳过）
+if os.environ.get("LITE_MODE", "").lower() not in ("true", "1"):
+    try:
+        from zixuetong.services.openclaw.knowledge_mcp_server import create_mcp_app
+
+        mcp_app = create_mcp_app()
+        app.mount("/mcp/knowledge", mcp_app)
+    except Exception as e:
+        logger.warning(f"Failed to mount knowledge MCP server: {e}")
+
 # CORS 设置
 app.add_middleware(
     CORSMiddleware,
