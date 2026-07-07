@@ -71,6 +71,16 @@
       <code>zixuetong-knowledge-mcp</code>，OpenClaw 可通过 MCP 协议直接查询知识库。
       在「扩展管理 → MCP」页面中启用或配置该服务。
     </p>
+
+    <div class="section-title" style="margin-top: 16px">智能提醒机制</div>
+    <p class="section-description">
+      学习提醒由 OpenClaw 智能体根据用户学习内容难度和进度动态决定。
+      不同主题有不同的提醒节奏——例如背单词可能每天提醒，而高难度数学可能需要数天消化。
+      用户也可以在对话中告诉学习助手"在 xxx 时间提醒我学习"。
+    </p>
+    <p class="section-description">
+      微信推送通过 OpenClaw ClawBot 插件实现。若推送失败，系统会自动发送站内通知告知管理员。
+    </p>
   </div>
 </template>
 

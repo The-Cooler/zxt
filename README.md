@@ -11,6 +11,7 @@
 - 网页资料入库：支持 URL 读取、同域页面发现、Markdown 清洗、人工预览编辑和提交入库。
 - 知识图谱：支持 Neo4j 图谱浏览、实体关系管理，以及从普通资料中识别系统级关系并人工校对。
 - 个人工作区：管理用户文件、智能体产物、Markdown/TXT 编辑、图片/PDF/代码预览和下载。
+- OpenClaw 集成：接入 OpenClaw Gateway（WebSocket + RPC），支持智能学习提醒（由 OpenClaw 智能体根据学习难度和进度动态决策）、微信推送（ClawBot 插件）、双向知识共享、知识库 MCP 服务。
 - 扩展能力：支持 Tools、MCP Servers、SubAgents、Skills 管理，供智能体在运行时调用。
 - 平台能力：登录初始化、模型配置、任务中心、系统设置、API Key、文件存储和运行监控。
 
@@ -23,6 +24,7 @@
 | 前端 | Vue 3, Vite, Pinia, Ant Design Vue, Less |
 | 后端 | Python 3.12+, FastAPI, Uvicorn, ARQ |
 | Agent | LangGraph v1, deepagents, Tools, MCP, Skills, SubAgents |
+| 外部集成 | OpenClaw Gateway (WebSocket + RPC), ClawBot (微信推送) |
 | 知识库 | LightRAG, PostgreSQL/pgvector |
 | 图谱 | Neo4j |
 | 存储 | PostgreSQL, Redis, MinIO, 本地 `saves` |

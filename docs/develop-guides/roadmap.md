@@ -70,6 +70,7 @@
 - 优化远程 Skill 批量安装：`remote_skill_install_service.py` 新增 `install_remote_skills_batch()`，利用 `npx skills add --skill A --skill B --skill C` 原生多 skill 支持，将安装 N 个 skill 的仓库克隆次数从 2N 降至 1；配套新增路由 `POST /remote/install-batch`、前端 `installRemoteSkillsBatch()` API 方法和批处理 UI 逻辑。
 - 调整内置 `ChatbotAgent` 为学习助手：新增只读学习计划概览接口，空会话展示当前用户 workspace 中登记的学习计划；提示词约束新主题先匹配历史计划、候选知识库需确认后再写入 Markdown 计划。
 - 新增 OpenClaw 集成：接入 OpenClaw Gateway 协议（WebSocket + RPC），实现定期学习通知、历史警告学习、双向知识共享；新增通知系统（Notification 模型/服务/API/前端铃铛组件）；新增知识库 MCP 服务器（`zixuetong-knowledge-mcp`），将知识库查询能力暴露为 MCP 工具供 OpenClaw 直接调用；新增 `openclaw-zixuetong` Skill 和 `query_openclaw`/`share_knowledge_to_openclaw` Agent 工具。
+- 优化 OpenClaw 学习提醒：调度器改为收集用户学习计划数据（主题、状态、更新时间）和活跃度信息，由 OpenClaw 智能体根据学习内容难度和进度动态决定是否提醒及提醒内容，不再无差别广播；所有消息交互使用 Pydantic BaseModel 封装，发送请求时明确期望返回格式；新增通过 OpenClaw ClawBot 插件的微信推送能力，推送失败时自动创建站内通知告知管理员。
 - 更新正式文档：补充网页读取会话、清洗结果编辑、入库模式、学习助手文件约定和导航入口，并移除面向用户的 JSONL 三元组导入说明。
 
 ---
