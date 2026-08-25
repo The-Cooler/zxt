@@ -1,30 +1,20 @@
 <template>
   <div class="user-info-component">
-    <a-dropdown :trigger="['hover']" v-if="userStore.isLoggedIn">
+    <a-dropdown :trigger="['hover']">
       <div class="user-info-dropdown" :data-align="showRole ? 'left' : 'center'">
-        <div class="user-avatar">
-          <img
-            v-if="avatarSrc"
-            :src="avatarSrc"
-            :alt="userStore.username"
-            class="avatar-image"
-            @error="handleAvatarError"
-          />
-          <CircleUser v-else />
-          <!-- <div class="user-role-badge" :class="userRoleClass"></div> -->
-        </div>
-        <div v-if="showRole" class="user-name">{{ userStore.username }}</div>
+        <div class="user-avatar"><BookOpen /></div>
+        <div v-if="showRole" class="user-name">学习画像</div>
         <div v-if="slots.actions" class="user-info-actions">
           <slot name="actions" />
         </div>
       </div>
       <template #overlay>
         <a-menu>
-          <a-menu-item key="user-info" @click="openProfile">
+          <a-menu-item key="user-profile" @click="openProfile">
             <div class="user-info-display">
-              <div class="user-menu-username">{{ userStore.username }}</div>
+              <div class="user-menu-username">用户画像</div>
               <div class="user-menu-details">
-                <span class="user-menu-info">ID: {{ userStore.userIdLogin }}</span>
+                <span class="user-menu-info">学习档案与偏好</span>
                 <span class="user-menu-role">{{ userRoleText }}</span>
               </div>
             </div>
@@ -59,116 +49,33 @@
           >
             <span class="menu-text">系统设置</span>
           </a-menu-item>
-          <a-menu-item key="logout" @click="logout" :icon="LogOutIcon">
-            <span class="menu-text">退出登录</span>
-          </a-menu-item>
         </a-menu>
       </template>
     </a-dropdown>
-    <a-button v-else-if="showButton" type="primary" @click="goToLogin"> 登录 </a-button>
 
-    <!-- 个人资料弹窗 -->
-    <a-modal v-model:open="profileModalVisible" :footer="null" width="420px" class="profile-modal">
-      <div class="profile-content">
-        <!-- 头像区域 -->
-        <div class="avatar-section">
-          <div class="avatar-container">
-            <div class="avatar-display">
-              <img
-                v-if="avatarSrc"
-                :src="avatarSrc"
-                :alt="userStore.username"
-                class="large-avatar"
-                @error="handleAvatarError"
-              />
-              <div v-else class="default-avatar">
-                <CircleUser :size="60" />
-              </div>
-            </div>
-            <div class="avatar-actions">
-              <a-upload
-                :show-upload-list="false"
-                :before-upload="beforeUpload"
-                @change="handleAvatarChange"
-                accept="image/*"
-              >
-                <a-button
-                  type="primary"
-                  class="lucide-icon-btn"
-                  size="small"
-                  :loading="avatarUploading"
-                >
-                  <template #icon><Upload size="14" /></template>
-                  {{ userStore.avatar ? '更换头像' : '上传头像' }}
-                </a-button>
-              </a-upload>
-              <div class="avatar-tips">支持 JPG、PNG 格式，文件不超过 5MB</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 用户信息区域 -->
-        <div class="info-section">
-          <div class="info-item">
-            <div class="info-label">用户名</div>
-            <div class="info-value" v-if="!profileEditing">
-              {{ userStore.username || '未设置' }}
-            </div>
-            <div class="info-value" v-else>
-              <a-input
-                v-model:value="editedProfile.username"
-                placeholder="请输入用户名（2-20个字符）"
-                :max-length="20"
-                style="width: 240px"
-              />
-            </div>
-          </div>
-          <div class="info-item">
-            <div class="info-label">用户ID</div>
-            <div class="info-value user-id" v-if="!profileEditing">
-              {{ userStore.userIdLogin || '未设置' }}
-            </div>
-            <div class="info-value" v-else>
-              <a-input :value="userStore.userIdLogin || ''" disabled style="width: 240px" />
-            </div>
-          </div>
-          <div class="info-item">
-            <div class="info-label">手机号</div>
-            <div class="info-value" v-if="!profileEditing">
-              {{ userStore.phoneNumber || '未设置' }}
-            </div>
-            <div class="info-value" v-else>
-              <a-input
-                v-model:value="editedProfile.phone_number"
-                placeholder="请输入手机号"
-                :max-length="11"
-                style="width: 200px"
-              />
-            </div>
-          </div>
-          <div class="info-item">
-            <div class="info-label">角色</div>
-            <div class="info-value" :style="{ color: getRoleColor(userStore.userRole) }">
-              {{ userRoleText }}
-            </div>
-          </div>
-        </div>
-
-        <!-- 操作区域 -->
-        <div class="actions-section">
-          <a-space>
-            <template v-if="!profileEditing">
-              <a-button type="primary" @click="startEdit"> 编辑资料 </a-button>
-              <a-button @click="profileModalVisible = false"> 关闭 </a-button>
-            </template>
-            <template v-else>
-              <a-button type="primary" @click="saveProfile" :loading="avatarUploading">
-                保存
-              </a-button>
-              <a-button @click="cancelEdit"> 取消 </a-button>
-            </template>
-          </a-space>
-        </div>
+    <a-modal v-model:open="profileModalVisible" title="学习用户画像" :footer="null" width="560px">
+      <a-form layout="vertical" :model="learningProfile">
+        <a-form-item label="学习方向">
+          <a-textarea v-model:value="learningProfile.learning_direction" :rows="2" placeholder="例如：准备 Python 数据分析转岗" />
+        </a-form-item>
+        <a-form-item label="学习偏好">
+          <a-textarea v-model:value="learningProfile.learning_preferences" :rows="2" placeholder="例如：偏好案例练习和项目驱动学习" />
+        </a-form-item>
+        <a-form-item label="已有知识水平">
+          <a-textarea v-model:value="learningProfile.knowledge_level" :rows="2" placeholder="例如：掌握 Python 基础语法，尚未系统学习 pandas" />
+        </a-form-item>
+        <a-form-item label="薄弱点">
+          <a-textarea v-model:value="learningProfile.weaknesses" :rows="2" placeholder="例如：统计学基础、复杂 SQL 查询" />
+        </a-form-item>
+        <a-form-item label="学习历史">
+          <a-textarea v-model:value="learningProfile.learning_history" :rows="3" placeholder="记录已完成主题、当前计划和重要学习反馈" />
+        </a-form-item>
+      </a-form>
+      <div class="actions-section">
+        <a-space>
+          <a-button type="primary" @click="saveProfile" :loading="profileSaving">保存画像</a-button>
+          <a-button @click="profileModalVisible = false">关闭</a-button>
+        </a-space>
       </div>
     </a-modal>
 
@@ -178,259 +85,64 @@
 </template>
 
 <script setup>
-import { computed, ref, inject, h, useSlots, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, h, inject, ref, useSlots } from 'vue'
 import { useUserStore } from '@/stores/user'
+import { agentApi } from '@/apis/agent_api'
 import DebugComponent from '@/components/DebugComponent.vue'
 import { message } from 'ant-design-vue'
-import {
-  CircleUser,
-  BookOpen,
-  Sun,
-  Moon,
-  LogOut,
-  Upload,
-  Settings,
-  Terminal
-} from 'lucide-vue-next'
+import { BookOpen, Moon, Settings, Sun, Terminal } from 'lucide-vue-next'
 import { useThemeStore } from '@/stores/theme'
 
-const router = useRouter()
 const userStore = useUserStore()
 const themeStore = useThemeStore()
 const slots = useSlots()
-
-// 预定义图标组件，避免 Vue 警告
 const BookOpenIcon = h(BookOpen, { size: '16' })
 const SunIcon = h(Sun, { size: '16' })
 const MoonIcon = h(Moon, { size: '16' })
 const TerminalIcon = h(Terminal, { size: '16' })
 const SettingsIcon = h(Settings, { size: '16' })
-const LogOutIcon = h(LogOut, { size: '16' })
-const DEFAULT_AVATAR_URL = '/avatar.jpg'
-
-// 调试面板状态
 const showDebug = ref(false)
-
-// Inject settings modal methods
+const profileModalVisible = ref(false)
+const profileSaving = ref(false)
+const learningProfile = ref({
+  learning_direction: '',
+  learning_preferences: '',
+  knowledge_level: '',
+  weaknesses: '',
+  learning_history: ''
+})
 const { openSettingsModal } = inject('settingsModal', {})
 
-// 个人资料弹窗状态
-const profileModalVisible = ref(false)
-const avatarUploading = ref(false)
-const profileEditing = ref(false)
-const avatarLoadFailed = ref(false)
-const defaultAvatarLoadFailed = ref(false)
-const editedProfile = ref({
-  username: '',
-  phone_number: ''
-})
-
-// 用户头像不可用时回退到公共默认头像；默认头像异常时再显示图标占位。
-const avatarSrc = computed(() => {
-  if (userStore.avatar && !avatarLoadFailed.value) return userStore.avatar
-  if (!defaultAvatarLoadFailed.value) return DEFAULT_AVATAR_URL
-  return ''
-})
-
-const handleAvatarError = () => {
-  if (userStore.avatar && !avatarLoadFailed.value) {
-    avatarLoadFailed.value = true
-    return
-  }
-  defaultAvatarLoadFailed.value = true
-}
-
-watch(
-  () => userStore.avatar,
-  () => {
-    avatarLoadFailed.value = false
-    defaultAvatarLoadFailed.value = false
-  }
-)
-
 defineProps({
-  showRole: {
-    type: Boolean,
-    default: false
-  },
-  showButton: {
-    type: Boolean,
-    default: false
-  }
+  showRole: { type: Boolean, default: false },
+  showButton: { type: Boolean, default: false }
 })
 
-// 用户角色显示文本
-const userRoleText = computed(() => {
-  switch (userStore.userRole) {
-    case 'superadmin':
-      return '超级管理员'
-    case 'admin':
-      return '管理员'
-    case 'user':
-      return '普通用户'
-    default:
-      return '未知角色'
-  }
-})
+const userRoleText = computed(() => '学习用户')
+const openDocs = () => window.open('/docs/', '_blank', 'noopener,noreferrer')
+const toggleTheme = () => themeStore.toggleTheme()
+const goToSetting = () => openSettingsModal?.()
 
-// 退出登录
-const logout = () => {
-  userStore.logout()
-  message.success('已退出登录')
-  // 跳转到首页
-  router.push('/login')
-}
-
-// 前往登录页
-const goToLogin = () => {
-  router.push('/login')
-}
-
-const openDocs = () => {
-  window.open('/docs/', '_blank', 'noopener,noreferrer')
-}
-
-const toggleTheme = () => {
-  themeStore.toggleTheme()
-}
-
-// 前往设置页
-const goToSetting = () => {
-  if (openSettingsModal) {
-    openSettingsModal()
-  }
-}
-
-// 打开个人资料页面
 const openProfile = async () => {
   profileModalVisible.value = true
-  profileEditing.value = false
-
-  // 刷新用户信息并初始化编辑表单
   try {
-    await userStore.getCurrentUser()
-    editedProfile.value = {
-      username: userStore.username || '',
-      phone_number: userStore.phoneNumber || ''
-    }
+    learningProfile.value = await agentApi.getLearningProfile()
   } catch (error) {
-    console.error('刷新用户信息失败:', error)
+    console.error('读取学习画像失败:', error)
+    message.error('读取学习画像失败')
   }
 }
 
-// 角色标签颜色
-const getRoleColor = (role) => {
-  switch (role) {
-    case 'superadmin':
-      return 'var(--color-error-700)'
-    case 'admin':
-      return 'var(--color-primary-500)'
-    case 'user':
-      return 'var(--color-success-500)'
-    default:
-      return 'default'
-  }
-}
-
-// 开始编辑个人资料
-const startEdit = () => {
-  profileEditing.value = true
-  editedProfile.value = {
-    username: userStore.username || '',
-    phone_number: userStore.phoneNumber || ''
-  }
-}
-
-// 取消编辑
-const cancelEdit = () => {
-  profileEditing.value = false
-  editedProfile.value = {
-    username: userStore.username || '',
-    phone_number: userStore.phoneNumber || ''
-  }
-}
-
-// 保存个人资料
 const saveProfile = async () => {
   try {
-    // 验证用户名
-    if (
-      editedProfile.value.username &&
-      (editedProfile.value.username.trim().length < 2 ||
-        editedProfile.value.username.trim().length > 20)
-    ) {
-      message.error('用户名长度必须在 2-20 个字符之间')
-      return
-    }
-
-    // 验证手机号格式
-    if (
-      editedProfile.value.phone_number &&
-      !validatePhoneNumber(editedProfile.value.phone_number)
-    ) {
-      message.error('请输入正确的手机号格式')
-      return
-    }
-
-    await userStore.updateProfile({
-      username: editedProfile.value.username?.trim() || undefined,
-      phone_number: editedProfile.value.phone_number || undefined
-    })
-    message.success('个人资料更新成功！')
-    profileEditing.value = false
+    profileSaving.value = true
+    learningProfile.value = await agentApi.updateLearningProfile(learningProfile.value)
+    message.success('学习画像已保存')
   } catch (error) {
-    console.error('更新个人资料失败:', error)
-    message.error('更新失败：' + (error.message || '请稍后重试'))
-  }
-}
-
-// 手机号验证
-const validatePhoneNumber = (phone) => {
-  if (!phone) return true // 空手机号允许
-  const phoneRegex = /^1[3-9]\d{9}$/
-  return phoneRegex.test(phone)
-}
-
-// 头像上传前验证
-const beforeUpload = (file) => {
-  const isImage = file.type.startsWith('image/')
-  if (!isImage) {
-    message.error('只能上传图片文件！')
-    return false
-  }
-
-  const isLt5M = file.size / 1024 / 1024 < 5
-  if (!isLt5M) {
-    message.error('图片大小不能超过 5MB！')
-    return false
-  }
-
-  return true
-}
-
-// 处理头像上传
-const handleAvatarChange = async (info) => {
-  if (info.file.status === 'uploading') {
-    avatarUploading.value = true
-    return
-  }
-
-  if (info.file.status === 'done') {
-    avatarUploading.value = false
-    return
-  }
-
-  // 手动处理文件上传
-  try {
-    avatarUploading.value = true
-    await userStore.uploadAvatar(info.file.originFileObj || info.file)
-    message.success('头像上传成功！')
-  } catch (error) {
-    console.error('头像上传失败:', error)
-    message.error('头像上传失败：' + (error.message || '请稍后重试'))
+    console.error('保存学习画像失败:', error)
+    message.error('保存学习画像失败')
   } finally {
-    avatarUploading.value = false
+    profileSaving.value = false
   }
 }
 </script>

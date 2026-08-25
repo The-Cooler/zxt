@@ -13,15 +13,6 @@
       <!-- 调用统计模块 - 占据2x1网格 -->
       <CallStatsComponent :loading="loading" ref="callStatsRef" />
 
-      <!-- 用户活跃度分析 - 占据1x1网格 -->
-      <div class="grid-item user-stats">
-        <UserStatsComponent
-          :user-stats="allStatsData?.users"
-          :loading="loading"
-          ref="userStatsRef"
-        />
-      </div>
-
       <!-- AI智能体分析 - 占据1x1网格 -->
       <div class="grid-item agent-stats">
         <AgentStatsComponent
@@ -62,7 +53,6 @@ import { dashboardApi } from '@/apis/dashboard_api'
 
 // 导入子组件
 import StatusBar from '@/components/StatusBar.vue'
-import UserStatsComponent from '@/components/dashboard/UserStatsComponent.vue'
 import ToolStatsComponent from '@/components/dashboard/ToolStatsComponent.vue'
 import KnowledgeStatsComponent from '@/components/dashboard/KnowledgeStatsComponent.vue'
 import AgentStatsComponent from '@/components/dashboard/AgentStatsComponent.vue'
@@ -76,7 +66,6 @@ const feedbackModal = ref(null)
 // 统计数据 - 使用新的响应式结构
 const basicStats = ref({})
 const allStatsData = ref({
-  users: null,
   tools: null,
   knowledge: null,
   agents: null
@@ -89,7 +78,6 @@ const loading = ref(false)
 const callStatsRef = ref(null)
 
 // 子组件引用
-const userStatsRef = ref(null)
 const toolStatsRef = ref(null)
 const knowledgeStatsRef = ref(null)
 const agentStatsRef = ref(null)
@@ -106,7 +94,6 @@ const loadAllStats = async () => {
 
     // 更新详细统计数据
     allStatsData.value = {
-      users: response.users,
       tools: response.tools,
       knowledge: response.knowledge,
       agents: response.agents
@@ -139,8 +126,7 @@ const handleOpenFeedback = () => {
 
 // 清理函数 - 清理所有子组件的图表实例
 const cleanupCharts = () => {
-  if (userStatsRef.value?.cleanup) userStatsRef.value.cleanup()
-  if (toolStatsRef.value?.cleanup) userStatsRef.value.cleanup()
+  if (toolStatsRef.value?.cleanup) toolStatsRef.value.cleanup()
   if (knowledgeStatsRef.value?.cleanup) knowledgeStatsRef.value.cleanup()
   if (agentStatsRef.value?.cleanup) agentStatsRef.value.cleanup()
   if (callStatsRef.value?.cleanup) callStatsRef.value.cleanup()
@@ -195,12 +181,6 @@ onUnmounted(() => {
     // 大页面布局：第一行 2x1 + 1x1，第二行 3x1x1
     &.call-stats {
       grid-column: 1 / 3;
-      grid-row: 1 / 2;
-      min-height: 400px;
-    }
-
-    &.user-stats {
-      grid-column: 3 / 4;
       grid-row: 1 / 2;
       min-height: 400px;
     }

@@ -99,7 +99,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useUserStore } from '@/stores/user'
 import { useInfoStore } from '@/stores/info'
 import { useAgentStore } from '@/stores/agent'
 import { healthApi } from '@/apis/system_api'
@@ -116,7 +115,6 @@ import {
 } from 'lucide-vue-next'
 
 const router = useRouter()
-const userStore = useUserStore()
 const infoStore = useInfoStore()
 const agentStore = useAgentStore()
 const faqUrl = '/'
@@ -203,35 +201,8 @@ const retryLoad = () => {
 }
 
 const goToChat = async () => {
-  // 检查用户是否登录
-  if (!userStore.isLoggedIn) {
-    // 登录后应该跳转到默认智能体而不是/agent
-    sessionStorage.setItem('redirect', '/') // 设置为首页，登录后会通过路由守卫处理重定向
-    router.push('/login')
-    return
-  }
-
-  // 根据用户角色进行跳转
-  if (userStore.isAdmin) {
-    // 管理员用户跳转到聊天页面
-    await agentStore.initialize()
-    router.push('/agent')
-    return
-  }
-
-  // 普通用户跳转到默认智能体
-  try {
-    // 获取默认智能体
-    const defaultAgent = agentStore.defaultAgent
-    if (defaultAgent?.id) {
-      router.push(`/agent/${defaultAgent.id}`)
-    } else {
-      router.push('/agent')
-    }
-  } catch (error) {
-    console.error('跳转到智能体页面失败:', error)
-    router.push('/')
-  }
+  await agentStore.initialize()
+  router.push('/agent')
 }
 
 onMounted(() => {

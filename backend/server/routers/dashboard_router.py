@@ -12,7 +12,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import Integer, String, cast, distinct, func, or_, select, text
+from sqlalchemy import Integer, String, cast, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from server.utils.auth_middleware import get_admin_user
@@ -48,15 +48,6 @@ def _get_time_group_format(column, time_range: str) -> Any:
 # =============================================================================
 # Response Models
 # =============================================================================
-
-
-class UserActivityStats(BaseModel):
-    """用户活跃度统计"""
-
-    total_users: int
-    active_users_24h: int
-    active_users_30d: int
-    daily_active_users: list[dict]  # 最近7天每日活跃用户
 
 
 class ToolCallStats(BaseModel):
@@ -239,80 +230,6 @@ async def get_conversation_detail(
         logger.error(f"Error getting conversation detail: {e}")
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Failed to get conversation detail: {str(e)}")
-
-
-# =============================================================================
-# 用户活动统计（管理员权限）
-# =============================================================================
-
-
-@dashboard.get("/stats/users", response_model=UserActivityStats)
-async def get_user_activity_stats(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_admin_user),
-):
-    """获取用户活动统计（管理员权限）"""
-    try:
-        from zixuetong.storage.postgres.models_business import Conversation, User
-
-        now = utc_now()
-        # PostgreSQL with asyncpg requires naive datetime for naive DateTime columns
-        naive_now = now.replace(tzinfo=None)
-
-        # Conversations may store either the numeric user primary key or the login user_id string.
-        # Join condition accounts for both representations.
-        user_join_condition = or_(
-            Conversation.user_id == User.user_id,
-            Conversation.user_id == cast(User.id, String),
-        )
-
-        # 基础用户统计（排除已删除用户）
-        total_users_result = await db.execute(select(func.count(User.id)).filter(User.is_deleted == 0))
-        total_users = total_users_result.scalar() or 0
-
-        # 不同时间段的活跃用户数（基于对话活动，排除已删除用户）
-        active_users_24h_result = await db.execute(
-            select(func.count(distinct(User.id)))
-            .select_from(Conversation)
-            .join(User, user_join_condition)
-            .filter(Conversation.updated_at >= naive_now - timedelta(days=1), User.is_deleted == 0)
-        )
-        active_users_24h = active_users_24h_result.scalar() or 0
-
-        active_users_30d_result = await db.execute(
-            select(func.count(distinct(User.id)))
-            .select_from(Conversation)
-            .join(User, user_join_condition)
-            .filter(Conversation.updated_at >= naive_now - timedelta(days=30), User.is_deleted == 0)
-        )
-        active_users_30d = active_users_30d_result.scalar() or 0
-        # 最近7天每日活跃用户（排除已删除用户）
-        daily_active_users = []
-        for i in range(7):
-            day_start = naive_now - timedelta(days=i + 1)
-            day_end = naive_now - timedelta(days=i)
-
-            active_count_result = await db.execute(
-                select(func.count(distinct(User.id)))
-                .select_from(Conversation)
-                .join(User, user_join_condition)
-                .filter(Conversation.updated_at >= day_start, Conversation.updated_at < day_end, User.is_deleted == 0)
-            )
-            active_count = active_count_result.scalar() or 0
-
-            daily_active_users.append({"date": day_start.strftime("%Y-%m-%d"), "active_users": active_count})
-
-        return UserActivityStats(
-            total_users=total_users,
-            active_users_24h=active_users_24h,
-            active_users_30d=active_users_30d,
-            daily_active_users=list(reversed(daily_active_users)),  # 按时间正序
-        )
-
-    except Exception as e:
-        logger.error(f"Error getting user activity stats: {e}")
-        logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"Failed to get user activity stats: {str(e)}")
 
 
 # =============================================================================
@@ -600,9 +517,6 @@ async def get_dashboard_stats(
         total_messages_result = await db.execute(select(func.count(Message.id)))
         total_messages = total_messages_result.scalar() or 0
 
-        total_users_result = await db.execute(select(func.count(User.id)).filter(User.is_deleted == 0))
-        total_users = total_users_result.scalar() or 0
-
         # Feedback statistics
         total_feedbacks_result = await db.execute(select(func.count(MessageFeedback.id)))
         total_feedbacks = total_feedbacks_result.scalar() or 0
@@ -619,7 +533,6 @@ async def get_dashboard_stats(
             "total_conversations": total_conversations,
             "active_conversations": active_conversations,
             "total_messages": total_messages,
-            "total_users": total_users,
             "feedback_stats": {
                 "total_feedbacks": total_feedbacks,
                 "satisfaction_rate": satisfaction_rate,

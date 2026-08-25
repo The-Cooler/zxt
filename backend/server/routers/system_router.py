@@ -42,21 +42,16 @@ async def update_config_single(key=Body(...), value=Body(...), current_user: Use
     config[key] = value
     config.save()
 
-    # OpenClaw 配置变更时动态启停桥接
-    if key in {"openclaw_enabled", "openclaw_gateway_url", "openclaw_api_key"}:
+    if key == "clawbot_enabled":
         try:
-            from zixuetong.services.openclaw.bridge_service import openclaw_bridge
-            from zixuetong.services.openclaw.scheduler import reminder_scheduler
+            from zixuetong.services.clawbot.bridge_service import clawbot_bridge
 
-            if config.openclaw_enabled and config.openclaw_gateway_url:
-                if not openclaw_bridge.is_connected:
-                    await openclaw_bridge.start()
-                    await reminder_scheduler.start()
+            if config.clawbot_enabled:
+                await clawbot_bridge.start()
             else:
-                await reminder_scheduler.stop()
-                await openclaw_bridge.stop()
+                await clawbot_bridge.stop()
         except Exception as e:
-            logger.warning(f"OpenClaw 桥接动态启停失败: {e}")
+            logger.warning(f"ClawBot 动态启停失败: {e}")
 
     return config.dump_config()
 
@@ -67,22 +62,16 @@ async def update_config_batch(items: dict = Body(...), current_user: User = Depe
     config.update(items)
     config.save()
 
-    # OpenClaw 配置变更时动态启停桥接
-    _openclaw_keys = {"openclaw_enabled", "openclaw_gateway_url", "openclaw_api_key"}
-    if _openclaw_keys & set(items.keys()):
+    if "clawbot_enabled" in items:
         try:
-            from zixuetong.services.openclaw.bridge_service import openclaw_bridge
-            from zixuetong.services.openclaw.scheduler import reminder_scheduler
+            from zixuetong.services.clawbot.bridge_service import clawbot_bridge
 
-            if config.openclaw_enabled and config.openclaw_gateway_url:
-                if not openclaw_bridge.is_connected:
-                    await openclaw_bridge.start()
-                    await reminder_scheduler.start()
+            if config.clawbot_enabled:
+                await clawbot_bridge.start()
             else:
-                await reminder_scheduler.stop()
-                await openclaw_bridge.stop()
+                await clawbot_bridge.stop()
         except Exception as e:
-            logger.warning(f"OpenClaw 桥接动态启停失败: {e}")
+            logger.warning(f"ClawBot 动态启停失败: {e}")
 
     return config.dump_config()
 

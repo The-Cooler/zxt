@@ -48,12 +48,12 @@
           </div>
           <div
             class="sider-item"
-            :class="{ activesec: activeTab === 'openclaw' }"
-            @click="activeTab = 'openclaw'"
+            :class="{ activesec: activeTab === 'clawbot' }"
+            @click="activeTab = 'clawbot'"
             v-if="userStore.isAdmin"
           >
             <Plug class="icon" :size="18" />
-            <span>OpenClaw</span>
+            <span>ClawBot</span>
           </div>
         </div>
 
@@ -87,11 +87,11 @@
         </div>
         <div
           class="nav-item"
-          :class="{ active: activeTab === 'openclaw' }"
-          @click="activeTab = 'openclaw'"
+          :class="{ active: activeTab === 'clawbot' }"
+          @click="activeTab = 'clawbot'"
           v-if="userStore.isAdmin"
         >
-          OpenClaw
+          ClawBot
         </div>
       </div>
 
@@ -110,8 +110,8 @@
             <ApiKeyManagementComponent />
           </div>
 
-          <div v-show="activeTab === 'openclaw'" v-if="userStore.isAdmin">
-            <OpenClawSettingsSection />
+          <div v-show="activeTab === 'clawbot'" v-if="userStore.isAdmin">
+            <ClawBotSettingsSection />
           </div>
         </div>
       </div>
@@ -132,7 +132,7 @@ import {
 import BasicSettingsSection from '@/components/BasicSettingsSection.vue'
 import ModelProvidersComponent from '@/components/ModelProvidersComponent.vue'
 import ApiKeyManagementComponent from '@/components/ApiKeyManagementComponent.vue'
-import OpenClawSettingsSection from '@/components/OpenClawSettingsSection.vue'
+import ClawBotSettingsSection from '@/components/ClawBotSettingsSection.vue'
 
 const props = defineProps({
   visible: {

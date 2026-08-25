@@ -3,13 +3,12 @@ import os
 from fastapi import APIRouter
 
 from server.routers.animation_demo_router import animation_demos
-from server.routers.auth_router import auth
 from server.routers.chat_router import chat
 from server.routers.dashboard_router import dashboard
 from server.routers.mcp_router import mcp
 from server.routers.model_provider_router import model_providers
 from server.routers.notification_router import notifications
-from server.routers.openclaw_router import openclaw
+from server.routers.clawbot_router import clawbot
 from server.routers.skill_router import skills
 from server.routers.subagent_router import subagents_router
 from server.routers.system_router import system
@@ -25,7 +24,6 @@ router = APIRouter()
 
 # 基础系统接口：健康检查、配置、认证与聊天主链路。
 router.include_router(system)  # /api/system/* 系统状态与全局配置
-router.include_router(auth)  # /api/auth/* 登录与用户信息
 router.include_router(chat)  # /api/chat/* 对话、消息流、运行态
 router.include_router(animation_demos)  # /api/animation-demos/* 动画演示 Artifact
 router.include_router(notifications)  # /api/notifications/* 通知
@@ -41,7 +39,7 @@ router.include_router(tools)  # /api/system/tools/* 工具列表与配置
 router.include_router(apikey_router)  # /api/apikey/* API Key 管理
 router.include_router(filesystem_router)  # /api/viewer/filesystem/* 工作台文件系统视图
 router.include_router(workspace)  # /api/workspace/* 用户个人工作区
-router.include_router(openclaw)  # /api/openclaw/* OpenClaw 集成
+router.include_router(clawbot)  # /api/clawbot/* ClawBot 微信互通
 
 if not _LITE_MODE:
     from server.routers.graph_router import graph

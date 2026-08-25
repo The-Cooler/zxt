@@ -36,16 +36,6 @@
         </div>
       </div>
 
-      <div class="stat-card warning">
-        <div class="stat-icon">
-          <Users class="icon" />
-        </div>
-        <div class="stat-content">
-          <div class="stat-value">{{ basicStats?.total_users || 0 }}</div>
-          <div class="stat-label">用户数</div>
-        </div>
-      </div>
-
       <div class="stat-card secondary clickable" @click="handleFeedbackClick">
         <div class="stat-icon">
           <BarChart3 class="icon" />
@@ -74,7 +64,6 @@ import {
   MessageCircle,
   Activity,
   Mail,
-  Users,
   BarChart3,
   Heart,
   TrendingUp,

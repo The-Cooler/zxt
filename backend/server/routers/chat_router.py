@@ -39,7 +39,7 @@ from zixuetong.services.thread_files_service import (
     save_thread_artifact_to_workspace_view,
 )
 from zixuetong.services.feedback_service import get_message_feedback_view, submit_message_feedback_view
-from zixuetong.services.learning_plan_service import get_learning_overview
+from zixuetong.services.learning_plan_service import get_learning_overview, get_learning_profile, save_learning_profile
 from zixuetong.repositories.agent_config_repository import AgentConfigRepository
 from zixuetong.utils.logging_config import logger
 from zixuetong.utils.image_processor import process_uploaded_image
@@ -59,6 +59,14 @@ class ImageUploadResponse(BaseModel):
     mime_type: str | None = None
     size_bytes: int | None = None
     error: str | None = None
+
+
+class LearningProfilePayload(BaseModel):
+    learning_direction: str = ""
+    learning_preferences: str = ""
+    knowledge_level: str = ""
+    weaknesses: str = ""
+    learning_history: str = ""
 
 
 class AgentConfigCreate(BaseModel):
@@ -180,6 +188,19 @@ async def get_agent(current_user: User = Depends(get_required_user)):
 async def get_learning_plan_overview(current_user: User = Depends(get_required_user)):
     """读取当前用户学习计划概览（需要登录）"""
     return get_learning_overview(current_user)
+
+
+@chat.get("/learning/profile")
+async def get_learning_profile_view(current_user: User = Depends(get_required_user)):
+    return get_learning_profile(current_user)
+
+
+@chat.put("/learning/profile")
+async def update_learning_profile_view(
+    payload: LearningProfilePayload,
+    current_user: User = Depends(get_required_user),
+):
+    return save_learning_profile(current_user, payload.model_dump())
 
 
 @chat.get("/agent/{agent_id}")

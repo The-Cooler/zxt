@@ -10,9 +10,7 @@ const userStore = useUserStore()
 const themeStore = useThemeStore()
 
 onMounted(async () => {
-  if (userStore.isLoggedIn) {
-    await agentStore.initialize()
-  }
+  await Promise.all([agentStore.initialize(), userStore.getCurrentUser()])
 })
 </script>
 <template>

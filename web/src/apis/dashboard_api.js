@@ -62,14 +62,6 @@ export const dashboardApi = {
   // ========== 新增并行API接口 ==========
 
   /**
-   * 获取用户活跃度统计
-   * @returns {Promise<Object>} - 用户活跃度统计信息
-   */
-  getUserStats: () => {
-    return apiAdminGet('/api/dashboard/stats/users')
-  },
-
-  /**
    * 获取工具调用统计
    * @returns {Promise<Object>} - 工具调用统计信息
    */
@@ -99,9 +91,8 @@ export const dashboardApi = {
    */
   getAllStats: async () => {
     try {
-      const [basicStats, userStats, toolStats, knowledgeStats, agentStats] = await Promise.all([
+      const [basicStats, toolStats, knowledgeStats, agentStats] = await Promise.all([
         apiAdminGet('/api/dashboard/stats'),
-        apiAdminGet('/api/dashboard/stats/users'),
         apiAdminGet('/api/dashboard/stats/tools'),
         apiAdminGet('/api/dashboard/stats/knowledge'),
         apiAdminGet('/api/dashboard/stats/agents')
@@ -109,7 +100,6 @@ export const dashboardApi = {
 
       return {
         basic: basicStats,
-        users: userStats,
         tools: toolStats,
         knowledge: knowledgeStats,
         agents: agentStats

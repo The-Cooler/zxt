@@ -89,15 +89,12 @@ async def lifespan(app: FastAPI):
 
     await tasker.start()
 
-    # 启动 OpenClaw 桥接（可选，失败不阻塞）
     try:
-        from zixuetong.services.openclaw.bridge_service import openclaw_bridge
-        from zixuetong.services.openclaw.scheduler import reminder_scheduler
+        from zixuetong.services.clawbot.bridge_service import clawbot_bridge
 
-        await openclaw_bridge.start()
-        await reminder_scheduler.start()
+        await clawbot_bridge.start()
     except Exception as e:
-        logger.warning(f"OpenClaw bridge startup skipped: {e}")
+        logger.warning(f"ClawBot startup skipped: {e}")
 
     logger.info(f"""
 
@@ -114,15 +111,12 @@ async def lifespan(app: FastAPI):
     yield
     await tasker.shutdown()
 
-    # 停止 OpenClaw 桥接
     try:
-        from zixuetong.services.openclaw.bridge_service import openclaw_bridge
-        from zixuetong.services.openclaw.scheduler import reminder_scheduler
+        from zixuetong.services.clawbot.bridge_service import clawbot_bridge
 
-        await reminder_scheduler.stop()
-        await openclaw_bridge.stop()
+        await clawbot_bridge.stop()
     except Exception as e:
-        logger.warning(f"OpenClaw bridge shutdown error: {e}")
+        logger.warning(f"ClawBot shutdown error: {e}")
 
     shutdown_sandbox_provider()
     await close_queue_clients()

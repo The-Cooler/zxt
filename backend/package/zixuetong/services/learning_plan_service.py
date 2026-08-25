@@ -84,6 +84,44 @@ def _parse_learning_plan_index(content: str) -> list[dict[str, str]]:
     return plans
 
 
+LEARNING_PROFILE_FIELDS = {
+    "学习方向": "learning_direction",
+    "学习偏好": "learning_preferences",
+    "已有知识水平": "knowledge_level",
+    "薄弱点": "weaknesses",
+    "学习历史": "learning_history",
+}
+
+
+def get_learning_profile(user: User) -> dict[str, str]:
+    profile = {field: "" for field in LEARNING_PROFILE_FIELDS.values()}
+    profile_path = learning_workspace_root(user) / LEARNING_PROFILE_FILE_NAME
+    if not profile_path.is_file():
+        return profile
+
+    current_field: str | None = None
+    content: dict[str, list[str]] = {field: [] for field in profile}
+    for line in profile_path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("## "):
+            current_field = LEARNING_PROFILE_FIELDS.get(line[3:].strip())
+            continue
+        if current_field is not None:
+            content[current_field].append(line)
+
+    return {field: "\n".join(lines).strip() for field, lines in content.items()}
+
+
+def save_learning_profile(user: User, profile: dict[str, str]) -> dict[str, str]:
+    normalized = {field: str(profile.get(field, "")).strip() for field in LEARNING_PROFILE_FIELDS.values()}
+    sections = ["# 学习用户画像", ""]
+    for title, field in LEARNING_PROFILE_FIELDS.items():
+        sections.extend([f"## {title}", normalized[field], ""])
+
+    profile_path = learning_workspace_root(user) / LEARNING_PROFILE_FILE_NAME
+    profile_path.write_text("\n".join(sections).rstrip() + "\n", encoding="utf-8")
+    return normalized
+
+
 def get_learning_overview(user: User) -> dict:
     root = learning_workspace_root(user)
     profile_path = root / LEARNING_PROFILE_FILE_NAME

@@ -7,7 +7,6 @@ import {
   apiAdminDelete,
   apiRequest
 } from './base'
-import { useUserStore } from '@/stores/user'
 
 /**
  * 智能体API模块
@@ -28,8 +27,7 @@ export const agentApi = {
   sendAgentMessage: (data, options = {}) => {
     const { signal, headers: extraHeaders, ...restOptions } = options || {}
     const baseHeaders = {
-      'Content-Type': 'application/json',
-      ...useUserStore().getAuthHeaders()
+      'Content-Type': 'application/json'
     }
 
     return fetch('/api/chat/agent', {
@@ -82,6 +80,10 @@ export const agentApi = {
    * @returns {Promise} - 学习计划概览
    */
   getLearningOverview: () => apiGet('/api/chat/learning/overview'),
+
+  getLearningProfile: () => apiGet('/api/chat/learning/profile'),
+
+  updateLearningProfile: (profile) => apiPut('/api/chat/learning/profile', profile),
 
   /**
    * 获取单个智能体详情
@@ -175,8 +177,7 @@ export const agentApi = {
   resumeAgentChat: (threadId, data, options = {}) => {
     const { signal, headers: extraHeaders, ...restOptions } = options || {}
     const baseHeaders = {
-      'Content-Type': 'application/json',
-      ...useUserStore().getAuthHeaders()
+      'Content-Type': 'application/json'
     }
 
     return fetch(`/api/chat/thread/${threadId}/resume`, {
@@ -239,9 +240,7 @@ export const agentApi = {
       `/api/chat/runs/${runId}/events?after_seq=${encodeURIComponent(String(afterSeq))}`,
       {
         method: 'GET',
-        headers: {
-          ...useUserStore().getAuthHeaders()
-        },
+        headers: {},
         signal
       }
     )
