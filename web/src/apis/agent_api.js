@@ -310,6 +310,13 @@ export const threadApi = {
       metadata: metadata || {}
     }),
 
+  createBranch: (parentThreadId, branchFromMessageId, title) =>
+    apiPost('/api/chat/thread/branch', {
+      parent_thread_id: parentThreadId,
+      branch_from_message_id: branchFromMessageId,
+      title: title || null
+    }),
+
   /**
    * 更新对话线程
    * @param {string} threadId - 对话线程ID

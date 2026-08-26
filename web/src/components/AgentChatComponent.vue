@@ -38,6 +38,7 @@
                     :show-refs="showMsgRefs(displayItem.message)"
                     :hide-tool-calls="true"
                     @retry="retryMessage(displayItem.message)"
+                    @branch="branchFromMessage"
                   >
                   </AgentMessageComponent>
                   <ToolCallsGroupComponent
@@ -1282,6 +1283,18 @@ const sendMessage = async ({
 const getFirstNonPinnedChat = (chatList) => {
   if (!chatList || chatList.length === 0) return null
   return chatList.find((chat) => !chat.is_pinned) || chatList[0]
+}
+
+const branchFromMessage = async (messageId) => {
+  if (!currentChatId.value || messageId === null || messageId === undefined) return
+  try {
+    const branch = await chatThreadsStore.createBranch(currentChatId.value, Number(messageId))
+    if (branch) {
+      await selectChat(branch.id)
+    }
+  } catch (error) {
+    handleChatError(error, 'create')
+  }
 }
 
 const selectChat = async (chatId) => {

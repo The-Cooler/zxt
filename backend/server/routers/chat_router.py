@@ -23,6 +23,7 @@ from zixuetong.services.agent_run_service import (
 )
 from zixuetong.repositories.conversation_repository import ConversationRepository
 from zixuetong.services.conversation_service import (
+    create_thread_branch_view,
     create_thread_view,
     delete_thread_attachment_view,
     delete_thread_view,
@@ -655,6 +656,12 @@ class ThreadCreate(BaseModel):
     metadata: dict | None = None
 
 
+class ThreadBranchCreate(BaseModel):
+    parent_thread_id: str
+    branch_from_message_id: int
+    title: str | None = None
+
+
 class ThreadResponse(BaseModel):
     id: str
     user_id: str
@@ -738,6 +745,22 @@ async def create_thread(
         agent_id=thread.agent_id,
         title=thread.title,
         metadata=thread.metadata,
+        db=db,
+        current_user_id=str(current_user.id),
+    )
+
+
+@chat.post("/thread/branch", response_model=ThreadResponse)
+async def create_thread_branch(
+    branch: ThreadBranchCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_required_user),
+):
+    """从指定持久化消息创建分支对话。"""
+    return await create_thread_branch_view(
+        parent_thread_id=branch.parent_thread_id,
+        branch_from_message_id=branch.branch_from_message_id,
+        title=branch.title,
         db=db,
         current_user_id=str(current_user.id),
     )

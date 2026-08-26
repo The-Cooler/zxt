@@ -284,6 +284,63 @@ async def create_thread_view(
     }
 
 
+async def create_thread_branch_view(
+    *,
+    parent_thread_id: str,
+    branch_from_message_id: int,
+    title: str | None,
+    db: AsyncSession,
+    current_user_id: str,
+) -> dict:
+    """从用户明确选定的消息创建子线程，并冻结该节点之前的可见上下文。"""
+    conv_repo = ConversationRepository(db)
+    parent = await require_user_conversation(conv_repo, parent_thread_id, str(current_user_id))
+    messages = await conv_repo.get_messages(parent.id)
+
+    branch_context: list[dict] = []
+    branch_message_found = False
+    for message in messages:
+        if message.role in {"user", "assistant"}:
+            branch_context.append(
+                {
+                    "role": message.role,
+                    "content": message.content,
+                    "message_type": message.message_type,
+                    "image_content": message.image_content,
+                }
+            )
+        if message.id == branch_from_message_id:
+            branch_message_found = True
+            break
+
+    if not branch_message_found:
+        raise HTTPException(status_code=404, detail="分支消息不存在或不属于当前对话")
+
+    thread_id = str(uuid.uuid4())
+    metadata = {
+        "parent_thread_id": parent.thread_id,
+        "branch_from_message_id": branch_from_message_id,
+        "branch_context": branch_context,
+    }
+    conversation = await conv_repo.create_conversation(
+        user_id=str(current_user_id),
+        agent_id=parent.agent_id,
+        title=title or f"分支：{parent.title or '新的对话'}",
+        thread_id=thread_id,
+        metadata=metadata,
+    )
+    return {
+        "id": conversation.thread_id,
+        "user_id": conversation.user_id,
+        "agent_id": conversation.agent_id,
+        "title": conversation.title,
+        "is_pinned": bool(conversation.is_pinned),
+        "created_at": conversation.created_at.isoformat(),
+        "updated_at": conversation.updated_at.isoformat(),
+        "metadata": conversation.extra_metadata or {},
+    }
+
+
 async def list_threads_view(
     *,
     agent_id: str | None,

@@ -17,6 +17,12 @@
       <Copy v-else size="14" />
     </div>
     <p v-if="message.type === 'human'" class="message-text">{{ message.content }}</p>
+    <div v-if="message.type === 'human'" class="message-actions">
+      <button type="button" class="message-action" title="从此处分支" @click="emit('branch', message.id)">
+        <GitBranch size="14" />
+        <span>从此处分支</span>
+      </button>
+    </div>
 
     <p v-else-if="message.type === 'system'" class="message-text-system">{{ message.content }}</p>
 
@@ -64,6 +70,13 @@
         :tool-calls="validToolCalls"
       />
 
+      <div v-if="message.type === 'human' || message.type === 'ai'" class="message-actions">
+        <button type="button" class="message-action" title="从此处分支" @click="emit('branch', message.id)">
+          <GitBranch size="14" />
+          <span>从此处分支</span>
+        </button>
+      </div>
+
       <div v-if="message.isStoppedByUser" class="retry-hint">
         你停止生成了本次回答
         <span class="retry-link" @click="emit('retryStoppedMessage', message.id)"
@@ -101,7 +114,7 @@
 import { computed, ref } from 'vue'
 import { CaretRightOutlined } from '@ant-design/icons-vue'
 import RefsComponent from '@/components/RefsComponent.vue'
-import { Copy, Check } from 'lucide-vue-next'
+import { Copy, Check, GitBranch } from 'lucide-vue-next'
 import ToolCallsGroupComponent from '@/components/ToolCallsGroupComponent.vue'
 import MarkdownPreview from '@/components/common/MarkdownPreview.vue'
 import AnimationDemoCard from '@/components/animation-demo/AnimationDemoCard.vue'
@@ -147,7 +160,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['retry', 'retryStoppedMessage', 'openRefs'])
+const emit = defineEmits(['retry', 'retryStoppedMessage', 'openRefs', 'branch'])
 
 // 复制状态
 const isCopied = ref(false)
@@ -504,6 +517,27 @@ const parsedData = computed(() => {
     max-height: 200px;
     overflow-y: auto;
   }
+}
+
+.message-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.message-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--gray-500);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.message-action:hover {
+  color: var(--main-color);
 }
 
 .retry-hint {

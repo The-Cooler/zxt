@@ -13,6 +13,7 @@
             type="button"
             class="conversation-item"
             :class="{ active: currentChatId === chat.id }"
+            :style="{ paddingLeft: `${8 + chat.treeDepth * 16}px` }"
             @click="$emit('select-chat', chat.id)"
             @click.middle="$emit('delete-chat', chat.id)"
           >
@@ -115,15 +116,29 @@ const emit = defineEmits([
 const listCollapsed = ref(false)
 
 const sortedChats = computed(() => {
-  return [...props.chatsList].sort((a, b) => {
-    if (a.is_pinned !== b.is_pinned) {
-      return a.is_pinned ? -1 : 1
-    }
+  const chats = [...props.chatsList]
+  const byParent = new Map()
+  chats.forEach((chat) => {
+    const parentId = chat.metadata?.parent_thread_id || null
+    if (!byParent.has(parentId)) byParent.set(parentId, [])
+    byParent.get(parentId).push(chat)
+  })
+  const sortGroup = (group) => group.sort((a, b) => {
+    if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1
     const dateA = parseToShanghai(b.created_at)
     const dateB = parseToShanghai(a.created_at)
     if (!dateA || !dateB) return 0
     return dateA.diff(dateB)
   })
+  const flattened = []
+  const visit = (parentId, depth) => {
+    for (const chat of sortGroup(byParent.get(parentId) || [])) {
+      flattened.push({ ...chat, treeDepth: depth })
+      visit(chat.id, depth + 1)
+    }
+  }
+  visit(null, 0)
+  return flattened
 })
 
 const renameChat = async (chatId) => {

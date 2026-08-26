@@ -75,6 +75,14 @@ export const useChatThreadsStore = defineStore('chatThreads', () => {
     }
   }
 
+  const createBranch = async (parentThreadId, messageId, title) => {
+    const thread = await threadApi.createBranch(parentThreadId, messageId, title)
+    if (thread) {
+      threads.value = [thread, ...threads.value.filter((item) => item.id !== thread.id)]
+    }
+    return thread
+  }
+
   const createThread = async (agentId, title = '新的对话') => {
     if (!agentId) return null
 
@@ -170,6 +178,7 @@ export const useChatThreadsStore = defineStore('chatThreads', () => {
     loadThreads,
     loadMoreThreads,
     createThread,
+    createBranch,
     deleteThread,
     updateThread
   }

@@ -352,6 +352,29 @@ async def _stream_agent_events(agent, messages, *, input_context=None, **kwargs)
         yield "messages", (msg, metadata)
 
 
+async def _load_branch_context_messages(
+    conv_repo: ConversationRepository, thread_id: str
+) -> list[HumanMessage | AIMessage]:
+    """仅在子线程首次提问时重建其冻结的父链上下文。"""
+    conversation = await conv_repo.get_conversation_by_thread_id(thread_id)
+    if not conversation or await conv_repo.get_messages(conversation.id):
+        return []
+
+    context = (conversation.extra_metadata or {}).get("branch_context")
+    if not isinstance(context, list):
+        return []
+
+    inherited_messages: list[HumanMessage | AIMessage] = []
+    for item in context:
+        if not isinstance(item, dict) or not isinstance(item.get("content"), str):
+            continue
+        if item.get("role") == "user":
+            inherited_messages.append(HumanMessage(content=item["content"]))
+        elif item.get("role") == "assistant":
+            inherited_messages.append(AIMessage(content=item["content"]))
+    return inherited_messages
+
+
 async def _get_existing_message_ids(conv_repo: ConversationRepository, thread_id: str) -> set[str]:
     existing_messages = await conv_repo.get_messages_by_thread_id(thread_id)
     return {
@@ -827,6 +850,9 @@ async def agent_chat(
             agent_config_id=agent_config_id,
         )
 
+        inherited_messages = await _load_branch_context_messages(conv_repo, thread_id)
+        messages = [*inherited_messages, human_message]
+
         try:
             await conv_repo.add_message_by_thread_id(
                 thread_id=thread_id,
@@ -841,7 +867,6 @@ async def agent_chat(
             )
         except Exception as e:
             logger.error(f"Error saving user message: {e}")
-
         langgraph_config = {"configurable": {"thread_id": thread_id, "user_id": user_id}}
         invoke_result = await agent.invoke_messages(
             messages,
@@ -1107,6 +1132,9 @@ async def stream_agent_chat(
             agent_id=agent_id,
             agent_config_id=agent_config_id,
         )
+
+        inherited_messages = await _load_branch_context_messages(conv_repo, thread_id)
+        messages = [*inherited_messages, human_message]
 
         try:
             await conv_repo.add_message_by_thread_id(
