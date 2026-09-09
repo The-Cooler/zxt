@@ -72,6 +72,7 @@
 - 新增 OpenClaw 集成：接入 OpenClaw Gateway 协议（WebSocket + RPC），实现定期学习通知、历史警告学习、双向知识共享；新增通知系统（Notification 模型/服务/API/前端铃铛组件）；新增知识库 MCP 服务器（`zixuetong-knowledge-mcp`），将知识库查询能力暴露为 MCP 工具供 OpenClaw 直接调用；新增 `openclaw-zixuetong` Skill 和 `query_openclaw`/`share_knowledge_to_openclaw` Agent 工具。
 - 优化 OpenClaw 学习提醒：调度器改为收集用户学习计划数据（主题、状态、更新时间）和活跃度信息，由 OpenClaw 智能体根据学习内容难度和进度动态决定是否提醒及提醒内容，不再无差别广播；所有消息交互使用 Pydantic BaseModel 封装，发送请求时明确期望返回格式；新增通过 OpenClaw ClawBot 插件的微信推送能力，推送失败时自动创建站内通知告知管理员。
 - 更新正式文档：补充网页读取会话、清洗结果编辑、入库模式、学习助手文件约定和导航入口，并移除面向用户的 JSONL 三元组导入说明。
+- 新增树状对话：用户可从指定消息创建子线程；线程元数据保存父线程、分支消息和分支点上下文快照；子线程首次提问继承该快照，前端侧栏按父子关系展示对话树，并提供“从此处分支”操作。该实现采用元数据关系和显式上下文快照，暂不包含 DAG 多父合并、引用边或画布编辑能力。
 
 ---
 

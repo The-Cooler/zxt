@@ -28,6 +28,7 @@
 
 - `agents` 定义 LangGraph 智能体体系。`BaseAgent` 是智能体基类，`BaseContext` 是运行配置上下文；`buildin` 放内置智能体；`middlewares` 负责把知识库、Skills、MCP、附件、运行配置等能力挂到运行时；`toolkits` 放工具注册与内置工具；`backends` 对接沙盒、知识库和 Skills 等外部执行/资源后端。
 - `services` 是用例层，负责串联 repositories、agents、knowledge、storage 和外部系统。聊天、运行队列、文件视图、Skills、MCP、SubAgents、评估等跨模块流程都从这里找入口。
+- 树状对话由 `conversation_service.py` 负责创建分支线程：子线程通过 `Conversation.extra_metadata` 保存 `parent_thread_id`、`branch_from_message_id` 和分支点之前的 `branch_context` 快照；`chat_service.py` 在子线程首次提问时将快照恢复为 Agent 输入上下文。
 - `repositories` 是数据库访问边界，封装业务对象和知识库元数据的 SQLAlchemy 查询。不要让路由绕过 repository 直接操作模型，除非已有局部模式要求这样做。
 - `storage` 放持久化基础设施。`storage/postgres` 管理业务表、知识库表和 LangGraph checkpoint 所需连接池；`storage/minio` 管理对象存储。
 - `knowledge` 是知识库和图谱领域。`KnowledgeBaseManager` 管理 LightRAG/pgvector 知识库实现；`implementations` 放知识库实现；`graphs` 放图谱适配与上传图谱服务；`chunking` 放文档分块策略。
@@ -55,7 +56,7 @@
 1. `AgentView` 及相关组件收集输入、附件和智能体配置。
 2. `web/src/apis` 调用 `/api/chat` 相关接口。
 3. `server/routers/chat_router.py` 进入后端，委托 `zixuetong.services.chat_service` 或 `agent_run_service`。
-4. 服务层读取 conversation、agent config、tools、skills、knowledge 等配置，必要时创建后台 run。
+4. 服务层读取 conversation、agent config、tools、skills、knowledge 等配置，必要时创建后台 run；树状对话的子线程首次提问还会读取其分支上下文快照。
 5. `worker-dev` 执行 LangGraph 智能体；中间件按上下文挂载知识库、工具、Skills、MCP、附件与沙盒能力。
 6. 运行事件写入 Redis，最终状态和业务记录写入 Postgres；文件和产物落到 `saves`、MinIO 或沙盒映射目录。
 7. 前端通过 SSE/轮询消费运行事件，渲染消息、工具调用、引用来源、产物卡片和文件预览。
@@ -64,7 +65,7 @@
 
 - Docker Compose 是开发环境的事实来源。开发时优先检查容器、日志和热重载，不要默认要求本地裸跑服务。
 - HTTP 路由层应保持薄；领域流程放在 `zixuetong.services`，持久化查询放在 `zixuetong.repositories`。
-- 前端 API 调用应集中在 `web/src/apis`，组件不要散落拼接后端 URL。
+- 前端 API 调用应集中在 `web/src/apis`，组件不要散落拼接后端 URL；树状对话分支通过 `thread/branch` API 创建，侧栏根据线程元数据展示父子层级。
 - 智能体能力通过 context、middleware、toolkits、backends 组合，不要把知识库、MCP、Skills 或沙盒逻辑硬编码进单个页面或路由。
 - LITE 模式必须允许跳过知识库、图谱、评估等重依赖能力；新增相关接口或初始化逻辑时要尊重这个边界。
 - 沙盒虚拟路径以 `SANDBOX_VIRTUAL_PATH_PREFIX` 为边界，用户可见路径与宿主机真实路径不要混用。
