@@ -249,35 +249,59 @@ class PostgresManager(metaclass=SingletonMeta):
             for stmt in stmts:
                 await conn.execute(text(stmt))
 
-        # 确保默认部门存在
-        await self.ensure_default_department()
+        # 确保单用户模式的系统 owner 存在
+        await self.ensure_system_owner()
 
-    async def ensure_default_department(self):
-        """确保默认部门（个人配置作用域）存在。
-
-        ID=1 的部门用于存储用户的个人智能体配置（PERSONAL_AGENT_CONFIG_SCOPE_ID）。
-        """
+    async def ensure_system_owner(self):
+        """确保单用户模式唯一使用的系统 owner 存在。"""
         self._check_initialized()
-        from zixuetong.repositories.agent_config_repository import PERSONAL_AGENT_CONFIG_SCOPE_ID
-        from zixuetong.utils.datetime_utils import utc_now_naive
 
         async with self.get_async_session_context() as session:
-            from zixuetong.storage.postgres.models_business import Department
-
-            # 检查是否已存在
-            result = await session.execute(text("SELECT id FROM departments WHERE id = :id"), {"id": PERSONAL_AGENT_CONFIG_SCOPE_ID})
-            exists = result.scalar_one_or_none()
-
-            if not exists:
-                # 创建默认部门
-                dept = Department(
-                    id=PERSONAL_AGENT_CONFIG_SCOPE_ID,
-                    name="个人配置",
-                    description="用户个人智能体配置作用域",
-                    created_at=utc_now_naive(),
+            result = await session.execute(
+                text(
+                    """
+                    SELECT id
+                    FROM users
+                    ORDER BY id
+                    LIMIT 1
+                    """
                 )
-                session.add(dept)
-                logger.info(f"Created default department (ID={PERSONAL_AGENT_CONFIG_SCOPE_ID}) for personal agent configs")
+            )
+            if result.scalar_one_or_none() is not None:
+                return
+
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO users (
+                        username,
+                        user_id,
+                        created_at
+                    )
+                    VALUES (
+                        '系统所有者',
+                        'system-owner',
+                        NOW()
+                    )
+                    ON CONFLICT DO NOTHING
+                    """
+                )
+            )
+
+            result = await session.execute(
+                text(
+                    """
+                    SELECT id
+                    FROM users
+                    ORDER BY id
+                    LIMIT 1
+                    """
+                )
+            )
+            if result.scalar_one_or_none() is None:
+                raise RuntimeError("无法创建单用户模式系统 owner，请检查 users 表中的唯一键冲突")
+
+            logger.info("Created single-user system owner")
 
     @property
     def is_postgresql(self) -> bool:
@@ -313,18 +337,6 @@ class PostgresManager(metaclass=SingletonMeta):
 
         if self.langgraph_pool:
             await self.langgraph_pool.close()
-
-    async def async_check_first_run(self):
-        """检查是否首次运行（异步版本）- 检查用户表是否有数据"""
-        from sqlalchemy import func, select
-
-        self._check_initialized()
-        async with self.get_async_session_context() as session:
-            from zixuetong.storage.postgres.models_business import User
-
-            result = await session.execute(select(func.count(User.id)))
-            count = result.scalar()
-            return count == 0
 
     async def execute(self, statement):
         """直接执行 SQL 语句（用于迁移脚本）"""

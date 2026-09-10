@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from zixuetong.storage.postgres.models_business import User
-from server.utils.auth_middleware import get_admin_user, get_db, get_required_user
+from server.utils.auth_middleware import get_system_owner, get_db
 from zixuetong import config as conf
 from zixuetong.agents.buildin import agent_manager
 from zixuetong.models import select_model
@@ -113,8 +113,8 @@ chat = APIRouter(prefix="/chat", tags=["chat"])
 
 
 @chat.get("/default_agent")
-async def get_default_agent(current_user: User = Depends(get_required_user)):
-    """获取默认智能体ID（需要登录）"""
+async def get_default_agent(current_user: User = Depends(get_system_owner)):
+    """获取默认智能体ID（单用户 owner）"""
     try:
         default_agent_id = conf.default_agent_id
         # 如果没有设置默认智能体，尝试获取第一个可用的智能体
@@ -130,8 +130,8 @@ async def get_default_agent(current_user: User = Depends(get_required_user)):
 
 
 @chat.post("/set_default_agent")
-async def set_default_agent(request_data: dict = Body(...), current_user=Depends(get_admin_user)):
-    """设置默认智能体ID (仅管理员)"""
+async def set_default_agent(request_data: dict = Body(...), current_user=Depends(get_system_owner)):
+    """设置默认智能体ID （单用户 owner）"""
     try:
         agent_id = request_data.get("agent_id")
         if not agent_id:
@@ -158,8 +158,8 @@ async def set_default_agent(request_data: dict = Body(...), current_user=Depends
 
 
 @chat.post("/call")
-async def call(query: str = Body(...), meta: dict = Body(None), current_user: User = Depends(get_required_user)):
-    """调用模型进行简单问答（需要登录）"""
+async def call(query: str = Body(...), meta: dict = Body(None), current_user: User = Depends(get_system_owner)):
+    """调用模型进行简单问答（单用户 owner）"""
     meta = meta or {}
 
     # 确保 request_id 存在
@@ -179,34 +179,34 @@ async def call(query: str = Body(...), meta: dict = Body(None), current_user: Us
 
 
 @chat.get("/agent")
-async def get_agent(current_user: User = Depends(get_required_user)):
-    """获取所有可用智能体的基本信息（需要登录）"""
+async def get_agent(current_user: User = Depends(get_system_owner)):
+    """获取所有可用智能体的基本信息（单用户 owner）"""
     agents_info = await agent_manager.get_agents_info(include_configurable_items=False)
     return {"agents": agents_info}
 
 
 @chat.get("/learning/overview")
-async def get_learning_plan_overview(current_user: User = Depends(get_required_user)):
-    """读取当前用户学习计划概览（需要登录）"""
+async def get_learning_plan_overview(current_user: User = Depends(get_system_owner)):
+    """读取当前用户学习计划概览（单用户 owner）"""
     return get_learning_overview(current_user)
 
 
 @chat.get("/learning/profile")
-async def get_learning_profile_view(current_user: User = Depends(get_required_user)):
+async def get_learning_profile_view(current_user: User = Depends(get_system_owner)):
     return get_learning_profile(current_user)
 
 
 @chat.put("/learning/profile")
 async def update_learning_profile_view(
     payload: LearningProfilePayload,
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
 ):
     return save_learning_profile(current_user, payload.model_dump())
 
 
 @chat.get("/agent/{agent_id}")
-async def get_single_agent(agent_id: str, current_user: User = Depends(get_required_user)):
-    """获取指定智能体的完整信息（包含配置选项）（需要登录）"""
+async def get_single_agent(agent_id: str, current_user: User = Depends(get_system_owner)):
+    """获取指定智能体的完整信息（包含配置选项）（单用户 owner）"""
     try:
         # 检查智能体是否存在
         if not (agent := agent_manager.get_agent(agent_id)):
@@ -227,7 +227,7 @@ async def get_single_agent(agent_id: str, current_user: User = Depends(get_requi
 @chat.get("/agent/{agent_id}/configs")
 async def list_agent_configs(
     agent_id: str,
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     if not agent_manager.get_agent(agent_id):
@@ -258,7 +258,7 @@ async def list_agent_configs(
 async def get_agent_config_profile(
     agent_id: str,
     config_id: int,
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     if not agent_manager.get_agent(agent_id):
@@ -266,7 +266,7 @@ async def get_agent_config_profile(
 
     repo = AgentConfigRepository(db)
     item = await repo.get_by_id(config_id)
-    if not item or not repo.belongs_to_personal_scope(item, agent_id):
+    if not item or not repo.belongs_to_agent(item, agent_id):
         raise HTTPException(status_code=404, detail="配置不存在")
 
     return {"config": item.to_dict()}
@@ -276,7 +276,7 @@ async def get_agent_config_profile(
 async def create_agent_config_profile(
     agent_id: str,
     payload: AgentConfigCreate,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     if not agent_manager.get_agent(agent_id):
@@ -284,7 +284,6 @@ async def create_agent_config_profile(
 
     repo = AgentConfigRepository(db)
     item = await repo.create(
-        department_id=repo.personal_scope_id(),
         agent_id=agent_id,
         name=payload.name,
         description=payload.description,
@@ -306,7 +305,7 @@ async def update_agent_config_profile(
     agent_id: str,
     config_id: int,
     payload: AgentConfigUpdate,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     if not agent_manager.get_agent(agent_id):
@@ -314,7 +313,7 @@ async def update_agent_config_profile(
 
     repo = AgentConfigRepository(db)
     item = await repo.get_by_id(config_id)
-    if not item or not repo.belongs_to_personal_scope(item, agent_id):
+    if not item or not repo.belongs_to_agent(item, agent_id):
         raise HTTPException(status_code=404, detail="配置不存在")
 
     updated = await repo.update(
@@ -334,7 +333,7 @@ async def update_agent_config_profile(
 async def set_agent_config_default(
     agent_id: str,
     config_id: int,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     if not agent_manager.get_agent(agent_id):
@@ -342,7 +341,7 @@ async def set_agent_config_default(
 
     repo = AgentConfigRepository(db)
     item = await repo.get_by_id(config_id)
-    if not item or not repo.belongs_to_personal_scope(item, agent_id):
+    if not item or not repo.belongs_to_agent(item, agent_id):
         raise HTTPException(status_code=404, detail="配置不存在")
 
     updated = await repo.set_default(config=item, updated_by=str(current_user.id))
@@ -353,7 +352,7 @@ async def set_agent_config_default(
 async def delete_agent_config_profile(
     agent_id: str,
     config_id: int,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     if not agent_manager.get_agent(agent_id):
@@ -361,7 +360,7 @@ async def delete_agent_config_profile(
 
     repo = AgentConfigRepository(db)
     item = await repo.get_by_id(config_id)
-    if not item or not repo.belongs_to_personal_scope(item, agent_id):
+    if not item or not repo.belongs_to_agent(item, agent_id):
         raise HTTPException(status_code=404, detail="配置不存在")
 
     await repo.delete(config=item, updated_by=str(current_user.id))
@@ -371,10 +370,10 @@ async def delete_agent_config_profile(
 @chat.post("/agent")
 async def chat_agent(
     payload: AgentChatRequest,
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
-    """使用特定智能体进行对话（需要登录）"""
+    """使用特定智能体进行对话（单用户 owner）"""
     logger.info(f"query: {payload.query}, agent_config_id: {payload.agent_config_id}, meta: {payload.meta}")
 
     # 查看图片内容
@@ -400,10 +399,10 @@ async def chat_agent(
 @chat.post("/agent/sync")
 async def chat_agent_sync(
     payload: AgentChatRequest,
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
-    """使用特定智能体进行非流式对话（需要登录）"""
+    """使用特定智能体进行非流式对话（单用户 owner）"""
     logger.info(f"[sync] query: {payload.query}, agent_config_id: {payload.agent_config_id}, meta: {payload.meta}")
     logger.info(f"[sync] image_content present: {payload.image_content is not None}")
     if payload.image_content:
@@ -423,10 +422,10 @@ async def chat_agent_sync(
 @chat.post("/runs")
 async def create_agent_run(
     payload: AgentRunCreate,
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
-    """创建异步 run 任务并入队（需要登录）"""
+    """创建异步 run 任务并入队（单用户 owner）"""
     return await create_agent_run_view(
         query=payload.query,
         agent_config_id=payload.agent_config_id,
@@ -441,20 +440,20 @@ async def create_agent_run(
 @chat.get("/runs/{run_id}")
 async def get_agent_run(
     run_id: str,
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
-    """获取 run 状态（需要登录）"""
+    """获取 run 状态（单用户 owner）"""
     return await get_agent_run_view(run_id=run_id, current_user_id=str(current_user.id), db=db)
 
 
 @chat.post("/runs/{run_id}/cancel")
 async def cancel_agent_run(
     run_id: str,
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
-    """取消 run（需要登录）"""
+    """取消 run（单用户 owner）"""
     return await cancel_agent_run_view(run_id=run_id, current_user_id=str(current_user.id), db=db)
 
 
@@ -462,9 +461,9 @@ async def cancel_agent_run(
 async def stream_run_events(
     run_id: str,
     after_seq: str = Query("0"),
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
 ):
-    """SSE 拉取 run 事件（需要登录）"""
+    """SSE 拉取 run 事件（单用户 owner）"""
     return StreamingResponse(
         stream_agent_run_events(
             run_id=run_id,
@@ -485,16 +484,16 @@ async def stream_run_events(
 
 
 @chat.get("/models")
-async def get_chat_models(model_provider: str, current_user: User = Depends(get_admin_user)):
-    """获取指定模型提供商的模型列表（需要登录）"""
+async def get_chat_models(model_provider: str, current_user: User = Depends(get_system_owner)):
+    """获取指定模型提供商的模型列表（单用户 owner）"""
     model = select_model(model_provider=model_provider)
     models = await model.get_models()
     return {"models": models}
 
 
 @chat.post("/models/update")
-async def update_chat_models(model_provider: str, model_names: list[str], current_user=Depends(get_admin_user)):
-    """更新指定模型提供商的模型列表 (仅管理员)"""
+async def update_chat_models(model_provider: str, model_names: list[str], current_user=Depends(get_system_owner)):
+    """更新指定模型提供商的模型列表 （单用户 owner）"""
     conf.model_names[model_provider].models = model_names
     conf._save_models_to_file(model_provider)
     return {"models": conf.model_names[model_provider].models}
@@ -506,10 +505,10 @@ async def resume_thread_chat(
     approved: bool | None = Body(None),
     answer: dict | None = Body(None),
     config: dict = Body({}),
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
-    """恢复被人工审批中断的对话（需要登录）"""
+    """恢复被人工审批中断的对话（单用户 owner）"""
 
     # 验证 thread 存在且属于当前用户
     conv_repo = ConversationRepository(db)
@@ -603,18 +602,18 @@ async def resume_thread_chat(
 @chat.get("/thread/{thread_id}/active_run")
 async def get_thread_active_run(
     thread_id: str,
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
-    """获取当前会话活跃 run（需要登录）"""
+    """获取当前会话活跃 run（单用户 owner）"""
     return await get_active_run_by_thread(thread_id=thread_id, current_user_id=str(current_user.id), db=db)
 
 
 @chat.get("/thread/{thread_id}/history")
 async def get_thread_history(
-    thread_id: str, current_user: User = Depends(get_required_user), db: AsyncSession = Depends(get_db)
+    thread_id: str, current_user: User = Depends(get_system_owner), db: AsyncSession = Depends(get_db)
 ):
-    """获取对话历史消息（需要登录）- 包含用户反馈状态"""
+    """获取对话历史消息（单用户 owner）- 包含用户反馈状态"""
     try:
         return await get_thread_history_view(
             thread_id=thread_id,
@@ -630,10 +629,10 @@ async def get_thread_history(
 @chat.get("/thread/{thread_id}/state")
 async def get_thread_state(
     thread_id: str,
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
-    """获取对话当前状态（需要登录）"""
+    """获取对话当前状态（单用户 owner）"""
     try:
         return await get_agent_state_view(
             thread_id=thread_id,
@@ -738,7 +737,7 @@ class SaveThreadArtifactResponse(BaseModel):
 
 @chat.post("/thread", response_model=ThreadResponse)
 async def create_thread(
-    thread: ThreadCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_required_user)
+    thread: ThreadCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_system_owner)
 ):
     """创建新对话线程 (使用新存储系统)"""
     return await create_thread_view(
@@ -754,7 +753,7 @@ async def create_thread(
 async def create_thread_branch(
     branch: ThreadBranchCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """从指定持久化消息创建分支对话。"""
     return await create_thread_branch_view(
@@ -772,7 +771,7 @@ async def list_threads(
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """获取用户的所有对话线程 (使用新存储系统)"""
     return await list_threads_view(
@@ -782,7 +781,7 @@ async def list_threads(
 
 @chat.delete("/thread/{thread_id}")
 async def delete_thread(
-    thread_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_required_user)
+    thread_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_system_owner)
 ):
     """删除对话线程 (使用新存储系统)"""
     return await delete_thread_view(thread_id=thread_id, db=db, current_user_id=str(current_user.id))
@@ -798,7 +797,7 @@ async def update_thread(
     thread_id: str,
     thread_update: ThreadUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """更新对话线程信息 (使用新存储系统)"""
     return await update_thread_view(
@@ -820,7 +819,7 @@ async def upload_thread_attachment(
     thread_id: str,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """上传原始附件并关联到指定对话线程。"""
     return await upload_thread_attachment_view(
@@ -835,7 +834,7 @@ async def upload_thread_attachment(
 async def list_thread_attachments(
     thread_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """列出当前对话线程的所有附件元信息。"""
     return await list_thread_attachments_view(
@@ -850,7 +849,7 @@ async def delete_thread_attachment(
     thread_id: str,
     file_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """移除指定附件。"""
     return await delete_thread_attachment_view(
@@ -867,7 +866,7 @@ async def list_thread_files(
     path: str = Query(f"{VIRTUAL_PATH_PREFIX}"),
     recursive: bool = Query(False),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """列出线程文件目录。"""
     return await list_thread_files_view(
@@ -886,7 +885,7 @@ async def read_thread_file_content(
     offset: int = Query(0, ge=0),
     limit: int = Query(2000, ge=1, le=5000),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """读取线程文本文件（按行分页）。"""
     return await read_thread_file_content_view(
@@ -905,7 +904,7 @@ async def get_thread_artifact(
     path: str,
     download: bool = Query(False),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """下载或预览线程文件。"""
     file_path = await resolve_thread_artifact_view(
@@ -925,7 +924,7 @@ async def save_thread_artifact_to_workspace(
     thread_id: str,
     request: SaveThreadArtifactRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """保存交付物到共享 workspace/saved_artifacts 目录。"""
     return await save_thread_artifact_to_workspace_view(
@@ -959,9 +958,9 @@ async def submit_message_feedback(
     message_id: int,
     feedback_data: MessageFeedbackRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
 ):
-    """提交消息反馈（需要登录）"""
+    """提交消息反馈（单用户 owner）"""
     result = await submit_message_feedback_view(
         message_id=message_id,
         rating=feedback_data.rating,
@@ -976,9 +975,9 @@ async def submit_message_feedback(
 async def get_message_feedback(
     message_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
 ):
-    """获取指定消息的用户反馈（需要登录）"""
+    """获取指定消息的用户反馈（单用户 owner）"""
     return await get_message_feedback_view(
         message_id=message_id,
         db=db,
@@ -992,7 +991,7 @@ async def get_message_feedback(
 
 
 @chat.post("/image/upload", response_model=ImageUploadResponse)
-async def upload_image(file: UploadFile = File(...), current_user: User = Depends(get_required_user)):
+async def upload_image(file: UploadFile = File(...), current_user: User = Depends(get_system_owner)):
     """
     上传并处理图片，返回base64编码的图片数据
     """

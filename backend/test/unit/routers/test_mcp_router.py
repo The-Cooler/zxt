@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from server.routers.mcp_router import mcp
-from server.utils.auth_middleware import get_admin_user, get_db
+from server.utils.auth_middleware import get_system_owner, get_db
 from zixuetong.storage.postgres.models_business import User
 
 
@@ -19,12 +19,10 @@ def _build_app() -> FastAPI:
         return User(
             username="admin",
             user_id="admin",
-            password_hash="x",
-            role="admin",
         )
 
     app.dependency_overrides[get_db] = fake_db
-    app.dependency_overrides[get_admin_user] = fake_admin_user
+    app.dependency_overrides[get_system_owner] = fake_admin_user
     return app
 
 

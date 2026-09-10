@@ -38,7 +38,7 @@
 ### 0.6.2 开发记录
 
 <!-- 0.6.2 的内容请放在这里 -->
-- 修复智能体配置初始化失败：在数据库初始化时自动创建 ID=1 的默认部门（个人配置作用域），解决首次访问智能体时因 `departments` 表为空导致的外键约束违规错误。
+- 收敛单用户数据库模型：移除旧部门表、用户与智能体配置中的 `department_id`、固定“个人配置作用域”以及账号登录/角色/软删除字段，系统 owner 仅保留业务归属所需的实体属性；智能体配置直接按 `agent_id` 管理。
 - 移除嵌入模型选择器中的 V1 版本模型，仅保留 V2 版本模型，简化用户选择。
 - 优化分块策略选择器：在选择器下拉菜单中为每个策略选项添加说明文字，帮助用户理解不同策略的适用场景。
 - 简化网页读取输入：将多行 URL 输入改为单行输入框，一次只读取一个网页，简化用户操作流程。
@@ -60,7 +60,7 @@
 - 调整知识库思维导图后端结构：将思维导图路由文件重命名为知识库语义更明确的 router，并把文件列表整理、提示词构建、AI JSON 解析等纯逻辑下沉到知识库 utils。
 - 收敛知识库评估后端结构：将评估指标、单题评估、答案生成提示词和自动基准生成算法下沉到 `knowledge/eval`，`EvaluationService` 保留任务、文件和持久化编排职责。
 - 新增个人工作区预览与管理：提供独立于对话 thread 的用户级 workspace API，并增加“工作区”页面，用于浏览个人 workspace 文件、预览 Markdown/文本/代码/图片/PDF；支持新建文件夹、上传文件、下载文件、删除文件/文件夹和多选删除；工作区预览支持 Markdown/TXT 在右侧预览框内切换编辑并保存，其他格式和非工作区预览默认只读；知识库与团队空间入口先展示到占位层级；默认创建 `agents/AGENTS.md`，并在 Agent 执行时将其内容追加到系统提示词。
-- 加固 JWT 鉴权安全：移除历史默认密钥回退，初始化脚本支持生成并持久化 `JWT_SECRET_KEY` 与 `ZIXUETONG_INSTANCE_ID`，签发和验证令牌时校验 `iss/aud`，并在鉴权阶段拒绝已删除或登录锁定用户继续使用旧令牌访问系统。
+- 收敛为个人单用户模式：移除平台登录、注册、JWT、OIDC、API Key 管理和用户数量统计残留；前端默认系统所有者拥有最高权限，后端保留唯一系统 owner 作为对话、工作区和文件数据归属键。
 - 扩展管理界面交互逻辑重构：将 MCP / Subagents / Skills 三个标签页从「左侧边栏 + 右侧详情面板」布局重构为「卡片式网格布局 + 路由跳转二级页面」布局，工具标签页改为卡片网格布局 + 弹窗详情（保持弹窗内容不变）。新增共享组件 `ExtensionCard`、`ExtensionCardGrid`、`ExtensionToolbar`、`ExtensionDetailLayout`，详情页（`McpDetailView`、`SubagentDetailView`、`SkillDetailView`）使用居中宽度限制，路由规划为 `/extensions/mcp/:name`、`/extensions/subagent/:name`、`/extensions/skill/:slug`。
 - 统一卡片样式：`ExtensionCard` 新增 `tags` prop 支持传入 `[{label, color}]` 数组，内部使用 `<a-tag bordered=false size=small>` 渲染，与知识库卡片标签风格统一；知识库列表页 `DataBaseView` 改用 `ExtensionCard` + `ExtensionCardGrid` 替代原有自定义卡片，移除冗余 card 样式。
 - 调整应用主导航：`AppLayout` 从默认窄栏升级为默认展开的侧边栏，保留折叠态图标导航；侧边栏样式收敛为 14px 文本 + 18px 图标的标准紧凑密度，并统一导航项、任务中心、GitHub、用户信息的图标与文字对齐。折叠态改为仅通过显式按钮展开，避免空白区域误触发。
@@ -69,8 +69,8 @@
 - 统一前端 Markdown 预览渲染：新增共享 `MarkdownPreview` 组件与 `markdown_preview` 渲染工具，替换 Agent 消息、文件预览、知识库 chunk、任务工具结果、聊天导出等场景中的旧 `md-editor-v3/marked` 预览；支持 KaTeX、任务列表、frontmatter 卡片、Shiki 代码高亮、DOMPurify 清洗和浅层渲染缓存，并抽取 HTML 转义与代码语言归一化工具。Skill 详情页复用 `AgentFilePreview`，统一文件预览、编辑、保存和全屏交互。
 - 优化远程 Skill 批量安装：`remote_skill_install_service.py` 新增 `install_remote_skills_batch()`，利用 `npx skills add --skill A --skill B --skill C` 原生多 skill 支持，将安装 N 个 skill 的仓库克隆次数从 2N 降至 1；配套新增路由 `POST /remote/install-batch`、前端 `installRemoteSkillsBatch()` API 方法和批处理 UI 逻辑。
 - 调整内置 `ChatbotAgent` 为学习助手：新增只读学习计划概览接口，空会话展示当前用户 workspace 中登记的学习计划；提示词约束新主题先匹配历史计划、候选知识库需确认后再写入 Markdown 计划。
-- 新增 OpenClaw 集成：接入 OpenClaw Gateway 协议（WebSocket + RPC），实现定期学习通知、历史警告学习、双向知识共享；新增通知系统（Notification 模型/服务/API/前端铃铛组件）；新增知识库 MCP 服务器（`zixuetong-knowledge-mcp`），将知识库查询能力暴露为 MCP 工具供 OpenClaw 直接调用；新增 `openclaw-zixuetong` Skill 和 `query_openclaw`/`share_knowledge_to_openclaw` Agent 工具。
-- 优化 OpenClaw 学习提醒：调度器改为收集用户学习计划数据（主题、状态、更新时间）和活跃度信息，由 OpenClaw 智能体根据学习内容难度和进度动态决定是否提醒及提醒内容，不再无差别广播；所有消息交互使用 Pydantic BaseModel 封装，发送请求时明确期望返回格式；新增通过 OpenClaw ClawBot 插件的微信推送能力，推送失败时自动创建站内通知告知管理员。
+- 移除 OpenClaw Gateway 集成及其 WebSocket/RPC 配置、学习提醒调度器、历史警告学习、双向知识共享和 Agent 工具；保留通用站内通知能力。
+- 新增独立 ClawBot 微信互通：后端直接调用微信 iLink Bot HTTP 接口，不依赖 OpenClaw Gateway 或插件宿主；支持系统设置扫码连接、状态查询、微信文字消息接收及学习助手回复。
 - 更新正式文档：补充网页读取会话、清洗结果编辑、入库模式、学习助手文件约定和导航入口，并移除面向用户的 JSONL 三元组导入说明。
 - 新增树状对话：用户可从指定消息创建子线程；线程元数据保存父线程、分支消息和分支点上下文快照；子线程首次提问继承该快照，前端侧栏按父子关系展示对话树，并提供“从此处分支”操作。该实现采用元数据关系和显式上下文快照，暂不包含 DAG 多父合并、引用边或画布编辑能力。
 

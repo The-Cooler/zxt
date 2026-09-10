@@ -20,7 +20,6 @@ import { useChatUIStore } from '@/stores/chatUI'
 import { useDatabaseStore } from '@/stores/database'
 import { useInfoStore } from '@/stores/info'
 import { useTaskerStore } from '@/stores/tasker'
-import { useUserStore } from '@/stores/user'
 import { storeToRefs } from 'pinia'
 import UserInfoComponent from '@/components/UserInfoComponent.vue'
 import DebugComponent from '@/components/DebugComponent.vue'
@@ -36,7 +35,6 @@ const chatUIStore = useChatUIStore()
 const databaseStore = useDatabaseStore()
 const infoStore = useInfoStore()
 const taskerStore = useTaskerStore()
-const userStore = useUserStore()
 const { activeCount: activeCountRef, isDrawerOpen } = storeToRefs(taskerStore)
 const { threads, currentThreadId, hasMoreThreads, isLoadingMoreThreads } =
   storeToRefs(chatThreadsStore)
@@ -65,7 +63,6 @@ const handleDebugModalClose = () => {
 }
 
 const getRemoteConfig = async () => {
-  if (!userStore.isAdmin) return
   try {
     await configStore.refreshConfig()
   } catch (error) {
@@ -85,11 +82,8 @@ onMounted(async () => {
   // 加载信息配置与知识库数据无依赖，可并行
   await Promise.all([infoStore.loadInfoConfig(), getRemoteDatabase()])
   await initAgentNavigation()
-  // 仅管理员加载系统配置和任务中心数据
-  if (userStore.isAdmin) {
-    await getRemoteConfig()
-    taskerStore.loadTasks()
-  }
+  await getRemoteConfig()
+  taskerStore.loadTasks()
 })
 
 const route = useRoute()
@@ -121,38 +115,36 @@ const mainList = computed(() => {
     activeIcon: FolderKanban
   })
 
-  if (userStore.isAdmin) {
-    if (!isLiteMode) {
-      items.push({
-        name: '知识库',
-        path: '/database',
-        activePaths: ['/database', '/graph'],
-        icon: LibraryBig,
-        activeIcon: LibraryBig
-      })
-    }
-
+  if (!isLiteMode) {
     items.push({
-      name: '扩展管理',
-      path: '/extensions',
-      icon: Blocks,
-      activeIcon: Blocks
-    })
-
-    items.push({
-      name: '模型配置',
-      path: '/model-config',
-      icon: Box,
-      activeIcon: Box
-    })
-
-    items.push({
-      name: 'Dashboard',
-      path: '/dashboard',
-      icon: BarChart3,
-      activeIcon: BarChart3
+      name: '知识库',
+      path: '/database',
+      activePaths: ['/database', '/graph'],
+      icon: LibraryBig,
+      activeIcon: LibraryBig
     })
   }
+
+  items.push({
+    name: '扩展管理',
+    path: '/extensions',
+    icon: Blocks,
+    activeIcon: Blocks
+  })
+
+  items.push({
+    name: '模型配置',
+    path: '/model-config',
+    icon: Box,
+    activeIcon: Box
+  })
+
+  items.push({
+    name: 'Dashboard',
+    path: '/dashboard',
+    icon: BarChart3,
+    activeIcon: BarChart3
+  })
 
   return items
 })
@@ -310,7 +302,7 @@ provide('settingsModal', {
         <!-- 用户信息组件 -->
         <div class="nav-item user-info" @click.stop>
           <UserInfoComponent :show-role="!sidebarCollapsed">
-            <template v-if="userStore.isAdmin" #actions>
+            <template #actions>
               <a-tooltip placement="top" title="通知">
                 <NotificationBell />
               </a-tooltip>
@@ -357,7 +349,7 @@ provide('settingsModal', {
     >
       <DebugComponent />
     </a-modal>
-    <TaskCenterDrawer v-if="userStore.isAdmin" />
+    <TaskCenterDrawer />
     <SettingsModal v-model:visible="showSettingsModal" @close="() => (showSettingsModal = false)" />
   </div>
 </template>

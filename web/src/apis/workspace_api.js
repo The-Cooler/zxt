@@ -45,5 +45,5 @@ export const uploadWorkspaceFile = (parentPath, file) => {
 
 export const downloadWorkspaceFile = (path) => {
   const query = buildQuery({ path })
-  return apiGet(`/api/workspace/download?${query}`, {}, true, 'blob')
+  return apiGet(`/api/workspace/download?${query}`, {}, 'blob')
 }

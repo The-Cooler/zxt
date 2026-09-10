@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse
 from starlette.responses import StreamingResponse
 
 from zixuetong.services.task_service import TaskContext, tasker
-from server.utils.auth_middleware import get_admin_user, get_required_user
+from server.utils.auth_middleware import get_system_owner
 from zixuetong import config, knowledge_base
 from zixuetong.knowledge.chunking.ragflow_like.presets import ensure_chunk_defaults_in_additional_params
 from zixuetong.plugins.parser import Parser, SUPPORTED_FILE_EXTENSIONS, is_supported_file_extension
@@ -116,8 +116,8 @@ def _find_cleaned_page(session: WebReadSession, source_url: str) -> tuple[int, C
 
 
 @knowledge.get("/databases")
-async def get_databases(current_user: User = Depends(get_admin_user)):
-    """获取所有知识库（根据用户权限过滤）"""
+async def get_databases(current_user: User = Depends(get_system_owner)):
+    """获取当前单用户 owner 可访问的知识库。"""
     try:
         return await knowledge_base.get_databases_by_user_id(current_user.user_id)
     except Exception as e:
@@ -133,7 +133,7 @@ async def create_database(
     kb_type: str = Body("lightrag"),
     additional_params: dict = Body({}),
     llm_info: dict = Body(None),
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """创建知识库"""
     logger.debug(
@@ -213,7 +213,7 @@ async def create_database(
 
 
 @knowledge.get("/databases/accessible")
-async def get_accessible_databases(current_user: User = Depends(get_required_user)):
+async def get_accessible_databases(current_user: User = Depends(get_system_owner)):
     """获取当前用户有权访问的知识库列表（用于智能体配置）"""
     try:
         databases = await knowledge_base.get_databases_by_user_id(current_user.user_id)
@@ -234,7 +234,7 @@ async def get_accessible_databases(current_user: User = Depends(get_required_use
 
 
 @knowledge.get("/databases/{db_id}")
-async def get_database_info(db_id: str, current_user: User = Depends(get_admin_user)):
+async def get_database_info(db_id: str, current_user: User = Depends(get_system_owner)):
     """获取知识库详细信息"""
     database = await knowledge_base.get_database_info(db_id)
     if database is None:
@@ -249,7 +249,7 @@ async def update_database_info(
     description: str = Body(...),
     llm_info: dict = Body(None),
     additional_params: dict | None = Body(None),
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """更新知识库信息"""
     logger.debug(
@@ -274,7 +274,7 @@ async def update_database_info(
 
 
 @knowledge.delete("/databases/{db_id}")
-async def delete_database(db_id: str, current_user: User = Depends(get_admin_user)):
+async def delete_database(db_id: str, current_user: User = Depends(get_system_owner)):
     """删除知识库"""
     logger.debug(f"Delete database {db_id}")
     try:
@@ -296,7 +296,7 @@ async def export_database(
     db_id: str,
     format: str = Query("csv", enum=["csv", "xlsx", "md", "txt"]),
     include_vectors: bool = Query(False, description="是否在导出中包含向量数据"),
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """导出知识库数据"""
     logger.debug(f"Exporting database {db_id} with format {format}")
@@ -324,7 +324,7 @@ async def export_database(
 
 @knowledge.post("/databases/{db_id}/documents")
 async def add_documents(
-    db_id: str, items: list[str] = Body(...), params: dict = Body(...), current_user: User = Depends(get_admin_user)
+    db_id: str, items: list[str] = Body(...), params: dict = Body(...), current_user: User = Depends(get_system_owner)
 ):
     """添加文档到知识库（上传 -> 解析 -> 可选入库）"""
     logger.debug(f"Add documents for db_id {db_id}: {items} {params=}")
@@ -534,7 +534,7 @@ async def create_web_reader_session(
     url: str = Body(...),
     db_id: str = Body(...),
     max_depth: int | None = Body(None),
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """创建网页读取会话，抓取初始页和第一层同域 HTML 候选页。优先复用已有缓存。"""
     embed_info = await _get_database_embed_info(db_id)
@@ -639,7 +639,7 @@ async def create_web_reader_session(
 async def expand_web_reader_session(
     session_id: str,
     urls: list[str] = Body(..., embed=True),
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """展开已发现的 URL，并把下一层同域 HTML 链接合并进会话字典。"""
     try:
@@ -737,7 +737,7 @@ async def expand_web_reader_session(
 async def update_web_reader_selection(
     session_id: str,
     selected_urls: list[str] = Body(..., embed=True),
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """更新准备入库的子页面选择。root 页面默认总会入库，不需要选择。"""
     try:
@@ -765,7 +765,7 @@ async def update_web_reader_selection(
 async def preview_web_reader_page(
     session_id: str,
     url: str = Query(...),
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """返回网页读取会话中的页面 HTML，用于 sandbox iframe 预览。"""
     try:
@@ -801,7 +801,7 @@ async def preview_web_reader_page(
 @knowledge.post("/web-reader/sessions/{session_id}/clean")
 async def clean_web_reader_session(
     session_id: str,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """抓取已选择页面，清洗为 Markdown 文件，并保存清洗产物到会话。"""
     try:
@@ -864,7 +864,7 @@ async def clean_web_reader_session(
 async def get_cleaned_web_reader_page(
     session_id: str,
     source_url: str = Query(...),
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """读取某个清洗结果的 Markdown 内容，供用户审阅。"""
     try:
@@ -890,7 +890,7 @@ async def update_cleaned_web_reader_page(
     session_id: str,
     source_url: str = Body(...),
     content: str = Body(...),
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """保存用户编辑后的清洗 Markdown，并更新会话中的文件元数据。"""
     try:
@@ -936,7 +936,7 @@ async def update_cleaned_web_reader_page(
 async def delete_cleaned_web_reader_page(
     session_id: str,
     source_url: str = Query(...),
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """从本次入库候选中移除某个清洗结果。"""
     try:
@@ -968,7 +968,7 @@ async def commit_web_reader_session(
     auto_index: bool = Body(False),
     parent_id: str | None = Body(None),
     chunk_params: dict | None = Body(None),
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """将 root 页面和已选择子页面上传为 HTML，并复用文档处理任务入库。"""
     try:
@@ -1039,7 +1039,7 @@ async def commit_web_reader_session(
 
 
 @knowledge.post("/databases/{db_id}/documents/parse")
-async def parse_documents(db_id: str, file_ids: list[str] = Body(...), current_user: User = Depends(get_admin_user)):
+async def parse_documents(db_id: str, file_ids: list[str] = Body(...), current_user: User = Depends(get_system_owner)):
     """手动触发文档解析"""
     logger.debug(f"Parse documents for db_id {db_id}: {file_ids}")
 
@@ -1091,7 +1091,7 @@ async def index_documents(
     db_id: str,
     file_ids: list[str] = Body(...),
     params: dict = Body({}),
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """手动触发文档入库（Indexing），支持更新参数"""
     logger.debug(f"Index documents for db_id {db_id}: {file_ids} {params=}")
@@ -1199,7 +1199,7 @@ async def index_documents(
 
 
 @knowledge.get("/databases/{db_id}/documents/{doc_id}")
-async def get_document_info(db_id: str, doc_id: str, current_user: User = Depends(get_admin_user)):
+async def get_document_info(db_id: str, doc_id: str, current_user: User = Depends(get_system_owner)):
     """获取文档详细信息（包含基本信息和内容信息）"""
     logger.debug(f"GET document {doc_id} info in {db_id}")
 
@@ -1212,7 +1212,7 @@ async def get_document_info(db_id: str, doc_id: str, current_user: User = Depend
 
 
 @knowledge.get("/databases/{db_id}/documents/{doc_id}/basic")
-async def get_document_basic_info(db_id: str, doc_id: str, current_user: User = Depends(get_admin_user)):
+async def get_document_basic_info(db_id: str, doc_id: str, current_user: User = Depends(get_system_owner)):
     """获取文档基本信息（仅元数据）"""
     logger.debug(f"GET document {doc_id} basic info in {db_id}")
 
@@ -1225,7 +1225,7 @@ async def get_document_basic_info(db_id: str, doc_id: str, current_user: User = 
 
 
 @knowledge.get("/databases/{db_id}/documents/{doc_id}/content")
-async def get_document_content(db_id: str, doc_id: str, current_user: User = Depends(get_admin_user)):
+async def get_document_content(db_id: str, doc_id: str, current_user: User = Depends(get_system_owner)):
     """获取文档内容信息（chunks和lines）"""
     logger.debug(f"GET document {doc_id} content in {db_id}")
 
@@ -1239,7 +1239,7 @@ async def get_document_content(db_id: str, doc_id: str, current_user: User = Dep
 
 @knowledge.delete("/databases/{db_id}/documents/batch")
 async def batch_delete_documents(
-    db_id: str, file_ids: list[str] = Body(...), current_user: User = Depends(get_admin_user)
+    db_id: str, file_ids: list[str] = Body(...), current_user: User = Depends(get_system_owner)
 ):
     """批量删除文档或文件夹"""
     logger.debug(f"BATCH DELETE documents {file_ids} in {db_id}")
@@ -1291,7 +1291,7 @@ async def batch_delete_documents(
 
 
 @knowledge.delete("/databases/{db_id}/documents/{doc_id}")
-async def delete_document(db_id: str, doc_id: str, current_user: User = Depends(get_admin_user)):
+async def delete_document(db_id: str, doc_id: str, current_user: User = Depends(get_system_owner)):
     """删除文档或文件夹"""
     logger.debug(f"DELETE document {doc_id} info in {db_id}")
     try:
@@ -1325,7 +1325,7 @@ async def delete_document(db_id: str, doc_id: str, current_user: User = Depends(
 
 
 @knowledge.get("/databases/{db_id}/documents/{doc_id}/download")
-async def download_document(db_id: str, doc_id: str, request: Request, current_user: User = Depends(get_admin_user)):
+async def download_document(db_id: str, doc_id: str, request: Request, current_user: User = Depends(get_system_owner)):
     """下载原始文件 - 根据path类型选择本地或MinIO下载"""
     logger.debug(f"Download document {doc_id} from {db_id}")
     try:
@@ -1465,7 +1465,7 @@ async def download_document(db_id: str, doc_id: str, request: Request, current_u
 
 @knowledge.post("/databases/{db_id}/query")
 async def query_knowledge_base(
-    db_id: str, query: str = Body(...), meta: dict = Body(...), current_user: User = Depends(get_admin_user)
+    db_id: str, query: str = Body(...), meta: dict = Body(...), current_user: User = Depends(get_system_owner)
 ):
     """查询知识库"""
     logger.debug(f"Query knowledge base {db_id}: {query}")
@@ -1479,7 +1479,7 @@ async def query_knowledge_base(
 
 @knowledge.post("/databases/{db_id}/query-test")
 async def query_test(
-    db_id: str, query: str = Body(...), meta: dict = Body(...), current_user: User = Depends(get_admin_user)
+    db_id: str, query: str = Body(...), meta: dict = Body(...), current_user: User = Depends(get_system_owner)
 ):
     """测试查询知识库"""
     logger.debug(f"Query test in {db_id}: {query}")
@@ -1493,7 +1493,7 @@ async def query_test(
 
 @knowledge.put("/databases/{db_id}/query-params")
 async def update_knowledge_base_query_params(
-    db_id: str, params: dict = Body(...), current_user: User = Depends(get_admin_user)
+    db_id: str, params: dict = Body(...), current_user: User = Depends(get_system_owner)
 ):
     """更新知识库查询参数配置"""
     try:
@@ -1532,7 +1532,7 @@ async def update_knowledge_base_query_params(
 
 
 @knowledge.get("/databases/{db_id}/query-params")
-async def get_knowledge_base_query_params(db_id: str, current_user: User = Depends(get_admin_user)):
+async def get_knowledge_base_query_params(db_id: str, current_user: User = Depends(get_system_owner)):
     """获取知识库类型特定的查询参数"""
     try:
         # 获取知识库实例
@@ -1599,7 +1599,7 @@ SAMPLE_QUESTIONS_SYSTEM_PROMPT = """你是一个专业的知识库问答测试�
 async def generate_sample_questions(
     db_id: str,
     request_body: dict = Body(...),
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """
     AI生成针对知识库的测试问题
@@ -1717,7 +1717,7 @@ async def generate_sample_questions(
 
 
 @knowledge.get("/databases/{db_id}/sample-questions")
-async def get_sample_questions(db_id: str, current_user: User = Depends(get_admin_user)):
+async def get_sample_questions(db_id: str, current_user: User = Depends(get_system_owner)):
     """
     获取知识库的测试问题
 
@@ -1762,7 +1762,7 @@ async def create_folder(
     db_id: str,
     folder_name: str = Body(..., embed=True),
     parent_id: str | None = Body(None, embed=True),
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """创建文件夹"""
     try:
@@ -1777,7 +1777,7 @@ async def move_document(
     db_id: str,
     doc_id: str,
     new_parent_id: str | None = Body(..., embed=True),
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """移动文件或文件夹"""
     logger.debug(f"Move document {doc_id} to {new_parent_id} in {db_id}")
@@ -1795,7 +1795,7 @@ async def upload_file(
     file: UploadFile = File(...),
     db_id: str | None = Query(None),
     allow_jsonl: bool = Query(False),
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """上传文件"""
     if not file.filename:
@@ -1860,14 +1860,14 @@ async def upload_file(
 
 
 @knowledge.get("/files/supported-types")
-async def get_supported_file_types(current_user: User = Depends(get_admin_user)):
+async def get_supported_file_types(current_user: User = Depends(get_system_owner)):
     """获取当前支持的文件类型"""
     return {"message": "success", "file_types": sorted(SUPPORTED_FILE_EXTENSIONS)}
 
 
 @knowledge.post("/files/markdown")
-async def mark_it_down(file: UploadFile = File(...), current_user: User = Depends(get_admin_user)):
-    """调用统一 Parser 将文件解析为 markdown，需要管理员权限"""
+async def mark_it_down(file: UploadFile = File(...), current_user: User = Depends(get_system_owner)):
+    """调用统一 Parser 将文件解析为 markdown，单用户 owner 可用。"""
     import tempfile
 
     if not file.filename:
@@ -1904,7 +1904,7 @@ async def mark_it_down(file: UploadFile = File(...), current_user: User = Depend
 
 
 @knowledge.get("/types")
-async def get_knowledge_base_types(current_user: User = Depends(get_admin_user)):
+async def get_knowledge_base_types(current_user: User = Depends(get_system_owner)):
     """获取支持的知识库类型"""
     try:
         kb_types = knowledge_base.get_supported_kb_types()
@@ -1915,7 +1915,7 @@ async def get_knowledge_base_types(current_user: User = Depends(get_admin_user))
 
 
 @knowledge.get("/stats")
-async def get_knowledge_base_statistics(current_user: User = Depends(get_admin_user)):
+async def get_knowledge_base_statistics(current_user: User = Depends(get_system_owner)):
     """获取知识库统计信息"""
     try:
         stats = await knowledge_base.get_statistics()
@@ -1931,7 +1931,7 @@ async def get_knowledge_base_statistics(current_user: User = Depends(get_admin_u
 
 
 @knowledge.get("/embedding-models/{model_id}/status")
-async def get_embedding_model_status(model_id: str, current_user: User = Depends(get_admin_user)):
+async def get_embedding_model_status(model_id: str, current_user: User = Depends(get_system_owner)):
     """获取指定embedding模型的状态"""
     logger.debug(f"Checking embedding model status: {model_id}")
     try:
@@ -1946,7 +1946,7 @@ async def get_embedding_model_status(model_id: str, current_user: User = Depends
 
 
 @knowledge.get("/embedding-models/status")
-async def get_all_embedding_models_status(current_user: User = Depends(get_admin_user)):
+async def get_all_embedding_models_status(current_user: User = Depends(get_system_owner)):
     """获取所有embedding模型的状态"""
     logger.debug("Checking all embedding models status")
     try:
@@ -1967,7 +1967,7 @@ async def generate_description(
     name: str = Body(..., description="知识库名称"),
     current_description: str = Body("", description="当前描述（可选，用于优化）"),
     file_list: list[str] = Body([], description="文件列表"),
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """使用 LLM 生成或优化知识库描述
 

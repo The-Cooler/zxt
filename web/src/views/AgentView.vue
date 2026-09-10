@@ -59,7 +59,6 @@
                   </button>
 
                   <button
-                    v-if="userStore.isAdmin"
                     type="button"
                     class="config-dropdown-item action-item"
                     @click="openCreateConfigModal"
@@ -95,7 +94,7 @@
               <span class="hide-text">文件</span>
             </button>
             <div
-              v-if="userStore.isAdmin && selectedAgentId"
+              v-if="selectedAgentId"
               ref="moreButtonRef"
               type="button"
               class="agent-nav-btn"
@@ -117,7 +116,6 @@
 
       <!-- 反馈模态框 -->
       <FeedbackModalComponent
-        v-if="userStore.isAdmin"
         ref="feedbackModal"
         :agent-id="selectedAgentId"
       />
@@ -137,7 +135,7 @@
       <Teleport to="body">
         <Transition name="menu-fade">
           <div
-            v-if="userStore.isAdmin && chatUIStore.moreMenuOpen"
+            v-if="chatUIStore.moreMenuOpen"
             ref="moreMenuRef"
             class="more-popup-menu"
             :style="{
@@ -177,7 +175,6 @@ import { useRoute, useRouter } from 'vue-router'
 import AgentChatComponent from '@/components/AgentChatComponent.vue'
 import AgentConfigSidebar from '@/components/AgentConfigSidebar.vue'
 import FeedbackModalComponent from '@/components/dashboard/FeedbackModalComponent.vue'
-import { useUserStore } from '@/stores/user'
 import { useAgentStore } from '@/stores/agent'
 import { useChatUIStore } from '@/stores/chatUI'
 import { ChatExporter } from '@/utils/chatExporter'
@@ -191,7 +188,6 @@ const feedbackModal = ref(null)
 const chatComponentRef = ref(null)
 
 // Stores
-const userStore = useUserStore()
 const agentStore = useAgentStore()
 const chatUIStore = useChatUIStore()
 const route = useRoute()
@@ -325,7 +321,6 @@ const openKnowledgeConfig = () => {
 }
 
 const openCreateConfigModal = () => {
-  if (!userStore.isAdmin) return
   configDropdownOpen.value = false
   createConfigName.value = ''
   createConfigModalOpen.value = true
@@ -337,7 +332,7 @@ const closeCreateConfigModal = () => {
 }
 
 const handleCreateConfig = async () => {
-  if (!userStore.isAdmin || !selectedAgentId.value) return
+  if (!selectedAgentId.value) return
 
   const name = createConfigName.value.trim()
   if (!name) {

@@ -22,36 +22,21 @@
           <div
             class="sider-item"
             :class="{ activesec: activeTab === 'base' }"
-            @click="activeTab = 'base'"
-            v-if="userStore.isAdmin"
-          >
+            @click="activeTab = 'base'"          >
             <Settings class="icon" :size="18" />
             <span>基本设置</span>
           </div>
           <div
             class="sider-item"
             :class="{ activesec: activeTab === 'model' }"
-            @click="activeTab = 'model'"
-            v-if="userStore.isSuperAdmin"
-          >
+            @click="activeTab = 'model'"          >
             <SquareCode class="icon" :size="18" />
             <span>模型配置</span>
           </div>
           <div
             class="sider-item"
-            :class="{ activesec: activeTab === 'apikey' }"
-            @click="activeTab = 'apikey'"
-            v-if="userStore.isLoggedIn"
-          >
-            <KeyIcon class="icon" :size="18" />
-            <span>API Key</span>
-          </div>
-          <div
-            class="sider-item"
             :class="{ activesec: activeTab === 'clawbot' }"
-            @click="activeTab = 'clawbot'"
-            v-if="userStore.isAdmin"
-          >
+            @click="activeTab = 'clawbot'"          >
             <Plug class="icon" :size="18" />
             <span>ClawBot</span>
           </div>
@@ -65,7 +50,6 @@
           class="nav-item"
           :class="{ active: activeTab === 'base' }"
           @click="activeTab = 'base'"
-          v-if="userStore.isAdmin"
         >
           基本设置
         </div>
@@ -73,23 +57,13 @@
           class="nav-item"
           :class="{ active: activeTab === 'model' }"
           @click="activeTab = 'model'"
-          v-if="userStore.isSuperAdmin"
         >
           模型配置
         </div>
         <div
           class="nav-item"
-          :class="{ active: activeTab === 'apikey' }"
-          @click="activeTab = 'apikey'"
-          v-if="userStore.isLoggedIn"
-        >
-          API Key
-        </div>
-        <div
-          class="nav-item"
           :class="{ active: activeTab === 'clawbot' }"
           @click="activeTab = 'clawbot'"
-          v-if="userStore.isAdmin"
         >
           ClawBot
         </div>
@@ -98,19 +72,15 @@
       <!-- 内容区域 -->
       <div class="settings-content-wrapper">
         <div class="settings-content">
-          <div v-show="activeTab === 'base'" v-if="userStore.isAdmin">
+          <div v-show="activeTab === 'base'">
             <BasicSettingsSection />
           </div>
 
-          <div v-show="activeTab === 'model'" v-if="userStore.isSuperAdmin">
+          <div v-show="activeTab === 'model'">
             <ModelProvidersComponent />
           </div>
 
-          <div v-show="activeTab === 'apikey'" v-if="userStore.isLoggedIn">
-            <ApiKeyManagementComponent />
-          </div>
-
-          <div v-show="activeTab === 'clawbot'" v-if="userStore.isAdmin">
+          <div v-show="activeTab === 'clawbot'">
             <ClawBotSettingsSection />
           </div>
         </div>
@@ -121,9 +91,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { useUserStore } from '@/stores/user'
 import {
-  Key as KeyIcon,
   Settings,
   SquareCode,
   Plug,
@@ -131,7 +99,6 @@ import {
 } from 'lucide-vue-next'
 import BasicSettingsSection from '@/components/BasicSettingsSection.vue'
 import ModelProvidersComponent from '@/components/ModelProvidersComponent.vue'
-import ApiKeyManagementComponent from '@/components/ApiKeyManagementComponent.vue'
 import ClawBotSettingsSection from '@/components/ClawBotSettingsSection.vue'
 
 const props = defineProps({
@@ -143,7 +110,6 @@ const props = defineProps({
 
 const emit = defineEmits(['update:visible', 'close'])
 
-const userStore = useUserStore()
 const activeTab = ref('base')
 
 const visible = computed({
@@ -155,16 +121,12 @@ const handleClose = () => {
   emit('close')
 }
 
-// 根据用户权限设置默认标签页
+// 打开设置时始终从基本设置开始
 watch(
   () => props.visible,
   (newVal) => {
     if (newVal) {
-      if (userStore.isAdmin) {
-        activeTab.value = 'base'
-      } else if (userStore.isLoggedIn) {
-        activeTab.value = 'apikey'
-      }
+      activeTab.value = 'base'
     }
   }
 )
@@ -377,8 +339,7 @@ watch(
     flex: 1;
     min-height: 0;
 
-    .model-providers-section,
-    .apikey-management {
+    .model-providers-section {
       min-height: auto;
     }
 

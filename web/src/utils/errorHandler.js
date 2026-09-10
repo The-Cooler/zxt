@@ -68,7 +68,7 @@ export class ErrorHandler {
     if (error?.code === 'NETWORK_ERROR') {
       customMessage = '网络连接失败，请检查网络设置'
     } else if (error?.status === 401) {
-      customMessage = '认证失败，请重新登录'
+      customMessage = '请求未获授权，请检查服务状态'
     } else if (error?.status === 403) {
       customMessage = '权限不足，无法执行此操作'
     } else if (error?.status === 404) {

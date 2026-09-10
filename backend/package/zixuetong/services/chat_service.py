@@ -308,7 +308,6 @@ def _build_langfuse_run_context(
         agent_config_id=agent_config_id,
         message_type=message_type,
         username=getattr(current_user, "username", None),
-        login_user_id=getattr(current_user, "user_id", None),
     )
 
 
@@ -617,7 +616,7 @@ async def get_agent_config_by_id(db, user: User, agent_config_id: int):
     """按配置 ID 解析 AgentConfig 记录。"""
     agent_config_repo = AgentConfigRepository(db)
     config_item = await agent_config_repo.get_by_id(config_id=int(agent_config_id))
-    if config_item is None or config_item.department_id != agent_config_repo.personal_scope_id():
+    if config_item is None:
         raise ValueError("配置不存在")
 
     return config_item

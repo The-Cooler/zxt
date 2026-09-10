@@ -15,18 +15,16 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 _LITE_MODE = os.getenv("LITE_MODE", "").lower() in {"true", "1"}
 
 
-async def test_task_routes_require_admin(test_client, standard_user):
-    """Non-admin users should be blocked from accessing task APIs."""
-    headers = standard_user["headers"]
+async def test_task_routes_are_available_to_single_user(test_client):
+    """Single-user mode exposes task APIs to the system owner without login headers."""
+    list_response = await test_client.get("/api/tasks")
+    assert list_response.status_code == 200, list_response.text
 
-    list_response = await test_client.get("/api/tasks", headers=headers)
-    assert list_response.status_code == 403
+    detail_response = await test_client.get("/api/tasks/some-task")
+    assert detail_response.status_code in (400, 404), detail_response.text
 
-    detail_response = await test_client.get("/api/tasks/some-task", headers=headers)
-    assert detail_response.status_code == 403
-
-    cancel_response = await test_client.post("/api/tasks/some-task/cancel", headers=headers)
-    assert cancel_response.status_code == 403
+    cancel_response = await test_client.post("/api/tasks/some-task/cancel")
+    assert cancel_response.status_code in (400, 404), cancel_response.text
 
 
 async def test_admin_can_list_tasks(test_client, admin_headers):

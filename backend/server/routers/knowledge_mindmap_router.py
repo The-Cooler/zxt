@@ -11,7 +11,7 @@ import traceback
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 
-from server.utils.auth_middleware import get_admin_user
+from server.utils.auth_middleware import get_system_owner
 from zixuetong import config, knowledge_base
 from zixuetong.knowledge.utils.mindmap_utils import (
     MINDMAP_SYSTEM_PROMPT,
@@ -28,7 +28,7 @@ mindmap = APIRouter(prefix="/mindmap", tags=["mindmap"])
 
 
 @mindmap.get("/databases/{db_id}/files")
-async def get_database_files(db_id: str, current_user: User = Depends(get_admin_user)):
+async def get_database_files(db_id: str, current_user: User = Depends(get_system_owner)):
     """获取指定知识库的所有文件列表。"""
     try:
         db_info = await knowledge_base.get_database_info(db_id)
@@ -56,7 +56,7 @@ async def generate_mindmap(
     db_id: str = Body(..., description="知识库ID"),
     file_ids: list[str] = Body(default=[], description="选择的文件ID列表"),
     user_prompt: str = Body(default="", description="用户自定义提示词"),
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """使用 AI 分析知识库文件，生成思维导图结构。"""
     try:
@@ -125,7 +125,7 @@ async def generate_mindmap(
 
 
 @mindmap.get("/databases")
-async def get_databases_overview(current_user: User = Depends(get_admin_user)):
+async def get_databases_overview(current_user: User = Depends(get_system_owner)):
     """获取所有知识库的概览信息，用于思维导图界面选择。"""
     try:
         databases = await knowledge_base.get_databases_by_user_id(current_user.user_id)
@@ -155,7 +155,7 @@ async def get_databases_overview(current_user: User = Depends(get_admin_user)):
 
 
 @mindmap.get("/database/{db_id}")
-async def get_database_mindmap(db_id: str, current_user: User = Depends(get_admin_user)):
+async def get_database_mindmap(db_id: str, current_user: User = Depends(get_system_owner)):
     """获取知识库关联的思维导图。"""
     try:
         from zixuetong.repositories.knowledge_base_repository import KnowledgeBaseRepository

@@ -8,7 +8,7 @@
         </div>
         <div class="header-actions">
           <a-tooltip
-            v-if="!isEmptyConfig && userStore.isAdmin"
+            v-if="!isEmptyConfig"
             :title="isCurrentDefault ? '当前已是默认配置' : '设为默认配置'"
           >
             <button
@@ -44,7 +44,6 @@
         <div
           v-if="selectedAgentId && configurableItems"
           class="config-form-content"
-          :class="{ 'is-readonly': isReadOnlyConfig }"
         >
           <!-- 配置表单 -->
           <a-form :model="agentConfig" layout="vertical" class="config-form">
@@ -65,7 +64,6 @@
                 <div
                   v-if="value.template_metadata.kind === 'llm'"
                   class="model-selector"
-                  :class="{ 'is-readonly': isReadOnlyConfig }"
                 >
                   <ModelSelectorComponent
                     @select-model="(spec) => handleModelChange(key, spec)"
@@ -86,7 +84,7 @@
                       {{ agentConfig[key] || getPlaceholder(key, value) }}
                     </div>
                     <div class="edit-hint">
-                      {{ isReadOnlyConfig ? '查看' : '点击查看并编辑' }}
+                      点击查看并编辑
                     </div>
                   </div>
                 </div>
@@ -95,7 +93,6 @@
                 <a-switch
                   v-else-if="typeof agentConfig[key] === 'boolean'"
                   :checked="agentConfig[key]"
-                  :disabled="isReadOnlyConfig"
                   @update:checked="(val) => updateConfigValue(key, val)"
                 />
 
@@ -105,7 +102,6 @@
                     value?.options.length > 0 && (value?.type === 'str' || value?.type === 'select')
                   "
                   :value="agentConfig[key]"
-                  :disabled="isReadOnlyConfig"
                   @update:value="(val) => updateConfigValue(key, val)"
                   class="config-select"
                 >
@@ -123,7 +119,7 @@
                         >已选择 {{ getSelectedCount(key) }} 项 | 共
                         {{ getConfigOptions(value).length }} 项</span
                       >
-                      <div v-if="!isReadOnlyConfig" class="label-actions">
+                        <div class="label-actions">
                         <a-button
                           type="link"
                           size="small"
@@ -159,19 +155,14 @@
 
                     <div class="options-grid">
                       <div
-                        v-for="option in isReadOnlyConfig
-                          ? getConfigOptions(value).filter((opt) =>
-                              isOptionSelected(key, getOptionValue(opt))
-                            )
-                          : getConfigOptions(value)"
+                        v-for="option in getConfigOptions(value)"
                         :key="getOptionValue(option)"
                         class="option-card"
                         :class="{
                           selected: isOptionSelected(key, getOptionValue(option)),
-                          unselected: !isOptionSelected(key, getOptionValue(option)),
-                          readonly: isReadOnlyConfig
+                          unselected: !isOptionSelected(key, getOptionValue(option))
                         }"
-                        @click="!isReadOnlyConfig && toggleOption(key, getOptionValue(option))"
+                        @click="toggleOption(key, getOptionValue(option))"
                       >
                         <div class="option-content">
                           <span class="option-text">{{ getOptionLabel(option) }}</span>
@@ -198,7 +189,7 @@
                         >
 
                         <a-button
-                          v-if="!isReadOnlyConfig && getSelectedCount(key) > 0"
+                          v-if="getSelectedCount(key) > 0"
                           type="link"
                           size="small"
                           class="clear-btn"
@@ -209,7 +200,6 @@
                       </div>
 
                       <a-button
-                        v-if="!isReadOnlyConfig"
                         type="primary"
                         size="small"
                         class="selection-trigger-btn"
@@ -225,7 +215,7 @@
                       <a-tag
                         v-for="val in agentConfig[key]"
                         :key="val"
-                        :closable="!isReadOnlyConfig"
+                        :closable="true"
                         @close="toggleOption(key, val)"
                         class="selection-tag"
                       >
@@ -241,7 +231,6 @@
                     value?.type === 'number' || value?.type === 'int' || value?.type === 'float'
                   "
                   :value="agentConfig[key]"
-                  :disabled="isReadOnlyConfig"
                   @update:value="(val) => updateConfigValue(key, val)"
                   :placeholder="getPlaceholder(key, value)"
                   class="config-input-number"
@@ -251,7 +240,6 @@
                 <a-slider
                   v-else-if="value?.type === 'slider'"
                   :value="agentConfig[key]"
-                  :disabled="isReadOnlyConfig"
                   @update:value="(val) => updateConfigValue(key, val)"
                   :min="value.min"
                   :max="value.max"
@@ -263,7 +251,6 @@
                 <a-input
                   v-else
                   :value="agentConfig[key]"
-                  :disabled="isReadOnlyConfig"
                   @update:value="(val) => updateConfigValue(key, val)"
                   :placeholder="getPlaceholder(key, value)"
                   class="config-input"
@@ -276,7 +263,7 @@
     </div>
 
     <!-- 固定在底部的操作按钮 -->
-    <div class="sidebar-footer" v-if="userStore.isAdmin && selectedAgentId">
+    <div class="sidebar-footer" v-if="selectedAgentId">
       <div class="form-actions">
         <a-button
           type="primary"
@@ -321,7 +308,7 @@
               <Search :size="16" class="search-icon" />
             </template>
           </a-input>
-          <template v-if="!isReadOnlyConfig && isToolsKind(currentConfigKind)">
+          <template v-if="isToolsKind(currentConfigKind)">
             <a-button
               type="text"
               size="small"
@@ -351,7 +338,7 @@
             :key="getOptionValue(option)"
             class="selection-item"
             :class="{ selected: tempSelectedValues.includes(getOptionValue(option)) }"
-            @click="!isReadOnlyConfig && toggleModalSelection(getOptionValue(option))"
+            @click="toggleModalSelection(getOptionValue(option))"
           >
             <div class="selection-item-content">
               <div class="selection-item-header">
@@ -377,7 +364,7 @@
           <div class="modal-actions">
             <a-button @click="closeSelectionModal">取消</a-button>
 
-            <a-button v-if="!isReadOnlyConfig" type="primary" @click="confirmSelection">
+            <a-button type="primary" @click="confirmSelection">
               确认
             </a-button>
           </div>
@@ -397,17 +384,14 @@
         <a-textarea
           v-model:value="systemPromptDraft"
           :rows="14"
-          :disabled="isReadOnlyConfig"
           :placeholder="systemPromptModalPlaceholder"
           class="system-prompt-modal-input"
         />
       </div>
 
       <template #footer>
-        <a-button @click="closeSystemPromptModal">{{
-          isReadOnlyConfig ? '关闭' : '取消'
-        }}</a-button>
-        <a-button v-if="!isReadOnlyConfig" type="primary" @click="saveSystemPrompt">
+        <a-button @click="closeSystemPromptModal">取消</a-button>
+        <a-button type="primary" @click="saveSystemPrompt">
           保存
         </a-button>
       </template>
@@ -422,7 +406,6 @@ import { useRouter } from 'vue-router'
 import { X, Trash2, Check, Plus, Search, Star, RotateCw, Settings } from 'lucide-vue-next'
 import ModelSelectorComponent from '@/components/ModelSelectorComponent.vue'
 import { useAgentStore } from '@/stores/agent'
-import { useUserStore } from '@/stores/user'
 import { useDatabaseStore } from '@/stores/database'
 import { mcpApi } from '@/apis/mcp_api'
 import { skillApi } from '@/apis/skill_api'
@@ -455,7 +438,6 @@ const emit = defineEmits(['close'])
 
 // Store 管理
 const agentStore = useAgentStore()
-const userStore = useUserStore()
 const databaseStore = useDatabaseStore()
 const router = useRouter()
 
@@ -536,8 +518,6 @@ const currentConfigName = computed(() => {
   return selectedConfigSummary.value?.name || '当前配置'
 })
 
-const isReadOnlyConfig = computed(() => !userStore.isAdmin)
-
 const isSavingConfig = ref(false)
 const isDeletingConfig = ref(false)
 
@@ -570,10 +550,6 @@ const filteredConfigurableItems = computed(() => {
 })
 
 const loadLiveSkillOptions = async (force = false) => {
-  if (!userStore.isAdmin) {
-    liveSkillOptions.value = []
-    return
-  }
   // 如果不是强制刷新且已有数据，则跳过
   if (!force && liveSkillOptions.value.length > 0) {
     return
@@ -592,10 +568,6 @@ const loadLiveSkillOptions = async (force = false) => {
 }
 
 const loadMcpOptions = async (force = false) => {
-  if (!userStore.isAdmin) {
-    liveMcpOptions.value = []
-    return
-  }
   if (!force && liveMcpOptions.value.length > 0) {
     return
   }
@@ -615,10 +587,6 @@ const loadMcpOptions = async (force = false) => {
 }
 
 const loadToolOptions = async (force = false) => {
-  if (!userStore.isAdmin) {
-    toolOptionsFromApi.value = []
-    return
-  }
   // 如果不是强制刷新且已有数据，则跳过
   if (!force && toolOptionsFromApi.value.length > 0) {
     return
@@ -636,10 +604,6 @@ const loadToolOptions = async (force = false) => {
 }
 
 const loadSubagentOptions = async (force = false) => {
-  if (!userStore.isAdmin) {
-    liveSubagentOptions.value = []
-    return
-  }
   if (!force && liveSubagentOptions.value.length > 0) {
     return
   }
@@ -665,7 +629,6 @@ const isToolsKind = (kind) => {
 
 // 强制刷新对应配置项的选项列表
 const refreshConfigOptions = async (_key, kind) => {
-  if (isReadOnlyConfig.value) return
   try {
     switch (kind) {
       case 'knowledges':
@@ -697,7 +660,6 @@ const refreshConfigOptions = async (_key, kind) => {
 
 // 跳转到对应管理页面
 const navigateToConfigPage = (kind) => {
-  if (isReadOnlyConfig.value) return
   // 先关闭选择弹窗
   closeSelectionModal()
   // 延迟跳转，确保弹窗先关闭
@@ -808,7 +770,6 @@ const filteredOptions = computed(() => {
 
 // 方法
 const updateConfigValue = (key, value) => {
-  if (isReadOnlyConfig.value) return
   agentStore.updateAgentConfig({
     [key]: value
   })
@@ -832,7 +793,6 @@ const getPlaceholder = (_key, value) => {
 }
 
 const handleModelChange = (key, spec) => {
-  if (isReadOnlyConfig.value) return
   if (typeof spec !== 'string' || !spec) return
   agentStore.updateAgentConfig({
     [key]: spec
@@ -862,7 +822,6 @@ const getSelectedCount = (key) => {
 }
 
 const toggleOption = (key, option) => {
-  if (isReadOnlyConfig.value) return
   const currentOptions = [...ensureArray(key)]
   const index = currentOptions.indexOf(option)
 
@@ -878,7 +837,6 @@ const toggleOption = (key, option) => {
 }
 
 const clearSelection = (key) => {
-  if (isReadOnlyConfig.value) return
   agentStore.updateAgentConfig({
     [key]: []
   })
@@ -892,7 +850,6 @@ const getOptionLabelFromValue = (key, val) => {
 }
 
 const openSelectionModal = async (key) => {
-  if (isReadOnlyConfig.value) return
   currentConfigKey.value = key
   // 如果是工具，从 API 刷新工具列表
   if (configurableItems.value[key]?.template_metadata?.kind === 'tools') {
@@ -917,7 +874,6 @@ const openSelectionModal = async (key) => {
 }
 
 const toggleModalSelection = (optionValue) => {
-  if (isReadOnlyConfig.value) return
   const index = tempSelectedValues.value.indexOf(optionValue)
   if (index > -1) {
     tempSelectedValues.value.splice(index, 1)
@@ -927,10 +883,6 @@ const toggleModalSelection = (optionValue) => {
 }
 
 const confirmSelection = () => {
-  if (isReadOnlyConfig.value) {
-    closeSelectionModal()
-    return
-  }
   if (currentConfigKey.value) {
     agentStore.updateAgentConfig({
       [currentConfigKey.value]: [...tempSelectedValues.value]
@@ -960,7 +912,6 @@ const closeSystemPromptModal = () => {
 }
 
 const saveSystemPrompt = () => {
-  if (isReadOnlyConfig.value) return
   if (!currentSystemPromptKey.value) return
   agentStore.updateAgentConfig({
     [currentSystemPromptKey.value]: systemPromptDraft.value
@@ -1192,49 +1143,6 @@ const confirmDeleteConfig = async () => {
 
     .config-form-content {
       margin-bottom: 20px;
-
-      &.is-readonly {
-        .config-item {
-          background: var(--gray-20);
-
-          .model-selector.is-readonly {
-            opacity: 0.78;
-            pointer-events: none;
-          }
-
-          .system-prompt-display {
-            cursor: default;
-
-            &:hover {
-              border-color: var(--gray-200);
-              background: transparent;
-
-              .edit-hint {
-                opacity: 1;
-              }
-            }
-
-            .edit-hint {
-              color: var(--gray-500);
-              opacity: 1;
-            }
-          }
-
-          .option-card.readonly {
-            cursor: default;
-
-            &:hover {
-              border-color: var(--gray-300);
-              background: var(--gray-0);
-            }
-
-            &.selected:hover {
-              border-color: var(--main-color);
-              background: var(--main-10);
-            }
-          }
-        }
-      }
 
       .config-form {
         .config-alert {

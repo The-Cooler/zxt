@@ -11,9 +11,9 @@
 - 网页资料入库：支持 URL 读取、同域页面发现、Markdown 清洗、人工预览编辑和提交入库。
 - 知识图谱：支持 Neo4j 图谱浏览、实体关系管理，以及从普通资料中识别系统级关系并人工校对。
 - 个人工作区：管理用户文件、智能体产物、Markdown/TXT 编辑、图片/PDF/代码预览和下载。
-- OpenClaw 集成：接入 OpenClaw Gateway（WebSocket + RPC），支持智能学习提醒（由 OpenClaw 智能体根据学习难度和进度动态决策）、微信推送（ClawBot 插件）、双向知识共享、知识库 MCP 服务。
+- 微信互通：通过独立的 ClawBot 微信 iLink Bot 接口扫码连接，将微信文字消息交给当前学习助手处理。
 - 扩展能力：支持 Tools、MCP Servers、SubAgents、Skills 管理，供智能体在运行时调用。
-- 平台能力：登录初始化、模型配置、任务中心、系统设置、API Key、文件存储和运行监控。
+- 平台能力：个人单用户最高权限、模型配置、任务中心、系统设置、文件存储和运行监控。
 
 更完整的功能边界见 [自学通功能.md](自学通功能.md)，正式用户文档见 [docs](docs/index.md)。
 
@@ -24,7 +24,7 @@
 | 前端 | Vue 3, Vite, Pinia, Ant Design Vue, Less |
 | 后端 | Python 3.12+, FastAPI, Uvicorn, ARQ |
 | Agent | LangGraph v1, deepagents, Tools, MCP, Skills, SubAgents |
-| 外部集成 | OpenClaw Gateway (WebSocket + RPC), ClawBot (微信推送) |
+| 外部集成 | ClawBot（微信 iLink Bot） |
 | 知识库 | LightRAG, PostgreSQL/pgvector |
 | 图谱 | Neo4j |
 | 存储 | PostgreSQL, Redis, MinIO, 本地 `saves` |
@@ -56,20 +56,33 @@
 
 ## 快速启动
 
-推荐直接使用 Docker Compose 开发环境。
+Docker 运行配置统一放在根目录 `.env`。Docker Compose、API 和 Worker 使用同一份配置，不再读取 `.env.docker`。
 
 ```bash
-# 初始化环境变量与依赖镜像
+# Linux/macOS：创建 .env 并拉取依赖镜像
 ./scripts/init.sh
 
-# 构建并启动服务
+# Windows PowerShell：创建 .env 并拉取依赖镜像
+.\scripts\init.ps1
+
+# 也可以只复制模板后手动填写
+cp .env.template .env
+
+# 构建并启动服务；Compose 会自动加载根目录 .env
 docker compose up --build -d
 
-# 查看服务状态
-docker ps
+# 查看服务状态和日志
+docker compose ps
 docker logs api-dev --tail 100
 docker logs web-dev --tail 100
 ```
+
+启动前必须在 `.env` 中完成两件事：
+
+1. 至少填写一个模型供应商 API Key，默认模板提供 `SILICONFLOW_API_KEY`。
+2. 设置至少 8 位的 `NEO4J_PASSWORD`。
+
+PostgreSQL、Redis、MinIO、Sandbox 等配置均有可直接用于本地开发的默认值。`.env.template` 已逐项注明每个变量是否必填、用途、默认值和启用条件；正式部署时应修改 PostgreSQL、Neo4j 和 MinIO 密码。
 
 启动后访问：
 
@@ -81,7 +94,7 @@ docker logs web-dev --tail 100
 | Neo4j Browser | http://localhost:7474 |
 | MinIO Console | http://localhost:9001 |
 
-首次访问 Web 应用时按页面提示初始化管理员账号。详细安装和故障排查见 [快速开始指南](docs/intro/quick-start.md)。
+启动后可直接进入 Web 应用；当前版本面向个人单用户使用，不再提供平台登录、注册或管理员初始化流程。详细安装和故障排查见 [快速开始指南](docs/intro/quick-start.md)。
 
 ## 开发工作流
 

@@ -1,4 +1,4 @@
-import { apiAdminGet, apiAdminPost, apiAdminPut, apiAdminDelete } from './base'
+import { apiGet, apiPost, apiPut, apiDelete } from './base'
 
 /**
  * SubAgent 管理 API 模块
@@ -16,7 +16,7 @@ const BASE_URL = '/api/system/subagents'
  * @returns {Promise} - SubAgent 列表
  */
 export const getSubAgents = async () => {
-  return apiAdminGet(BASE_URL)
+  return apiGet(BASE_URL)
 }
 
 /**
@@ -25,7 +25,7 @@ export const getSubAgents = async () => {
  * @returns {Promise} - SubAgent 配置
  */
 export const getSubAgent = async (name) => {
-  return apiAdminGet(`${BASE_URL}/${encodeURIComponent(name)}`)
+  return apiGet(`${BASE_URL}/${encodeURIComponent(name)}`)
 }
 
 /**
@@ -34,7 +34,7 @@ export const getSubAgent = async (name) => {
  * @returns {Promise} - 创建结果
  */
 export const createSubAgent = async (data) => {
-  return apiAdminPost(BASE_URL, data)
+  return apiPost(BASE_URL, data)
 }
 
 /**
@@ -44,7 +44,7 @@ export const createSubAgent = async (data) => {
  * @returns {Promise} - 更新结果
  */
 export const updateSubAgent = async (name, data) => {
-  return apiAdminPut(`${BASE_URL}/${encodeURIComponent(name)}`, data)
+  return apiPut(`${BASE_URL}/${encodeURIComponent(name)}`, data)
 }
 
 /**
@@ -53,11 +53,11 @@ export const updateSubAgent = async (name, data) => {
  * @returns {Promise} - 删除结果
  */
 export const deleteSubAgent = async (name) => {
-  return apiAdminDelete(`${BASE_URL}/${encodeURIComponent(name)}`)
+  return apiDelete(`${BASE_URL}/${encodeURIComponent(name)}`)
 }
 
 export const updateSubAgentStatus = async (name, enabled) => {
-  return apiAdminPut(`${BASE_URL}/${encodeURIComponent(name)}/status`, { enabled })
+  return apiPut(`${BASE_URL}/${encodeURIComponent(name)}/status`, { enabled })
 }
 
 // =============================================================================

@@ -17,9 +17,7 @@ import httpx
 import pytest
 import pytest_asyncio
 from dotenv import load_dotenv
-from zixuetong.repositories.user_repository import UserRepository
 from zixuetong.storage.postgres.manager import pg_manager
-from server.utils.auth_utils import AuthUtils
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
@@ -29,18 +27,8 @@ load_dotenv(PROJECT_ROOT / ".env", override=False)
 load_dotenv(PROJECT_ROOT / "test/.env.test", override=False)
 
 API_BASE_URL = os.getenv("TEST_BASE_URL", "http://localhost:5050").rstrip("/")
-ADMIN_LOGIN = os.getenv("TEST_USERNAME")
-ADMIN_PASSWORD = os.getenv("TEST_PASSWORD")
-
-_ADMIN_TOKEN_CACHE: str | None = None
 HTTP_TIMEOUT = httpx.Timeout(60.0, connect=5.0)
 SANDBOX_CONTAINER_PREFIX = os.getenv("ZIXUETONG_SANDBOX_CONTAINER_PREFIX", "zixuetong-sandbox")
-
-
-def _require_admin_credentials() -> tuple[str, str]:
-    if not ADMIN_LOGIN or not ADMIN_PASSWORD:
-        pytest.skip("Integration credentials are not configured via TEST_USERNAME / TEST_PASSWORD.")
-    return ADMIN_LOGIN, ADMIN_PASSWORD
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -49,75 +37,35 @@ async def test_client() -> AsyncGenerator[httpx.AsyncClient, None]:
         yield client
 
 
-@pytest_asyncio.fixture(scope="function")
-async def admin_token() -> str:
-    global _ADMIN_TOKEN_CACHE
-
-    if _ADMIN_TOKEN_CACHE:
-        return _ADMIN_TOKEN_CACHE
-
-    username, password = _require_admin_credentials()
-
-    async with httpx.AsyncClient(
-        base_url=API_BASE_URL,
-        timeout=HTTP_TIMEOUT,
-        follow_redirects=True,
-    ) as bootstrap_client:
-        response = await bootstrap_client.post(
-            "/api/auth/token",
-            data={"username": username, "password": password},
-        )
-
-        if response.status_code == 401:
-            first_run_response = await bootstrap_client.get("/api/auth/check-first-run")
-            if first_run_response.status_code == 200 and first_run_response.json().get("first_run", False):
-                pytest.fail(
-                    "Super admin account has not been initialized. Complete `/api/auth/initialize` before "
-                    "running integration tests."
-                )
-
-    if response.status_code != 200:
-        pytest.fail(f"Failed to authenticate as admin (status={response.status_code}): {response.text}")
-
-    token = response.json().get("access_token")
-    if not token:
-        pytest.fail("Admin authentication did not return an access token.")
-
-    _ADMIN_TOKEN_CACHE = token
-    return token
-
-
 @pytest.fixture(scope="function")
-def admin_headers(admin_token: str) -> dict[str, str]:
-    return {"Authorization": f"Bearer {admin_token}"}
+def admin_headers() -> dict[str, str]:
+    """单用户模式不需要平台登录头。"""
+    return {}
+
+
+@pytest_asyncio.fixture(scope="function")
+async def standard_user(admin_headers: dict[str, str]) -> dict:
+    """兼容旧测试命名：单用户模式下只有系统 owner，且始终拥有最高权限。"""
+    if not pg_manager._initialized:
+        pg_manager.initialize()
+
+    from sqlalchemy import select
+    from zixuetong.storage.postgres.models_business import User
+
+    async with pg_manager.get_async_session_context() as session:
+        result = await session.execute(select(User).order_by(User.id).limit(1))
+        user = result.scalar_one_or_none()
+        if user is None:
+            pytest.fail("单用户系统 owner 不存在，无法运行集成测试。")
+        user_payload = user.to_dict()
+
+    return {"user": user_payload, "headers": admin_headers}
 
 
 @pytest.fixture(scope="session", autouse=True)
 def cleanup_test_knowledge_databases():
     async def run_cleanup() -> None:
-        global _ADMIN_TOKEN_CACHE
-
-        if not ADMIN_LOGIN or not ADMIN_PASSWORD:
-            return
-
-        if not _ADMIN_TOKEN_CACHE:
-            async with httpx.AsyncClient(
-                base_url=API_BASE_URL,
-                timeout=HTTP_TIMEOUT,
-                follow_redirects=True,
-            ) as bootstrap_client:
-                response = await bootstrap_client.post(
-                    "/api/auth/token",
-                    data={"username": ADMIN_LOGIN, "password": ADMIN_PASSWORD},
-                )
-                if response.status_code != 200:
-                    return
-                token = response.json().get("access_token")
-                if not token:
-                    return
-                _ADMIN_TOKEN_CACHE = token
-
-        headers = {"Authorization": f"Bearer {_ADMIN_TOKEN_CACHE}"}
+        headers: dict[str, str] = {}
 
         async with httpx.AsyncClient(base_url=API_BASE_URL, timeout=HTTP_TIMEOUT, follow_redirects=True) as client:
             try:
@@ -202,52 +150,6 @@ def cleanup_test_sandboxes():
     _cleanup_sandbox_containers()
     yield
     _cleanup_sandbox_containers()
-
-
-@pytest_asyncio.fixture(scope="function")
-async def standard_user(test_client: httpx.AsyncClient, admin_headers: dict[str, str]) -> AsyncGenerator[dict, None]:
-    username = f"pytest_user_{uuid.uuid4().hex[:8]}"
-    password = f"Pw!{uuid.uuid4().hex[:8]}"
-
-    if not pg_manager._initialized:
-        pg_manager.initialize()
-
-    user_repo = UserRepository()
-    user = await user_repo.create(
-        {
-            "username": username,
-            "user_id": username,
-            "phone_number": None,
-            "avatar": None,
-            "password_hash": AuthUtils.hash_password(password),
-            "role": "user",
-        }
-    )
-    user_payload = user.to_dict()
-    login_response = await test_client.post(
-        "/api/auth/token",
-        data={"username": user_payload["user_id"], "password": password},
-    )
-    if login_response.status_code != 200:
-        pytest.fail(
-            f"Failed to authenticate as standard user (status={login_response.status_code}): {login_response.text}"
-        )
-
-    access_token = login_response.json().get("access_token")
-    if not access_token:
-        pytest.fail("Standard user login succeeded but no access token was returned.")
-
-    try:
-        yield {
-            "user": user_payload,
-            "password": password,
-            "headers": {"Authorization": f"Bearer {access_token}"},
-        }
-    finally:
-        async with pg_manager.get_async_session_context() as session:
-            db_user = await session.get(type(user), user_payload["id"])
-            if db_user is not None:
-                await session.delete(db_user)
 
 
 @pytest_asyncio.fixture(scope="function")

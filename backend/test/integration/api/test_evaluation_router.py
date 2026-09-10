@@ -30,12 +30,9 @@ async def _upload_test_benchmark(test_client, admin_headers: dict[str, str], db_
     return benchmark_id, line
 
 
-async def test_download_benchmark_requires_admin(test_client, standard_user):
-    response = await test_client.get(
-        "/api/evaluation/benchmarks/benchmark_fake/download",
-        headers=standard_user["headers"],
-    )
-    assert response.status_code == 403
+async def test_download_benchmark_missing_id_returns_not_found_for_single_user(test_client):
+    response = await test_client.get("/api/evaluation/benchmarks/benchmark_fake/download")
+    assert response.status_code == 404
 
 
 async def test_admin_can_download_benchmark(test_client, admin_headers, knowledge_database):

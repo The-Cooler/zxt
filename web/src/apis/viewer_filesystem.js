@@ -36,7 +36,7 @@ export const getViewerFileContent = (threadId, path, agentId = null, agentConfig
 
 export const downloadViewerFile = (threadId, path, agentId = null, agentConfigId = null) => {
   const query = buildViewerQuery(threadId, path, agentId, agentConfigId)
-  return apiGet(`/api/viewer/filesystem/download?${query}`, {}, true, 'blob')
+  return apiGet(`/api/viewer/filesystem/download?${query}`, {}, 'blob')
 }
 
 export const deleteViewerFile = (threadId, path, agentId = null, agentConfigId = null) => {

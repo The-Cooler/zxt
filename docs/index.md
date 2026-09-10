@@ -43,7 +43,7 @@ features:
 
 ## 文档入口
 
-- [快速开始](/intro/quick-start)：完成环境初始化、容器启动与首次登录
+- [快速开始](/intro/quick-start)：完成环境初始化、容器启动与访问系统
 - [项目简介](/intro/project-overview)：了解整体定位、技术栈与核心能力
 - [知识库与知识图谱](/intro/knowledge-base)：查看知识导入、检索与图谱能力
 - [智能体开发](/agents/agents-config)：配置 Agent、Tools、MCP、Skills 与中间件

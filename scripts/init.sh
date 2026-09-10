@@ -1,145 +1,50 @@
 #!/bin/bash
 
-# 自学通 Initialization Script for Bash/Linux/macOS
-# This script helps set up the environment for the 自学通 project
+# 自学通初始化脚本（Linux/macOS）
+# 创建唯一的 Docker 运行配置 .env，并预拉取开发环境所需镜像。
 
 set -e
 
-generate_hex() {
-    local length="$1"
-    if command -v openssl >/dev/null 2>&1; then
-        openssl rand -hex "$length"
-    else
-        tr -dc 'a-f0-9' < /dev/urandom | head -c $((length * 2))
-    fi
-}
-
-ensure_jwt_env() {
-    if grep -Eq '^JWT_SECRET_KEY=.+' .env && grep -Eq '^ZIXUETONG_INSTANCE_ID=.+' .env; then
-        return
-    fi
-
-    echo "JWT security settings are missing in .env."
-    read -s -p "Please enter your JWT_SECRET_KEY (press Enter to auto-generate): " JWT_SECRET_KEY
-    echo ""
-    if [ -z "$JWT_SECRET_KEY" ]; then
-        JWT_SECRET_KEY=$(generate_hex 32)
-        echo "Generated JWT_SECRET_KEY and saved it to .env."
-    fi
-
-    read -p "Please enter your ZIXUETONG_INSTANCE_ID (press Enter to auto-generate): " ZIXUETONG_INSTANCE_ID
-    if [ -z "$ZIXUETONG_INSTANCE_ID" ]; then
-        ZIXUETONG_INSTANCE_ID="instance-$(generate_hex 8)"
-        echo "Generated ZIXUETONG_INSTANCE_ID and saved it to .env."
-    fi
-
-    cat >> .env << EOF
-
-# JWT security settings
-JWT_SECRET_KEY=${JWT_SECRET_KEY}
-ZIXUETONG_INSTANCE_ID=${ZIXUETONG_INSTANCE_ID}
-EOF
-}
-
-echo "🚀 Initializing 自学通 project..."
+echo "🚀 初始化自学通项目..."
 echo "=================================="
 
-# Check if .env file exists
 if [ -f ".env" ]; then
-    echo "✅ .env file already exists. Skipping environment setup."
-    ensure_jwt_env
+    echo "✅ .env 已存在，保留当前配置。"
 else
-    echo "📝 .env file not found. Let's set up your environment variables."
-    echo ""
-
-    # Get SILICONFLOW_API_KEY
-    echo "🔑 SiliconFlow API Key required"
-    echo "Get your API key from: https://cloud.siliconflow.cn/i/Eo5yTHGJ"
-    while true; do
-        read -s -p "Please enter your SILICONFLOW_API_KEY: " SILICONFLOW_API_KEY
-        echo ""
-        if [ -z "$SILICONFLOW_API_KEY" ]; then
-            echo "❌ API Key cannot be empty. Please try again."
-        else
-            break
-        fi
-    done
-
-    # Get TAVILY_API_KEY (optional)
-    echo ""
-    echo "🔍 Tavily API Key (optional) - for search service"
-    echo "Get your API key from: https://app.tavily.com/"
-    read -p "Please enter your TAVILY_API_KEY (press Enter to skip): " TAVILY_API_KEY
-
-    echo ""
-    echo "JWT security settings"
-    read -s -p "Please enter your JWT_SECRET_KEY (press Enter to auto-generate): " JWT_SECRET_KEY
-    echo ""
-    if [ -z "$JWT_SECRET_KEY" ]; then
-        JWT_SECRET_KEY=$(generate_hex 32)
-        echo "Generated JWT_SECRET_KEY and saved it to .env."
-    fi
-
-    read -p "Please enter your ZIXUETONG_INSTANCE_ID (press Enter to auto-generate): " ZIXUETONG_INSTANCE_ID
-    if [ -z "$ZIXUETONG_INSTANCE_ID" ]; then
-        ZIXUETONG_INSTANCE_ID="instance-$(generate_hex 8)"
-        echo "Generated ZIXUETONG_INSTANCE_ID and saved it to .env."
-    fi
-
-    # Create .env file
-    cat > .env << EOF
-# SiliconFlow API Key (required)
-SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
-
-# Tavily API Key (optional - for search service)
-EOF
-
-    if [ -n "$TAVILY_API_KEY" ]; then
-        echo "TAVILY_API_KEY=${TAVILY_API_KEY}" >> .env
-    fi
-
-    cat >> .env << EOF
-
-# JWT security settings
-JWT_SECRET_KEY=${JWT_SECRET_KEY}
-ZIXUETONG_INSTANCE_ID=${ZIXUETONG_INSTANCE_ID}
-EOF
-
-    echo "✅ .env file created successfully!"
+    cp .env.template .env
+    echo "✅ 已根据 .env.template 创建 .env。"
+    echo "⚠️  启动前请编辑 .env："
+    echo "   1. 至少填写一个模型供应商 API Key（默认是 SILICONFLOW_API_KEY）"
+    echo "   2. 将 NEO4J_PASSWORD 修改为至少 8 位密码"
+    echo "   3. 正式部署时修改 PostgreSQL 和 MinIO 默认密码"
 fi
 
 echo ""
-echo "📦 Pulling Docker images..."
+echo "📦 拉取 Docker 镜像..."
 echo "========================="
 
-# List of Docker images to pull
 images=(
     "python:3.12-slim"
     "node:24-slim"
-    "node:24-alpine"
-    "milvusdb/milvus:v2.5.6"
     "neo4j:5.26"
     "minio/minio:RELEASE.2023-03-20T20-16-18Z"
     "ghcr.io/astral-sh/uv:0.7.2"
     "nginx:alpine"
-    "quay.io/coreos/etcd:v3.5.5"
-    "postgres:16"
+    "pgvector/pgvector:pg16"
     "redis:7-alpine"
 )
 
-# Pull each image
 for image in "${images[@]}"; do
-    echo "🔄 Pulling ${image}..."
+    echo "🔄 正在拉取 ${image}..."
     if bash scripts/pull_image.sh "$image"; then
-        echo "✅ Successfully pulled ${image}"
+        echo "✅ 已拉取 ${image}"
     else
-        echo "❌ Failed to pull ${image}"
+        echo "❌ 拉取 ${image} 失败"
         exit 1
     fi
 done
 
 echo ""
-echo "🎉 Initialization complete!"
+echo "🎉 初始化完成！"
 echo "=========================="
-echo "You can now run: docker compose up -d --build"
-echo "This will start all services in development mode with hot-reload enabled."
+echo "确认 .env 中的必填项后运行：docker compose up -d --build"

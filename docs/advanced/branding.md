@@ -1,6 +1,6 @@
 # 品牌自定义
 
-自学通 支持完整的品牌自定义，包括 Logo、组织名称、版权信息、登录协议等，方便企业用户进行品牌定制。
+自学通 支持品牌自定义，包括 Logo、组织名称、版权信息、协议链接等，方便个人使用时调整展示信息。
 
 ## 品牌信息配置
 
@@ -18,7 +18,7 @@ cp backend/package/zixuetong/config/static/info.template.yaml backend/package/zi
 - 组织名称
 - Logo
 - 版权信息
-- 登录页用户协议/隐私协议链接
+- 用户协议/隐私协议链接
 
 ### 步骤 3：指定配置文件
 
@@ -32,9 +32,9 @@ ZIXUETONG_BRAND_FILE_PATH=backend/package/zixuetong/config/static/info.local.yam
 `info.local.yaml` > `info.template.yaml`（默认）
 :::
 
-## 登录协议配置
+## 协议链接配置
 
-登录页支持从品牌配置中读取用户协议与隐私协议链接。
+系统支持从品牌配置中读取用户协议与隐私协议链接，供页脚或相关入口展示。
 
 ### 配置项
 
@@ -49,9 +49,8 @@ footer:
 
 ### 显示规则
 
-- 当 `user_agreement_url` 和 `privacy_policy_url` 都有值时，登录页会显示协议勾选项。
-- 任一字段为空时，登录页不显示协议勾选项。
-- 未勾选协议时，提交登录/初始化会通过消息提示用户先同意协议。
+- 当 `user_agreement_url` 和 `privacy_policy_url` 有值时，相关页面可展示协议链接。
+- 任一字段为空时，对应链接不会展示。
 
 ### 协议模板文件
 

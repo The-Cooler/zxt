@@ -34,12 +34,6 @@ async def _get_agent_and_config_id(test_client, headers):
     return agent_id, config_id
 
 
-async def test_chat_agent_sync_requires_authentication(test_client):
-    """非流式端点需要认证"""
-    response = await test_client.post("/api/chat/agent/sync", json={"query": "hello", "agent_config_id": 1})
-    assert response.status_code == 401
-
-
 async def test_chat_agent_sync_basic_conversation(test_client, admin_headers):
     """测试非流式对话基本功能"""
     _, agent_config_id = await _get_agent_and_config_id(test_client, admin_headers)

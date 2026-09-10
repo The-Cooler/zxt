@@ -12,10 +12,10 @@ from zixuetong.agents.backends.sandbox import ensure_thread_dirs, sandbox_user_d
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 
-async def test_chat_endpoints_require_authentication(test_client):
-    assert (await test_client.get("/api/chat/default_agent")).status_code == 401
-    assert (await test_client.get("/api/chat/agent")).status_code == 401
-    assert (await test_client.get("/api/chat/learning/overview")).status_code == 401
+async def test_chat_endpoints_are_available_without_auth_headers(test_client):
+    assert (await test_client.get("/api/chat/default_agent")).status_code == 200
+    assert (await test_client.get("/api/chat/agent")).status_code == 200
+    assert (await test_client.get("/api/chat/learning/overview")).status_code == 200
 
 
 async def _create_thread_for_user(test_client, headers: dict[str, str]) -> str:
@@ -97,8 +97,8 @@ async def test_learning_overview_reads_current_user_workspace(test_client, stand
     ]
 
 
-async def test_setting_default_agent_requires_admin(test_client, admin_headers, standard_user):
-    # Attempt as admin first to obtain a candidate agent id.
+async def test_single_user_can_set_default_agent(test_client, admin_headers):
+    # Obtain a candidate agent id.
     agents_response = await test_client.get("/api/chat/agent", headers=admin_headers)
     assert agents_response.status_code == 200, agents_response.text
     agents = agents_response.json().get("agents", [])
@@ -110,15 +110,7 @@ async def test_setting_default_agent_requires_admin(test_client, admin_headers, 
     if not candidate_agent_id:
         pytest.skip("Agent payload missing id field.")
 
-    # Normal user should not be able to update the default agent.
-    forbidden_response = await test_client.post(
-        "/api/chat/set_default_agent",
-        json={"agent_id": candidate_agent_id},
-        headers=standard_user["headers"],
-    )
-    assert forbidden_response.status_code == 403
-
-    # Admin should succeed.
+    # Single-user owner should succeed without a separate login role.
     update_response = await test_client.post(
         "/api/chat/set_default_agent",
         json={"agent_id": candidate_agent_id},

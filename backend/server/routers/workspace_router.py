@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from pydantic import BaseModel
 
-from server.utils.auth_middleware import get_required_user
+from server.utils.auth_middleware import get_system_owner
 from zixuetong.services.workspace_service import (
     create_workspace_directory,
     delete_workspace_path,
@@ -33,7 +33,7 @@ async def get_workspace_tree(
     path: str = Query("/", description="工作区目录路径"),
     recursive: bool = Query(False, description="是否递归返回子目录文件"),
     files_only: bool = Query(False, description="是否仅返回文件"),
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
 ):
     return await list_workspace_tree(
         path=path,
@@ -46,7 +46,7 @@ async def get_workspace_tree(
 @workspace.get("/file", response_model=dict)
 async def get_workspace_file(
     path: str = Query(..., description="工作区文件路径"),
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
 ):
     return await read_workspace_file_content(path=path, current_user=current_user)
 
@@ -54,7 +54,7 @@ async def get_workspace_file(
 @workspace.put("/file", response_model=dict)
 async def update_workspace_file(
     payload: UpdateWorkspaceFileContentRequest,
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
 ):
     return await write_workspace_file_content(
         path=payload.path,
@@ -66,7 +66,7 @@ async def update_workspace_file(
 @workspace.delete("/file", response_model=dict)
 async def delete_workspace_file_route(
     path: str = Query(..., description="工作区文件或目录路径"),
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
 ):
     return await delete_workspace_path(path=path, current_user=current_user)
 
@@ -74,7 +74,7 @@ async def delete_workspace_file_route(
 @workspace.post("/directory", response_model=dict)
 async def create_workspace_directory_route(
     payload: CreateWorkspaceDirectoryRequest,
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
 ):
     return await create_workspace_directory(
         parent_path=payload.parent_path,
@@ -87,7 +87,7 @@ async def create_workspace_directory_route(
 async def upload_workspace_file_route(
     parent_path: str = Form(..., description="父目录路径"),
     file: UploadFile = File(..., description="上传文件"),
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
 ):
     return await upload_workspace_file(parent_path=parent_path, file=file, current_user=current_user)
 
@@ -95,6 +95,6 @@ async def upload_workspace_file_route(
 @workspace.get("/download")
 async def download_workspace(
     path: str = Query(..., description="工作区文件路径"),
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
 ):
     return await download_workspace_file(path=path, current_user=current_user)

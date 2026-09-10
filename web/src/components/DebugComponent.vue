@@ -136,7 +136,6 @@ watch(showModal, (isOpen) => {
 })
 
 import { useConfigStore } from '@/stores/config'
-import { useUserStore } from '@/stores/user'
 import { useDatabaseStore } from '@/stores/database'
 import { useAgentStore } from '@/stores/agent'
 import { useInfoStore } from '@/stores/info'
@@ -158,10 +157,8 @@ import {
 } from '@ant-design/icons-vue'
 import dayjs from '@/utils/time'
 import { configApi } from '@/apis/system_api'
-import { checkSuperAdminPermission } from '@/stores/user'
 
 const configStore = useConfigStore()
-const userStore = useUserStore()
 const databaseStore = useDatabaseStore()
 const agentStore = useAgentStore()
 const infoStore = useInfoStore()
@@ -241,7 +238,6 @@ const processedLogs = computed(() => {
 
 // 获取日志数据
 const fetchLogs = async () => {
-  if (!checkSuperAdminPermission()) return
 
   state.fetching = true
   try {
@@ -267,7 +263,6 @@ const fetchLogs = async () => {
 
 // 清空日志
 const clearLogs = () => {
-  if (!checkSuperAdminPermission()) return
   state.rawLogs = []
 }
 
@@ -302,7 +297,6 @@ const toggleLogLevel = (level) => {
 
 // 自动刷新
 const toggleAutoRefresh = (value) => {
-  if (!checkSuperAdminPermission()) return
 
   if (value) {
     autoRefreshInterval = setInterval(fetchLogs, 5000)
@@ -318,7 +312,6 @@ const toggleAutoRefresh = (value) => {
 
 // 全屏切换
 const toggleFullscreen = async () => {
-  if (!checkSuperAdminPermission()) return
 
   try {
     if (!state.isFullscreen) {
@@ -376,33 +369,22 @@ onUnmounted(() => {
 
 // 打印系统配置
 const printSystemConfig = () => {
-  if (!checkSuperAdminPermission()) return
   console.log('=== 系统配置 ===')
   console.log(config)
 }
 
 // 打印用户信息
 const printUserInfo = () => {
-  if (!checkSuperAdminPermission()) return
   console.log('=== 用户信息 ===')
   const userInfo = {
-    token: userStore.token ? '*** (已隐藏)' : null,
-    userId: userStore.userId,
-    username: userStore.username,
-    userIdLogin: userStore.userIdLogin,
-    phoneNumber: userStore.phoneNumber,
-    avatar: userStore.avatar,
-    userRole: userStore.userRole,
-    isLoggedIn: userStore.isLoggedIn,
-    isAdmin: userStore.isAdmin,
-    isSuperAdmin: userStore.isSuperAdmin
+    mode: 'single-user',
+    owner: 'system-owner'
   }
   console.log(JSON.stringify(userInfo, null, 2))
 }
 
 // 打印知识库信息
 const printDatabaseInfo = async () => {
-  if (!checkSuperAdminPermission()) return
 
   try {
     console.log('=== 知识库信息 ===')
@@ -435,13 +417,11 @@ const printDatabaseInfo = async () => {
 
 // 切换Debug模式
 const toggleDebugMode = () => {
-  if (!checkSuperAdminPermission()) return
   infoStore.toggleDebugMode()
 }
 
 // 打印智能体配置
 const printAgentConfig = async () => {
-  if (!checkSuperAdminPermission()) return
 
   try {
     console.log('=== 智能体配置信息 ===')
@@ -475,16 +455,12 @@ const printAgentConfig = async () => {
         configurableItemsCount: Object.keys(agentStore.configurableItems).length
       })
 
-      // 当前智能体配置（仅管理员可见）
-      if (userStore.isAdmin) {
-        console.log('当前智能体配置:', {
-          current: toRaw(agentStore.agentConfig),
-          original: toRaw(agentStore.originalAgentConfig),
-          hasChanges: agentStore.hasConfigChanges
-        })
-      } else {
-        console.log('智能体配置: 需要管理员权限查看详细配置')
-      }
+      // 当前智能体配置
+      console.log('当前智能体配置:', {
+        current: toRaw(agentStore.agentConfig),
+        original: toRaw(agentStore.originalAgentConfig),
+        hasChanges: agentStore.hasConfigChanges
+      })
     }
 
     // 工具信息
@@ -494,8 +470,8 @@ const printAgentConfig = async () => {
       tools: toolsList
     })
 
-    // 配置项信息（管理员可见）
-    if (userStore.isAdmin && agentStore.selectedAgent) {
+    // 配置项信息
+    if (agentStore.selectedAgent) {
       console.log('可配置项:', toRaw(agentStore.configurableItems))
     }
   } catch (error) {

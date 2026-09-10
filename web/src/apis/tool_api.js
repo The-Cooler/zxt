@@ -1,4 +1,4 @@
-import { apiAdminGet } from './base'
+import { apiGet } from './base'
 
 /**
  * 工具管理 API 模块
@@ -14,7 +14,7 @@ const BASE_URL = '/api/system/tools'
  */
 export const getTools = async (category = null) => {
   const params = category ? { category } : {}
-  return apiAdminGet(BASE_URL, params)
+  return apiGet(BASE_URL, params)
 }
 
 /**
@@ -22,7 +22,7 @@ export const getTools = async (category = null) => {
  * @returns {Promise} - 工具选项
  */
 export const getToolOptions = async () => {
-  return apiAdminGet(`${BASE_URL}/options`)
+  return apiGet(`${BASE_URL}/options`)
 }
 
 // =============================================================================

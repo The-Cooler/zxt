@@ -1,20 +1,18 @@
-
 import { message } from 'ant-design-vue'
 
 /**
  * 基础API请求封装
- * 提供统一的请求方法，自动处理认证头和错误
+ * 提供统一的请求和错误处理
  */
 
 /**
  * 发送API请求的基础函数
  * @param {string} url - API端点
  * @param {Object} options - 请求选项
- * @param {boolean} requiresAuth - 是否需要认证头
  * @param {string} responseType - 响应类型: 'json' | 'text' | 'blob'
  * @returns {Promise} - 请求结果
  */
-export async function apiRequest(url, options = {}, requiresAuth = true, responseType = 'json') {
+export async function apiRequest(url, options = {}, responseType = 'json') {
   try {
     const isFormData = options?.body instanceof FormData
     // 默认请求配置
@@ -62,7 +60,6 @@ export async function apiRequest(url, options = {}, requiresAuth = true, respons
         console.log('无法解析错误响应JSON:', e)
       }
 
-      // 特殊处理401和403错误
       const error = new Error(errorMessage)
       error.response = {
         status: response.status,
@@ -109,20 +106,11 @@ export async function apiRequest(url, options = {}, requiresAuth = true, respons
  * 发送GET请求
  * @param {string} url - API端点
  * @param {Object} options - 请求选项
- * @param {boolean} requiresAuth - 是否需要认证
  * @param {string} responseType - 响应类型: 'json' | 'text' | 'blob'
  * @returns {Promise} - 请求结果
  */
-export function apiGet(url, options = {}, requiresAuth = true, responseType = 'json') {
-  return apiRequest(url, { method: 'GET', ...options }, requiresAuth, responseType)
-}
-
-export function apiAdminGet(url, options = {}, responseType = 'json') {
-  return apiGet(url, options, false, responseType)
-}
-
-export function apiSuperAdminGet(url, options = {}, responseType = 'json') {
-  return apiGet(url, options, false, responseType)
+export function apiGet(url, options = {}, responseType = 'json') {
+  return apiRequest(url, { method: 'GET', ...options }, responseType)
 }
 
 /**
@@ -130,11 +118,10 @@ export function apiSuperAdminGet(url, options = {}, responseType = 'json') {
  * @param {string} url - API端点
  * @param {Object} data - 请求体数据
  * @param {Object} options - 其他请求选项
- * @param {boolean} requiresAuth - 是否需要认证
  * @param {string} responseType - 响应类型: 'json' | 'text' | 'blob'
  * @returns {Promise} - 请求结果
  */
-export function apiPost(url, data = {}, options = {}, requiresAuth = true, responseType = 'json') {
+export function apiPost(url, data = {}, options = {}, responseType = 'json') {
   return apiRequest(
     url,
     {
@@ -142,17 +129,8 @@ export function apiPost(url, data = {}, options = {}, requiresAuth = true, respo
       body: data instanceof FormData ? data : JSON.stringify(data),
       ...options
     },
-    requiresAuth,
     responseType
   )
-}
-
-export function apiAdminPost(url, data = {}, options = {}, responseType = 'json') {
-  return apiPost(url, data, options, false, responseType)
-}
-
-export function apiSuperAdminPost(url, data = {}, options = {}, responseType = 'json') {
-  return apiPost(url, data, options, false, responseType)
 }
 
 /**
@@ -160,11 +138,10 @@ export function apiSuperAdminPost(url, data = {}, options = {}, responseType = '
  * @param {string} url - API端点
  * @param {Object} data - 请求体数据
  * @param {Object} options - 其他请求选项
- * @param {boolean} requiresAuth - 是否需要认证
  * @param {string} responseType - 响应类型: 'json' | 'text' | 'blob'
  * @returns {Promise} - 请求结果
  */
-export function apiPut(url, data = {}, options = {}, requiresAuth = true, responseType = 'json') {
+export function apiPut(url, data = {}, options = {}, responseType = 'json') {
   return apiRequest(
     url,
     {
@@ -172,35 +149,17 @@ export function apiPut(url, data = {}, options = {}, requiresAuth = true, respon
       body: data instanceof FormData ? data : JSON.stringify(data),
       ...options
     },
-    requiresAuth,
     responseType
   )
-}
-
-export function apiAdminPut(url, data = {}, options = {}, responseType = 'json') {
-  return apiPut(url, data, options, false, responseType)
-}
-
-export function apiSuperAdminPut(url, data = {}, options = {}, responseType = 'json') {
-  return apiPut(url, data, options, false, responseType)
 }
 
 /**
  * 发送DELETE请求
  * @param {string} url - API端点
  * @param {Object} options - 请求选项
- * @param {boolean} requiresAuth - 是否需要认证
  * @param {string} responseType - 响应类型: 'json' | 'text' | 'blob'
  * @returns {Promise} - 请求结果
  */
-export function apiDelete(url, options = {}, requiresAuth = true, responseType = 'json') {
-  return apiRequest(url, { method: 'DELETE', ...options }, requiresAuth, responseType)
-}
-
-export function apiAdminDelete(url, options = {}) {
-  return apiDelete(url, options, false)
-}
-
-export function apiSuperAdminDelete(url, options = {}) {
-  return apiDelete(url, options, false)
+export function apiDelete(url, options = {}, responseType = 'json') {
+  return apiRequest(url, { method: 'DELETE', ...options }, responseType)
 }

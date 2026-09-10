@@ -7,7 +7,6 @@ from zixuetong.knowledge.chunking.ragflow_like.presets import (
     ensure_chunk_defaults_in_additional_params,
 )
 from zixuetong.knowledge.factory import KnowledgeBaseFactory
-from zixuetong.storage.postgres.models_business import User
 from zixuetong.utils import logger
 
 
@@ -198,80 +197,13 @@ class KnowledgeBaseManager:
             all_databases.append(db_info)
         return {"databases": all_databases}
 
-    async def check_accessible(self, user: dict, db_id: str) -> bool:
-        """检查用户是否有权限访问数据库
+    async def get_databases_by_raw_id(self, _user_id: int) -> dict:
+        """兼容旧调用签名，单用户模式下返回全部知识库。"""
+        return await self.get_databases()
 
-        Args:
-            user: 用户信息字典
-            db_id: 数据库ID
-
-        Returns:
-            bool: 是否有权限
-        """
-        from zixuetong.repositories.knowledge_base_repository import KnowledgeBaseRepository
-
-        kb_repo = KnowledgeBaseRepository()
-        kb = await kb_repo.get_by_id(db_id)
-        if kb is None:
-            return False
-
-        return True
-
-    async def get_databases_by_raw_id(self, user_id: int) -> dict:
-        """根据用户ID获取知识库列表（原始ID版本，兼容旧接口）"""
-        from zixuetong.repositories.user_repository import UserRepository
-
-        # 通过数据库获取用户信息
-        user_repo = UserRepository()
-        user: User | None = await user_repo.get_by_id(id=int(user_id))
-        if not user:
-            logger.warning(f"User not found: {user_id}")
-            return {"databases": []}
-        return await self.get_databases_by_user(user)
-
-    async def get_databases_by_user_id(self, user_id: str) -> dict:
-        """根据用户ID获取知识库列表（字符串ID版本）"""
-        from zixuetong.repositories.user_repository import UserRepository
-
-        # 通过数据库获取用户信息
-        user_repo = UserRepository()
-        user: User | None = await user_repo.get_by_user_id(user_id)
-        if not user:
-            logger.warning(f"User not found: {user_id}")
-            return {"databases": []}
-        return await self.get_databases_by_user(user)
-
-    async def get_databases_by_user(self, user: User | dict) -> dict:
-        """根据用户权限获取知识库列表"""
-
-        # 构建用户信息字典（支持 User 对象或 dict）
-        if isinstance(user, dict):
-            user_info = user
-        else:
-            user_info = {
-                "role": user.role,
-            }
-
-        user_role = user_info.get("role")
-        logger.info(f"Getting databases for user with role {user_role}")
-
-        all_databases = (await self.get_databases()).get("databases", [])
-
-        # 超级管理员可以看到所有知识库
-        if user_info.get("role") == "superadmin":
-            return {"databases": all_databases}
-
-        filtered_databases = []
-
-        for db in all_databases:
-            db_id = db.get("db_id")
-            if not db_id:
-                continue
-
-            if await self.check_accessible(user_info, db_id):
-                filtered_databases.append(db)
-
-        return {"databases": filtered_databases}
+    async def get_databases_by_user_id(self, _user_id: str) -> dict:
+        """按系统 owner 调用时返回全部知识库。"""
+        return await self.get_databases()
 
     async def database_name_exists(self, database_name: str) -> bool:
         """检查知识库名称是否已存在"""

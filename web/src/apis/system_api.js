@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiAdminGet, apiAdminPost, apiAdminPut, apiAdminDelete } from './base'
+import { apiGet, apiPost, apiPut, apiDelete } from './base'
 
 /**
  * 系统管理API模块
@@ -14,13 +14,13 @@ export const healthApi = {
    * 系统健康检查（公开接口）
    * @returns {Promise} - 健康检查结果
    */
-  checkHealth: () => apiGet('/api/system/health', {}, false),
+  checkHealth: () => apiGet('/api/system/health'),
 
   /**
    * OCR服务健康检查
    * @returns {Promise} - OCR服务健康状态
    */
-  checkOcrHealth: async () => apiAdminGet('/api/system/health/ocr')
+  checkOcrHealth: async () => apiGet('/api/system/health/ocr')
 }
 
 // =============================================================================
@@ -32,7 +32,7 @@ export const configApi = {
    * 获取系统配置
    * @returns {Promise} - 系统配置
    */
-  getConfig: async () => apiAdminGet('/api/system/config'),
+  getConfig: async () => apiGet('/api/system/config'),
 
   /**
    * 更新单个配置项
@@ -40,14 +40,14 @@ export const configApi = {
    * @param {any} value - 配置值
    * @returns {Promise} - 更新结果
    */
-  updateConfig: async (key, value) => apiAdminPost('/api/system/config', { key, value }),
+  updateConfig: async (key, value) => apiPost('/api/system/config', { key, value }),
 
   /**
    * 批量更新配置项
    * @param {Object} items - 配置项对象
    * @returns {Promise} - 更新结果
    */
-  updateConfigBatch: async (items) => apiAdminPost('/api/system/config/update', items),
+  updateConfigBatch: async (items) => apiPost('/api/system/config/update', items),
 
   /**
    * 获取系统日志
@@ -58,7 +58,7 @@ export const configApi = {
     const url = levels
       ? `/api/system/logs?levels=${encodeURIComponent(levels)}`
       : '/api/system/logs'
-    return apiAdminGet(url)
+    return apiGet(url)
   }
 }
 
@@ -71,13 +71,13 @@ export const brandApi = {
    * 获取系统信息配置（公开接口）
    * @returns {Promise} - 系统信息配置
    */
-  getInfoConfig: () => apiGet('/api/system/info', {}, false),
+  getInfoConfig: () => apiGet('/api/system/info'),
 
   /**
    * 重新加载信息配置
    * @returns {Promise} - 重新加载结果
    */
-  reloadInfoConfig: async () => apiPost('/api/system/info/reload', {}, {}, false)
+  reloadInfoConfig: async () => apiPost('/api/system/info/reload', {})
 }
 
 // =============================================================================
@@ -89,7 +89,7 @@ export const ocrApi = {
    * 获取OCR服务健康状态
    * @returns {Promise} - OCR健康状态
    */
-  getHealth: async () => apiAdminGet('/api/system/ocr/health')
+  getHealth: async () => apiGet('/api/system/ocr/health')
 }
 
 // =============================================================================
@@ -104,39 +104,39 @@ export const chatModelApi = {}
 
 export const modelProviderApi = {
   getProviders: async () => {
-    return apiAdminGet('/api/system/model-providers')
+    return apiGet('/api/system/model-providers')
   },
 
   getV2Models: async (modelType = 'chat') => {
-    return apiAdminGet(`/api/system/model-providers/models/v2?model_type=${modelType}`)
+    return apiGet(`/api/system/model-providers/models/v2?model_type=${modelType}`)
   },
 
   getCacheStatus: async () => {
-    return apiAdminGet('/api/system/model-providers/models/cache-status')
+    return apiGet('/api/system/model-providers/models/cache-status')
   },
 
   refreshModelCache: async () => {
-    return apiAdminPost('/api/system/model-providers/models/cache/refresh')
+    return apiPost('/api/system/model-providers/models/cache/refresh')
   },
 
   getModelStatusBySpec: async (spec) => {
-    return apiAdminGet(`/api/system/model-providers/models/status?spec=${encodeURIComponent(spec)}`)
+    return apiGet(`/api/system/model-providers/models/status?spec=${encodeURIComponent(spec)}`)
   },
 
   createProvider: async (payload) => {
-    return apiAdminPost('/api/system/model-providers', payload)
+    return apiPost('/api/system/model-providers', payload)
   },
 
   updateProvider: async (providerId, payload) => {
-    return apiAdminPut(`/api/system/model-providers/${encodeURIComponent(providerId)}`, payload)
+    return apiPut(`/api/system/model-providers/${encodeURIComponent(providerId)}`, payload)
   },
 
   deleteProvider: async (providerId) => {
-    return apiAdminDelete(`/api/system/model-providers/${encodeURIComponent(providerId)}`)
+    return apiDelete(`/api/system/model-providers/${encodeURIComponent(providerId)}`)
   },
 
   fetchRemoteModels: async (providerId) => {
-    return apiAdminGet(
+    return apiGet(
       `/api/system/model-providers/${encodeURIComponent(providerId)}/remote-models`
     )
   }

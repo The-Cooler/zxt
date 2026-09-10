@@ -19,11 +19,8 @@ class _FakeAgentConfigRepo:
     async def get_by_id(self, config_id: int):
         return SimpleNamespace(id=config_id)
 
-    def personal_scope_id(self):
-        return 1
-
     async def get_or_create_default_for_agent(self, *, agent_id: str, created_by: str):
-        return SimpleNamespace(id=999, department_id=1, agent_id=agent_id, created_by=created_by)
+        return SimpleNamespace(id=999, agent_id=agent_id, created_by=created_by)
 
 
 class _FakeConvRepo:

@@ -171,7 +171,6 @@
           :max-count="1"
           accept=".txt,.md,.docx,.html,.htm,.json,.csv,.xls,.xlsx,.pdf,.pptx,.jpg,.jpeg,.png,.bmp,.tiff,.tif"
           action="/api/knowledge/files/upload"
-          :headers="getAuthHeaders()"
           @change="handleFileUpload"
           @drop="handleDrop"
         >
@@ -273,7 +272,6 @@ import {
 } from '@ant-design/icons-vue'
 import PageHeader from '@/components/shared/PageHeader.vue'
 import { neo4jApi, unifiedApi } from '@/apis/graph_api'
-import { useUserStore } from '@/stores/user'
 import GraphCanvas from '@/components/GraphCanvas.vue'
 import GraphDetailPanel from '@/components/GraphDetailPanel.vue'
 import EmbeddingModelSelector from '@/components/EmbeddingModelSelector.vue'
@@ -705,11 +703,6 @@ const indexNodes = () => {
     .finally(() => {
       state.indexing = false
     })
-}
-
-const getAuthHeaders = () => {
-  const userStore = useUserStore()
-  return userStore.getAuthHeaders()
 }
 
 const getDatabaseName = () => {

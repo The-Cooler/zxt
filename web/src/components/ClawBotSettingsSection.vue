@@ -1,7 +1,7 @@
 <template>
   <div class="clawbot-settings-section">
     <div class="section-title">ClawBot 微信互通</div>
-    <p class="section-description">启用后，通过微信 iLink Bot 扫码登录。微信中的文字消息会交给当前学习助手处理，并把回复发回原会话。</p>
+    <p class="section-description">启用后，通过微信 iLink Bot 扫码连接。微信中的文字消息会交给当前学习助手处理，并把回复发回原会话。</p>
 
     <div class="section">
       <div class="card">
@@ -13,10 +13,10 @@
         <span :class="['status', status.connected ? 'connected' : 'disconnected']">{{ statusText }}</span>
       </div>
       <div v-if="configStore.config?.clawbot_enabled" class="card login-card">
-        <a-button type="primary" :loading="loginLoading" @click="startLogin">{{ status.connected ? '重新登录微信' : '微信扫码登录' }}</a-button>
+        <a-button type="primary" :loading="connectLoading" @click="startConnect">{{ status.connected ? '重新连接微信' : '微信扫码连接' }}</a-button>
         <div v-if="qrContent" class="qr-content">
-          <img v-if="imageSrc" :src="imageSrc" alt="ClawBot 微信登录二维码" />
-          <a v-else :href="qrContent" target="_blank" rel="noopener noreferrer">打开微信登录二维码</a>
+          <img v-if="imageSrc" :src="imageSrc" alt="ClawBot 微信连接二维码" />
+          <a v-else :href="qrContent" target="_blank" rel="noopener noreferrer">打开微信连接二维码</a>
         </div>
         <span v-else class="hint">首次启用后会自动申请二维码；也可手动重新获取。</span>
       </div>
@@ -31,7 +31,7 @@ import { useConfigStore } from '@/stores/config'
 import { getClawBotStatus, requestClawBotLogin } from '@/apis/clawbot_api'
 
 const configStore = useConfigStore()
-const loginLoading = ref(false)
+const connectLoading = ref(false)
 const qrContent = ref('')
 const status = ref({ enabled: false, connected: false, awaiting_scan: false })
 
@@ -58,23 +58,23 @@ const refreshStatus = async () => {
 const handleEnabledChange = async (enabled) => {
   await configStore.setConfigValue('clawbot_enabled', enabled)
   if (enabled) {
-    await startLogin()
+    await startConnect()
   } else {
     qrContent.value = ''
     await refreshStatus()
   }
 }
 
-const startLogin = async () => {
+const startConnect = async () => {
   try {
-    loginLoading.value = true
+    connectLoading.value = true
     const response = await requestClawBotLogin()
     qrContent.value = response.data?.qrcode_content || response.data?.qrcode || ''
     await refreshStatus()
   } catch (error) {
-    message.error(error.message || '获取微信登录二维码失败')
+    message.error(error.message || '获取微信连接二维码失败')
   } finally {
-    loginLoading.value = false
+    connectLoading.value = false
   }
 }
 

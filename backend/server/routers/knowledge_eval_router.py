@@ -3,7 +3,7 @@ import traceback
 from fastapi import APIRouter, HTTPException, Depends, File, Form, Body, UploadFile
 from fastapi.responses import FileResponse
 from zixuetong.storage.postgres.models_business import User
-from server.utils.auth_middleware import get_admin_user
+from server.utils.auth_middleware import get_system_owner
 from zixuetong.utils import logger
 
 # 创建路由器
@@ -18,7 +18,7 @@ evaluation = APIRouter(prefix="/evaluation", tags=["evaluation"])
 
 @evaluation.get("/databases/{db_id}/benchmarks/{benchmark_id}")
 async def get_evaluation_benchmark_by_db(
-    db_id: str, benchmark_id: str, page: int = 1, page_size: int = 10, current_user: User = Depends(get_admin_user)
+    db_id: str, benchmark_id: str, page: int = 1, page_size: int = 10, current_user: User = Depends(get_system_owner)
 ):
     """根据 db_id 获取评估基准详情（支持分页）"""
     from zixuetong.services.evaluation_service import EvaluationService
@@ -41,7 +41,7 @@ async def get_evaluation_benchmark_by_db(
 
 
 @evaluation.delete("/benchmarks/{benchmark_id}")
-async def delete_evaluation_benchmark(benchmark_id: str, current_user: User = Depends(get_admin_user)):
+async def delete_evaluation_benchmark(benchmark_id: str, current_user: User = Depends(get_system_owner)):
     """删除评估基准"""
     from zixuetong.services.evaluation_service import EvaluationService
 
@@ -55,7 +55,7 @@ async def delete_evaluation_benchmark(benchmark_id: str, current_user: User = De
 
 
 @evaluation.get("/benchmarks/{benchmark_id}/download")
-async def download_evaluation_benchmark(benchmark_id: str, current_user: User = Depends(get_admin_user)):
+async def download_evaluation_benchmark(benchmark_id: str, current_user: User = Depends(get_system_owner)):
     """下载评估基准文件"""
     from zixuetong.services.evaluation_service import EvaluationService
 
@@ -84,7 +84,7 @@ async def get_evaluation_results_by_db(
     page: int = 1,
     page_size: int = 20,
     error_only: bool = False,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """获取评估结果（带 db_id，支持分页）"""
     from zixuetong.services.evaluation_service import EvaluationService
@@ -107,7 +107,7 @@ async def get_evaluation_results_by_db(
 
 
 @evaluation.delete("/databases/{db_id}/results/{task_id}")
-async def delete_evaluation_result_by_db(db_id: str, task_id: str, current_user: User = Depends(get_admin_user)):
+async def delete_evaluation_result_by_db(db_id: str, task_id: str, current_user: User = Depends(get_system_owner)):
     """删除评估结果（带 db_id）"""
     from zixuetong.services.evaluation_service import EvaluationService
 
@@ -131,7 +131,7 @@ async def upload_evaluation_benchmark(
     file: UploadFile = File(...),
     name: str = Form(...),
     description: str = Form(""),
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """上传评估基准文件"""
     from zixuetong.services.evaluation_service import EvaluationService
@@ -164,7 +164,7 @@ async def upload_evaluation_benchmark(
 
 
 @evaluation.get("/databases/{db_id}/benchmarks")
-async def get_evaluation_benchmarks(db_id: str, current_user: User = Depends(get_admin_user)):
+async def get_evaluation_benchmarks(db_id: str, current_user: User = Depends(get_system_owner)):
     """获取知识库的评估基准列表"""
     from zixuetong.services.evaluation_service import EvaluationService
 
@@ -179,7 +179,7 @@ async def get_evaluation_benchmarks(db_id: str, current_user: User = Depends(get
 
 @evaluation.post("/databases/{db_id}/benchmarks/generate")
 async def generate_evaluation_benchmark(
-    db_id: str, params: dict = Body(...), current_user: User = Depends(get_admin_user)
+    db_id: str, params: dict = Body(...), current_user: User = Depends(get_system_owner)
 ):
     """自动生成评估基准"""
     from zixuetong.services.evaluation_service import EvaluationService
@@ -194,7 +194,7 @@ async def generate_evaluation_benchmark(
 
 
 @evaluation.post("/databases/{db_id}/run")
-async def run_evaluation(db_id: str, params: dict = Body(...), current_user: User = Depends(get_admin_user)):
+async def run_evaluation(db_id: str, params: dict = Body(...), current_user: User = Depends(get_system_owner)):
     """运行RAG评估"""
     from zixuetong.services.evaluation_service import EvaluationService
 
@@ -213,7 +213,7 @@ async def run_evaluation(db_id: str, params: dict = Body(...), current_user: Use
 
 
 @evaluation.get("/databases/{db_id}/history")
-async def get_evaluation_history(db_id: str, current_user: User = Depends(get_admin_user)):
+async def get_evaluation_history(db_id: str, current_user: User = Depends(get_system_owner)):
     """获取知识库的评估历史记录"""
     from zixuetong.services.evaluation_service import EvaluationService
 

@@ -1,17 +1,9 @@
-import {
-  apiGet,
-  apiPost,
-  apiDelete,
-  apiPut,
-  apiAdminPost,
-  apiAdminDelete,
-  apiRequest
-} from './base'
+import { apiGet, apiPost, apiDelete, apiPut, apiRequest } from './base'
 
 /**
  * 智能体API模块
  * 包含智能体管理、聊天、配置等功能
- * 权限要求: 任何已登录用户（普通用户、管理员、超级管理员）
+ * 权限要求: 单用户 owner 默认拥有最高权限
  */
 
 // =============================================================================
@@ -147,16 +139,16 @@ export const agentApi = {
     apiGet(`/api/chat/agent/${agentId}/configs/${configId}`),
 
   createAgentConfigProfile: (agentId, payload) =>
-    apiAdminPost(`/api/chat/agent/${agentId}/configs`, payload),
+    apiPost(`/api/chat/agent/${agentId}/configs`, payload),
 
   updateAgentConfigProfile: (agentId, configId, payload) =>
     apiPut(`/api/chat/agent/${agentId}/configs/${configId}`, payload),
 
   setAgentConfigDefault: (agentId, configId) =>
-    apiAdminPost(`/api/chat/agent/${agentId}/configs/${configId}/set_default`, {}),
+    apiPost(`/api/chat/agent/${agentId}/configs/${configId}/set_default`, {}),
 
   deleteAgentConfigProfile: (agentId, configId) =>
-    apiAdminDelete(`/api/chat/agent/${agentId}/configs/${configId}`),
+    apiDelete(`/api/chat/agent/${agentId}/configs/${configId}`),
 
   /**
    * 设置默认智能体
@@ -164,7 +156,7 @@ export const agentApi = {
    * @returns {Promise} - 设置结果
    */
   setDefaultAgent: async (agentId) => {
-    return apiAdminPost('/api/chat/set_default_agent', { agent_id: agentId })
+    return apiPost('/api/chat/set_default_agent', { agent_id: agentId })
   },
 
   /**
@@ -261,14 +253,10 @@ export const multimodalApi = {
     const formData = new FormData()
     formData.append('file', file)
 
-    return apiRequest(
-      '/api/chat/image/upload',
-      {
-        method: 'POST',
-        body: formData
-      },
-      true
-    )
+    return apiRequest('/api/chat/image/upload', {
+      method: 'POST',
+      body: formData
+    })
   }
 }
 
@@ -393,7 +381,7 @@ export const threadApi = {
    * @returns {Promise<Response>}
    */
   downloadThreadArtifact: (threadId, path) =>
-    apiGet(threadApi.getThreadArtifactUrl(threadId, path, true), {}, true, 'blob'),
+    apiGet(threadApi.getThreadArtifactUrl(threadId, path, true), {}, 'blob'),
 
   /**
    * 保存交付物到 workspace/saved_artifacts

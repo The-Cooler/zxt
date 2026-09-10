@@ -12,14 +12,6 @@ import pytest
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 
-def _assert_forbidden_response(response):
-    """验证 403 禁止访问响应的格式"""
-    assert response.status_code == 403
-    payload = response.json()
-    assert "detail" in payload
-    assert isinstance(payload["detail"], str)
-
-
 async def test_admin_can_manage_knowledge_databases(test_client, admin_headers, knowledge_database):
     db_id = knowledge_database["db_id"]
 
@@ -94,25 +86,15 @@ async def test_update_database_additional_params_merge_keeps_chunk_preset(
     assert info_response.json()["additional_params"]["chunk_preset_id"] == "qa"
 
 
-async def test_knowledge_routes_enforce_permissions(test_client, standard_user, knowledge_database):
+async def test_single_user_can_access_knowledge_routes(test_client, standard_user, knowledge_database):
     db_id = knowledge_database["db_id"]
+    headers = standard_user["headers"]
 
-    forbidden_create = await test_client.post(
-        "/api/knowledge/databases",
-        json={
-            "database_name": "unauthorized_db",
-            "description": "Should not succeed",
-            "embed_model_name": "siliconflow/BAAI/bge-m3",
-        },
-        headers=standard_user["headers"],
-    )
-    _assert_forbidden_response(forbidden_create)
+    list_response = await test_client.get("/api/knowledge/databases", headers=headers)
+    assert list_response.status_code == 200, list_response.text
 
-    forbidden_list = await test_client.get("/api/knowledge/databases", headers=standard_user["headers"])
-    _assert_forbidden_response(forbidden_list)
-
-    forbidden_get = await test_client.get(f"/api/knowledge/databases/{db_id}", headers=standard_user["headers"])
-    _assert_forbidden_response(forbidden_get)
+    get_response = await test_client.get(f"/api/knowledge/databases/{db_id}", headers=headers)
+    assert get_response.status_code == 200, get_response.text
 
 
 async def test_admin_can_create_lightrag_db_with_query_params(test_client, admin_headers):
@@ -364,20 +346,20 @@ async def test_sample_questions_endpoints(test_client, admin_headers, knowledge_
     assert "中没有文件" in generate_response.json()["detail"]
 
 
-async def test_mindmap_permissions(test_client, standard_user, knowledge_database):
-    """测试思维导图接口的权限控制"""
+async def test_single_user_can_access_mindmap_routes(test_client, standard_user, knowledge_database):
+    """单用户 owner 可访问思维导图接口。"""
     db_id = knowledge_database["db_id"]
+    headers = standard_user["headers"]
 
-    # 普通用户应该无法访问
-    forbidden_list = await test_client.get("/api/mindmap/databases", headers=standard_user["headers"])
-    _assert_forbidden_response(forbidden_list)
+    list_response = await test_client.get("/api/mindmap/databases", headers=headers)
+    assert list_response.status_code == 200, list_response.text
 
-    forbidden_files = await test_client.get(f"/api/mindmap/databases/{db_id}/files", headers=standard_user["headers"])
-    _assert_forbidden_response(forbidden_files)
+    files_response = await test_client.get(f"/api/mindmap/databases/{db_id}/files", headers=headers)
+    assert files_response.status_code == 200, files_response.text
 
-    forbidden_generate = await test_client.post(
+    generate_response = await test_client.post(
         "/api/mindmap/generate",
         json={"db_id": db_id, "file_ids": []},
-        headers=standard_user["headers"],
+        headers=headers,
     )
-    _assert_forbidden_response(forbidden_generate)
+    assert generate_response.status_code in (200, 400), generate_response.text

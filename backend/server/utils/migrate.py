@@ -185,14 +185,8 @@ class DatabaseMigrator:
         # 如果数据库已存在但没有版本表，创建版本表并设置为最新版本
         if current_version == 0 and latest_version > 0 and os.path.exists(self.db_path):
             # 检查users表是否已有新字段，如果有，说明是通过SQLAlchemy创建的
-            required_columns = [
-                "login_failed_count",
-                "last_failed_login",
-                "login_locked_until",
-                "is_deleted",
-                "deleted_at",
-            ]
-            if all(self.check_column_exists("users", column) for column in required_columns):
+            required_columns = []
+            if not required_columns:
                 # 字段已存在，直接设置为最新版本
                 logger.info(f"检测到现有数据库已包含最新字段，设置版本为 v{latest_version}")
                 self.set_version(latest_version)
@@ -250,35 +244,6 @@ class DatabaseMigrator:
         """
         migrations = []
 
-        # 迁移 v1: 为 users 表添加登录失败限制字段
-        # 使用条件检查来避免重复添加字段
-        v1_commands = []
-
-        # 检查并添加 login_failed_count 字段
-        if not self.check_column_exists("users", "login_failed_count"):
-            v1_commands.append("ALTER TABLE users ADD COLUMN login_failed_count INTEGER NOT NULL DEFAULT 0")
-
-        # 检查并添加 last_failed_login 字段
-        if not self.check_column_exists("users", "last_failed_login"):
-            v1_commands.append("ALTER TABLE users ADD COLUMN last_failed_login DATETIME")
-
-        # 检查并添加 login_locked_until 字段
-        if not self.check_column_exists("users", "login_locked_until"):
-            v1_commands.append("ALTER TABLE users ADD COLUMN login_locked_until DATETIME")
-
-        migrations.append((1, "为用户表添加登录失败限制字段", v1_commands))
-
-        # 迁移 v2: 为 users 表添加软删除字段
-        v2_commands: list[str] = []
-
-        if not self.check_column_exists("users", "is_deleted"):
-            v2_commands.append("ALTER TABLE users ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0")
-
-        if not self.check_column_exists("users", "deleted_at"):
-            v2_commands.append("ALTER TABLE users ADD COLUMN deleted_at DATETIME")
-
-        migrations.append((2, "为用户表添加软删除字段", v2_commands))
-
         # 迁移 v3: 为 messages 表添加多模态图片支持
         v3_commands: list[str] = []
 
@@ -286,29 +251,6 @@ class DatabaseMigrator:
             v3_commands.append("ALTER TABLE messages ADD COLUMN image_content TEXT")
 
         migrations.append((3, "为消息表添加多模态图片支持字段", v3_commands))
-
-        # 迁移 v4: 添加部门功能
-        v4_commands: list[str] = []
-
-        # 检查 departments 表是否存在
-        if not self.check_table_exists("departments"):
-            v4_commands.append("""
-                CREATE TABLE departments (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name VARCHAR(50) NOT NULL UNIQUE,
-                    description VARCHAR(255),
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            v4_commands.append("CREATE INDEX idx_departments_name ON departments(name)")
-
-        # 检查 users 表是否有 department_id 字段
-        if not self.check_column_exists("users", "department_id"):
-            v4_commands.append("ALTER TABLE users ADD COLUMN department_id INTEGER REFERENCES departments(id)")
-
-        v4_commands.append("CREATE INDEX idx_users_department_id ON users(department_id)")
-
-        migrations.append((4, "添加部门功能", v4_commands))
 
         # 迁移 v5: 补全知识库/评估相关表字段（为历史数据库增加新增列）
         v5_commands: list[str] = []
@@ -429,17 +371,7 @@ def validate_database_schema(db_path: str) -> tuple[bool, list[str]]:
                 "id",
                 "username",
                 "user_id",
-                "phone_number",
-                "avatar",
-                "password_hash",
-                "role",
                 "created_at",
-                "last_login",
-                "login_failed_count",
-                "last_failed_login",
-                "login_locked_until",
-                "is_deleted",
-                "deleted_at",
             ],
             "operation_logs": ["id", "user_id", "operation", "details", "ip_address", "timestamp"],
             "messages": [

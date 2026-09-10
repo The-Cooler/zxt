@@ -71,7 +71,6 @@ def build_trace_metadata(
     agent_config_id: int | None = None,
     message_type: str | None = None,
     username: str | None = None,
-    login_user_id: str | None = None,
 ) -> dict[str, Any]:
     metadata: dict[str, Any] = {
         "langfuse_user_id": user_id,
@@ -90,8 +89,6 @@ def build_trace_metadata(
         metadata["message_type"] = message_type
     if username:
         metadata["username"] = username
-    if login_user_id:
-        metadata["login_user_id"] = login_user_id
 
     return metadata
 
@@ -113,7 +110,6 @@ def build_run_context(
     agent_config_id: int | None = None,
     message_type: str | None = None,
     username: str | None = None,
-    login_user_id: str | None = None,
 ) -> LangfuseRunContext:
     metadata = build_trace_metadata(
         user_id=user_id,
@@ -124,7 +120,6 @@ def build_run_context(
         agent_config_id=agent_config_id,
         message_type=message_type,
         username=username,
-        login_user_id=login_user_id,
     )
     tags = build_trace_tags(agent_id=agent_id, operation=operation, message_type=message_type)
 

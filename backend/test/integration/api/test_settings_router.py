@@ -9,14 +9,14 @@ import pytest
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 
-async def test_reranker_list_requires_admin(test_client, standard_user):
+async def test_legacy_reranker_endpoint_is_not_registered(test_client, standard_user):
     public_response = await test_client.get("/api/settings/rerankers")
     assert public_response.status_code == 404
 
-    forbidden_response = await test_client.get("/api/settings/rerankers", headers=standard_user["headers"])
-    assert forbidden_response.status_code == 404
+    owner_response = await test_client.get("/api/settings/rerankers", headers=standard_user["headers"])
+    assert owner_response.status_code == 404
 
 
-async def test_admin_can_list_rerankers(test_client, admin_headers):
+async def test_legacy_reranker_endpoint_still_returns_not_found(test_client, admin_headers):
     response = await test_client.get("/api/settings/rerankers", headers=admin_headers)
     assert response.status_code == 404, response.text

@@ -16,20 +16,7 @@ export * from './subagent_api' // SubAgent API
 export * from './tool_api' // 工具 API
 
 // 导出基础工具函数
-export {
-  apiGet,
-  apiPost,
-  apiPut,
-  apiDelete,
-  apiAdminGet,
-  apiAdminPost,
-  apiAdminPut,
-  apiAdminDelete,
-  apiSuperAdminGet,
-  apiSuperAdminPost,
-  apiSuperAdminPut,
-  apiSuperAdminDelete
-} from './base'
+export { apiGet, apiPost, apiPut, apiDelete } from './base'
 
 /**
  * API模块说明:
@@ -39,7 +26,6 @@ export {
  *
  * 2. knowledge_api.js: 知识库管理API
  *    - 数据库管理、文档管理、查询接口、文件管理
- *    - 权限要求: 管理员权限
  *
  *
  * 4. graph_api.js: 图谱API

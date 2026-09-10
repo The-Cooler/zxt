@@ -3,14 +3,12 @@ import { ref, reactive } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { databaseApi, documentApi, queryApi } from '@/apis/knowledge_api'
 import { useTaskerStore } from '@/stores/tasker'
-import { useUserStore } from '@/stores/user'
 import { useRouter } from 'vue-router'
 import { parseToShanghai } from '@/utils/time'
 
 export const useDatabaseStore = defineStore('database', () => {
   const router = useRouter()
   const taskerStore = useTaskerStore()
-  const userStore = useUserStore()
 
   // State
   const databases = ref([])
@@ -43,13 +41,11 @@ export const useDatabaseStore = defineStore('database', () => {
   let autoRefreshManualOverride = false // Indicates user explicitly disabled auto-refresh
 
   // Actions
-  // 管理员获取所有知识库，普通用户获取有权限访问的知识库
+  // 单用户模式下加载当前系统用户可访问的知识库
   async function loadDatabases() {
     state.listLoading = true
     try {
-      const data = userStore.isAdmin
-        ? await databaseApi.getDatabases()
-        : await databaseApi.getAccessibleDatabases()
+      const data = await databaseApi.getAccessibleDatabases()
       const list = data?.databases || []
       databases.value = list.sort((a, b) => {
         const timeA = parseToShanghai(a.created_at)

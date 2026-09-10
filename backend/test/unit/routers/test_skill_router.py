@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from server.routers.skill_router import skills
-from server.utils.auth_middleware import get_admin_user, get_db
+from server.utils.auth_middleware import get_system_owner, get_db
 from zixuetong.storage.postgres.models_business import Skill, User
 
 
-def _build_app(*, allow_admin: bool = True) -> FastAPI:
+def _build_app() -> FastAPI:
     app = FastAPI()
     app.include_router(skills, prefix="/api")
 
@@ -16,17 +16,13 @@ def _build_app(*, allow_admin: bool = True) -> FastAPI:
         return None
 
     async def fake_admin_user():
-        if not allow_admin:
-            raise HTTPException(status_code=403, detail="需要管理员权限")
         return User(
-            username="admin",
-            user_id="admin",
-            password_hash="x",
-            role="admin",
+            username="owner",
+            user_id="owner",
         )
 
     app.dependency_overrides[get_db] = fake_db
-    app.dependency_overrides[get_admin_user] = fake_admin_user
+    app.dependency_overrides[get_system_owner] = fake_admin_user
     return app
 
 
@@ -50,23 +46,6 @@ def test_list_skills_route_returns_data(monkeypatch):
     payload = resp.json()
     assert payload["success"] is True
     assert payload["data"][0]["slug"] == "demo"
-
-
-def test_skill_management_requires_admin():
-    app = _build_app(allow_admin=False)
-    client = TestClient(app)
-
-    dependency_resp = client.get("/api/system/skills/dependency-options")
-    assert dependency_resp.status_code == 403
-
-    import_resp = client.post(
-        "/api/system/skills/import",
-        files={"file": ("demo.zip", b"not zip", "application/zip")},
-    )
-    assert import_resp.status_code == 403
-
-    delete_resp = client.delete("/api/system/skills/demo")
-    assert delete_resp.status_code == 403
 
 
 def test_import_skill_route_accepts_skill_md(monkeypatch):

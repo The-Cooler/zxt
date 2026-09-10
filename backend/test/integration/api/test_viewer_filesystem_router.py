@@ -69,9 +69,9 @@ async def _upload_attachment_file(
     return path
 
 
-async def test_viewer_tree_requires_authentication(test_client):
+async def test_viewer_tree_root_available_without_auth_headers(test_client):
     response = await test_client.get("/api/viewer/filesystem/tree", params={"thread_id": "x", "path": "/"})
-    assert response.status_code == 401
+    assert response.status_code in (200, 404), response.text
 
 
 async def test_viewer_tree_root_lists_user_data_namespace(test_client, standard_user):

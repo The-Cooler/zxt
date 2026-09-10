@@ -45,7 +45,7 @@ testpaths = ["test/unit", "test/integration", "test/e2e"]
 pythonpath = [".", "package"]
 markers = [
     "unit: marks tests that run without live services",
-    "auth: marks tests that require authentication",
+    "single_user: marks tests that rely on the single-user owner context",
     "slow: marks tests as slow",
     "integration: marks tests as integration tests",
     "e2e: marks tests as end-to-end tests"

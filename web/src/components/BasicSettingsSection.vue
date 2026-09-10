@@ -1,54 +1,51 @@
 <template>
   <div class="basic-settings-section">
-    <template v-if="userStore.isAdmin">
-      <div class="section-title">默认项配置</div>
-      <div class="settings-panel">
-        <template v-if="userStore.isSuperAdmin">
-          <div class="setting-row two-cols">
-            <div class="col-item">
-              <div class="setting-label">{{ items?.default_model?.des || '默认对话模型' }}</div>
-              <div class="setting-content">
-                <ModelSelectorComponent
-                  @select-model="handleChatModelSelect"
-                  :model_spec="configStore.config?.default_model"
-                  placeholder="请选择默认模型"
-                />
-              </div>
-            </div>
-            <div class="col-item">
-              <div class="setting-label">{{ items?.fast_model?.des }}</div>
-              <div class="setting-content">
-                <ModelSelectorComponent
-                  @select-model="handleFastModelSelect"
-                  :model_spec="configStore.config?.fast_model"
-                  placeholder="请选择模型"
-                />
-              </div>
-            </div>
+    <div class="section-title">默认项配置</div>
+    <div class="settings-panel">
+      <div class="setting-row two-cols">
+        <div class="col-item">
+          <div class="setting-label">{{ items?.default_model?.des || '默认对话模型' }}</div>
+          <div class="setting-content">
+            <ModelSelectorComponent
+              @select-model="handleChatModelSelect"
+              :model_spec="configStore.config?.default_model"
+              placeholder="请选择默认模型"
+            />
           </div>
-          <div class="setting-row two-cols">
-            <div class="col-item">
-              <div class="setting-label">{{ items?.embed_model?.des }}</div>
-              <div class="setting-content">
-                <EmbeddingModelSelector
-                  :value="configStore.config?.embed_model"
-                  @change="handleChange('embed_model', $event)"
-                  style="width: 100%"
-                />
-              </div>
-            </div>
-            <div class="col-item">
-              <div class="setting-label">{{ items?.reranker?.des }}</div>
-              <div class="setting-content">
-                <RerankModelSelector
-                  :value="configStore.config?.reranker"
-                  @change="handleChange('reranker', $event)"
-                  style="width: 100%"
-                />
-              </div>
-            </div>
+        </div>
+        <div class="col-item">
+          <div class="setting-label">{{ items?.fast_model?.des }}</div>
+          <div class="setting-content">
+            <ModelSelectorComponent
+              @select-model="handleFastModelSelect"
+              :model_spec="configStore.config?.fast_model"
+              placeholder="请选择模型"
+            />
           </div>
-        </template>
+        </div>
+      </div>
+      <div class="setting-row two-cols">
+        <div class="col-item">
+          <div class="setting-label">{{ items?.embed_model?.des }}</div>
+          <div class="setting-content">
+            <EmbeddingModelSelector
+              :value="configStore.config?.embed_model"
+              @change="handleChange('embed_model', $event)"
+              style="width: 100%"
+            />
+          </div>
+        </div>
+        <div class="col-item">
+          <div class="setting-label">{{ items?.reranker?.des }}</div>
+          <div class="setting-content">
+            <RerankModelSelector
+              :value="configStore.config?.reranker"
+              @change="handleChange('reranker', $event)"
+              style="width: 100%"
+            />
+          </div>
+        </div>
+      </div>
         <div class="setting-row">
           <div class="col-item">
             <div class="setting-label">默认智能体</div>
@@ -67,44 +64,40 @@
         </div>
       </div>
 
-      <template v-if="userStore.isSuperAdmin">
-        <div class="section-title">内容审查配置</div>
-        <div class="section">
-          <div class="card">
-            <span class="label">{{ items?.enable_content_guard?.des }}</span>
-            <a-switch
-              :checked="configStore.config?.enable_content_guard"
-              @change="handleChange('enable_content_guard', $event)"
-            />
-          </div>
-          <div class="card" v-if="configStore.config?.enable_content_guard">
-            <span class="label">{{ items?.enable_content_guard_llm?.des }}</span>
-            <a-switch
-              :checked="configStore.config?.enable_content_guard_llm"
-              @change="handleChange('enable_content_guard_llm', $event)"
-            />
-          </div>
-          <div
-            class="card card-select"
-            v-if="
-              configStore.config?.enable_content_guard &&
-              configStore.config?.enable_content_guard_llm
-            "
-          >
-            <span class="label">{{ items?.content_guard_llm_model?.des }}</span>
-            <ModelSelectorComponent
-              @select-model="handleContentGuardModelSelect"
-              :model_spec="configStore.config?.content_guard_llm_model"
-              placeholder="请选择模型"
-            />
-          </div>
-        </div>
-      </template>
-    </template>
+    <div class="section-title">内容审查配置</div>
+    <div class="section">
+      <div class="card">
+        <span class="label">{{ items?.enable_content_guard?.des }}</span>
+        <a-switch
+          :checked="configStore.config?.enable_content_guard"
+          @change="handleChange('enable_content_guard', $event)"
+        />
+      </div>
+      <div class="card" v-if="configStore.config?.enable_content_guard">
+        <span class="label">{{ items?.enable_content_guard_llm?.des }}</span>
+        <a-switch
+          :checked="configStore.config?.enable_content_guard_llm"
+          @change="handleChange('enable_content_guard_llm', $event)"
+        />
+      </div>
+      <div
+        class="card card-select"
+        v-if="
+          configStore.config?.enable_content_guard &&
+          configStore.config?.enable_content_guard_llm
+        "
+      >
+        <span class="label">{{ items?.content_guard_llm_model?.des }}</span>
+        <ModelSelectorComponent
+          @select-model="handleContentGuardModelSelect"
+          :model_spec="configStore.config?.content_guard_llm_model"
+          placeholder="请选择模型"
+        />
+      </div>
+    </div>
 
-    <!-- 服务链接部分 -->
-    <div v-if="userStore.isAdmin" class="section-title">服务链接</div>
-    <div v-if="userStore.isAdmin">
+    <div class="section-title">服务链接</div>
+    <div>
       <p class="section-description">
         快速访问系统相关的外部服务，需要将 localhost 替换为实际的 IP 地址。
       </p>
@@ -164,7 +157,6 @@ import { computed, h, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { useConfigStore } from '@/stores/config'
 import { useAgentStore } from '@/stores/agent'
-import { useUserStore } from '@/stores/user'
 import { Globe } from 'lucide-vue-next'
 import ModelSelectorComponent from '@/components/ModelSelectorComponent.vue'
 import EmbeddingModelSelector from '@/components/EmbeddingModelSelector.vue'
@@ -172,7 +164,6 @@ import RerankModelSelector from '@/components/RerankModelSelector.vue'
 
 const configStore = useConfigStore()
 const agentStore = useAgentStore()
-const userStore = useUserStore()
 const items = computed(() => configStore.config?._config_items || {})
 const isSettingDefaultAgent = ref(false)
 const agentOptions = computed(() =>

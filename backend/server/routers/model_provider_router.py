@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from server.utils.auth_middleware import get_admin_user, get_db
+from server.utils.auth_middleware import get_system_owner, get_db
 from zixuetong.services.model_provider_service import (
     check_credential_status,
     create_provider_config,
@@ -61,7 +61,7 @@ class ModelProviderPayload(BaseModel):
 
 @model_providers.get("")
 async def list_providers(
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """获取独立模型供应商配置列表。"""
@@ -77,7 +77,7 @@ async def list_providers(
 @model_providers.post("")
 async def create_provider(
     payload: ModelProviderPayload,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """创建独立模型供应商配置。"""
@@ -99,7 +99,7 @@ async def create_provider(
 @model_providers.get("/{provider_id}")
 async def get_provider(
     provider_id: str,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """获取单个独立模型供应商配置。"""
@@ -115,7 +115,7 @@ async def get_provider(
 async def update_provider(
     provider_id: str,
     payload: ModelProviderPayload,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """更新独立模型供应商配置。"""
@@ -152,7 +152,7 @@ async def update_provider(
 @model_providers.delete("/{provider_id}")
 async def delete_provider(
     provider_id: str,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """删除独立模型供应商配置。"""
@@ -166,7 +166,7 @@ async def delete_provider(
 @model_providers.get("/{provider_id}/remote-models")
 async def get_remote_models(
     provider_id: str,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """实时拉取远端 /models，不落库。"""
@@ -189,7 +189,7 @@ async def get_remote_models(
 
 @model_providers.post("/models/cache/refresh")
 async def refresh_model_cache(
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """强制刷新模型缓存，从数据库重新加载所有供应商配置到 Redis。"""
     await _refresh_model_cache()
@@ -201,7 +201,7 @@ async def refresh_model_cache(
 @model_providers.get("/models/v2")
 async def get_v2_models(
     model_type: str = "chat",
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """获取 v2 格式的模型列表，按 provider 分组。
 
@@ -235,7 +235,7 @@ async def get_v2_models(
 @model_providers.get("/models/status")
 async def get_model_status_by_spec(
     spec: str,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
 ):
     """根据 full spec 检查模型状态（自动识别 V1/V2、Chat/Embedding）。"""
     try:

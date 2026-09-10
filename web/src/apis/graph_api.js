@@ -16,7 +16,7 @@ export const unifiedApi = {
    * @returns {Promise} - 图谱列表
    */
   getGraphs: async () => {
-    return await apiGet('/api/graph/list', {}, true)
+    return await apiGet('/api/graph/list')
   },
 
   /**
@@ -42,7 +42,7 @@ export const unifiedApi = {
       max_nodes: max_nodes.toString()
     })
 
-    return await apiGet(`/api/graph/subgraph?${queryParams.toString()}`, {}, true)
+    return await apiGet(`/api/graph/subgraph?${queryParams.toString()}`)
   },
 
   /**
@@ -59,7 +59,7 @@ export const unifiedApi = {
       db_id: db_id
     })
 
-    return await apiGet(`/api/graph/stats?${queryParams.toString()}`, {}, true)
+    return await apiGet(`/api/graph/stats?${queryParams.toString()}`)
   },
 
   /**
@@ -76,7 +76,7 @@ export const unifiedApi = {
       db_id: db_id
     })
 
-    return await apiGet(`/api/graph/labels?${queryParams.toString()}`, {}, true)
+    return await apiGet(`/api/graph/labels?${queryParams.toString()}`)
   }
 }
 
@@ -97,7 +97,7 @@ export const neo4jApi = {
       num: num.toString()
     })
 
-    return await apiGet(`/api/graph/neo4j/nodes?${queryParams.toString()}`, {}, true)
+    return await apiGet(`/api/graph/neo4j/nodes?${queryParams.toString()}`)
   },
 
   /**
@@ -114,7 +114,7 @@ export const neo4jApi = {
       entity_name: entity_name
     })
 
-    return await apiGet(`/api/graph/neo4j/node?${queryParams.toString()}`, {}, true)
+    return await apiGet(`/api/graph/neo4j/node?${queryParams.toString()}`)
   },
 
   /**
@@ -133,7 +133,7 @@ export const neo4jApi = {
         max_triples: max_triples
       },
       {},
-      true
+      'json'
     )
   },
 
@@ -160,7 +160,7 @@ export const neo4jApi = {
         batch_size: batch_size
       },
       {},
-      true
+      'json'
     )
   },
 
@@ -176,7 +176,7 @@ export const neo4jApi = {
         kgdb_name: kgdb_name
       },
       {},
-      true
+      'json'
     )
   },
 
@@ -185,7 +185,7 @@ export const neo4jApi = {
    * @returns {Promise} - 图数据库信息
    */
   getInfo: async () => {
-    return await apiGet('/api/graph/neo4j/info', {}, true)
+    return await apiGet('/api/graph/neo4j/info')
   }
 }
 

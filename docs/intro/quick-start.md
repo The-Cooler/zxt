@@ -25,9 +25,11 @@ cd bishe
 
 ### 步骤二：配置环境变量
 
+项目只使用根目录 `.env` 作为 Docker 本地运行配置。Docker Compose、API 和 Worker 会读取同一份文件；`.env.docker` 已停止使用。
+
 **方式一：使用初始化脚本（推荐）**
 
-我们提供了自动化脚本，帮你完成环境配置和 Docker 镜像拉取：
+脚本会在 `.env` 不存在时复制 `.env.template`，并拉取当前 Compose 使用的基础镜像：
 
 ```bash
 # Linux/macOS
@@ -37,27 +39,41 @@ cd bishe
 .\scripts\init.ps1
 ```
 
-脚本会引导你完成以下配置：
-- 创建 `.env` 配置文件
-- 设置 `SILICONFLOW_API_KEY`（必需，用于调用大模型）
-- 设置 `TAVILY_API_KEY`（可选，用于搜索服务）
-- 自动拉取必需的 Docker 镜像
+脚本不会覆盖已有 `.env`。创建后请手动编辑 `.env`，至少完成：
 
-::: tip API Key 获取
-- **硅基流动**：访问 [cloud.siliconflow.cn](https://cloud.siliconflow.cn/i/Eo5yTHGJ)，注册认证即送 16 元额度
-- **Tavily**：访问 [app.tavily.com](https://app.tavily.com/) 获取搜索 API Key（可选）
-:::
+1. 填写一个模型供应商 API Key；默认可填写 `SILICONFLOW_API_KEY`。
+2. 将 `NEO4J_PASSWORD` 设置为至少 8 位密码。
 
 **方式二：手动配置**
 
-如果偏好手动配置：
-
 ```bash
-# 复制环境变量模板
+# Linux/macOS
 cp .env.template .env
 
-# 编辑 .env 文件，填入你的 API Key
+# Windows PowerShell
+Copy-Item .env.template .env
 ```
+
+`.env.template` 将配置分为以下类别，并在每个变量上方标注是否必填、默认值、用途和启用条件：
+
+| 类别 | 是否必须修改 | 说明 |
+|------|--------------|------|
+| 模型供应商 API Key | 至少一项必填 | 后端必须检测到至少一个可用模型供应商 |
+| `NEO4J_PASSWORD` | 必填 | 同时用于 Neo4j 初始化、健康检查和后端连接 |
+| PostgreSQL | 本地开发可不改 | 默认用户、密码和数据库名由 Compose 统一使用 |
+| Redis、MinIO | 本地开发可不改 | 使用 Compose 内部服务地址和开发默认凭据 |
+| Sandbox | 可选 | 默认 Docker provisioner 可直接运行，仅高级部署需要修改 |
+| Tavily、Langfuse | 按功能启用 | 分别用于联网搜索和模型调用观测 |
+| ClawBot | 按功能启用 | 默认关闭，不影响基础系统启动 |
+
+::: warning
+`.env` 包含密码和 API Key，已被 `.gitignore` 忽略，不要提交。不要在 `.env.docker` 中保存密钥。
+:::
+
+::: tip API Key 获取
+- **硅基流动**：访问 [cloud.siliconflow.cn](https://cloud.siliconflow.cn/i/Eo5yTHGJ)
+- **Tavily**：访问 [app.tavily.com](https://app.tavily.com/) 获取搜索 API Key（可选）
+:::
 
 ### 步骤三：启动服务
 
@@ -68,14 +84,8 @@ docker compose up --build -d
 
 服务首次启动需要等待镜像拉取和编译，请耐心等待 2-3 分钟。
 
-::: tip 轻量模式（Lite Mode）
-如果你不需要知识库和知识图谱功能，可以使用轻量模式启动，跳过 Neo4j 等服务，节省系统资源：
-
-```bash
-make up-lite  # macOS or Linux
-```
-
-轻量模式仅启动核心服务（前端、后端、PostgreSQL、Redis、MinIO），前端侧边栏会自动隐藏知识库和图谱入口。切换回完整模式只需运行 `make up`。
+::: info 轻量模式（Lite Mode）
+将 `.env` 中的 `LITE_MODE` 设置为 `true` 后，前后端会隐藏或跳过知识库与图谱入口和接口。当前 `docker-compose.yml` 仍会启动 Neo4j 容器并等待其健康检查；轻量模式目前不是精简容器数量的启动方案。
 :::
 
 ### 步骤四：访问系统
@@ -87,7 +97,7 @@ make up-lite  # macOS or Linux
 | Web 界面 | http://localhost:5173 |
 | API 文档 | http://localhost:5050/docs |
 
-首次访问时，系统会要求你设置超级管理员账号和密码，请妥善保存。
+启动后可直接进入 Web 界面。当前版本面向个人单用户使用，不再提供平台登录、注册或管理员初始化流程。
 
 ## 故障排除
 

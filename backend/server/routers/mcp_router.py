@@ -17,7 +17,7 @@ from zixuetong.services.mcp_service import (
 )
 from zixuetong.storage.postgres.models_business import User
 from zixuetong.utils import logger
-from server.utils.auth_middleware import get_admin_user, get_db
+from server.utils.auth_middleware import get_system_owner, get_db
 
 mcp = APIRouter(prefix="/system/mcp-servers", tags=["mcp"])
 
@@ -80,7 +80,7 @@ async def get_server_or_404(db: AsyncSession, name: str):
 
 @mcp.get("")
 async def get_mcp_servers(
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """获取所有 MCP 服务器配置"""
@@ -95,7 +95,7 @@ async def get_mcp_servers(
 @mcp.post("")
 async def create_mcp_server_route(
     request: CreateMcpServerRequest,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """创建新的 MCP 服务器"""
@@ -138,7 +138,7 @@ async def create_mcp_server_route(
 @mcp.get("/{name}")
 async def get_mcp_server_route(
     name: str,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """获取单个 MCP 服务器配置"""
@@ -156,7 +156,7 @@ async def get_mcp_server_route(
 async def update_mcp_server_route(
     name: str,
     request: UpdateMcpServerRequest,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """更新 MCP 服务器配置"""
@@ -198,7 +198,7 @@ async def update_mcp_server_route(
 @mcp.delete("/{name}")
 async def delete_mcp_server_route(
     name: str,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """删除 MCP 服务器"""
@@ -227,7 +227,7 @@ async def delete_mcp_server_route(
 @mcp.post("/{name}/test")
 async def test_mcp_server(
     name: str,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """测试 MCP 服务器连接"""
@@ -254,7 +254,7 @@ async def test_mcp_server(
 async def update_mcp_server_status_route(
     name: str,
     request: UpdateMcpServerStatusRequest,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """更新 MCP 服务器启用状态"""
@@ -281,7 +281,7 @@ async def update_mcp_server_status_route(
 @mcp.get("/{name}/tools")
 async def get_mcp_server_tools(
     name: str,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """获取 MCP 服务器的工具列表"""
@@ -332,7 +332,7 @@ async def get_mcp_server_tools(
 @mcp.post("/{name}/tools/refresh")
 async def refresh_mcp_server_tools(
     name: str,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """刷新 MCP 服务器的工具列表（清除缓存重新获取）"""
@@ -374,7 +374,7 @@ async def refresh_mcp_server_tools(
 async def toggle_mcp_server_tool_route(
     name: str,
     tool_name: str,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """切换单个工具的启用状态"""

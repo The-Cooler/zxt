@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from server.utils.auth_middleware import get_db, get_required_user
+from server.utils.auth_middleware import get_db, get_system_owner
 from zixuetong.services.viewer_filesystem_service import (
     create_viewer_directory,
     delete_viewer_file,
@@ -38,7 +38,7 @@ async def get_viewer_tree(
     path: str = Query("/", description="目录路径"),
     agent_id: str | None = Query(None, description="智能体 ID"),
     agent_config_id: int | None = Query(None, description="智能体配置 ID"),
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     return await list_viewer_filesystem_tree(
@@ -57,7 +57,7 @@ async def get_viewer_file(
     path: str = Query(..., description="文件路径"),
     agent_id: str | None = Query(None, description="智能体 ID"),
     agent_config_id: int | None = Query(None, description="智能体配置 ID"),
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     return await read_viewer_file_content(
@@ -76,7 +76,7 @@ async def delete_viewer_file_route(
     path: str = Query(..., description="文件路径"),
     agent_id: str | None = Query(None, description="智能体 ID"),
     agent_config_id: int | None = Query(None, description="智能体配置 ID"),
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     return await delete_viewer_file(
@@ -92,7 +92,7 @@ async def delete_viewer_file_route(
 @filesystem_router.post("/directory", response_model=dict)
 async def create_viewer_directory_route(
     payload: CreateViewerDirectoryRequest,
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     return await create_viewer_directory(
@@ -113,7 +113,7 @@ async def upload_viewer_file_route(
     agent_id: str | None = Form(None, description="智能体 ID"),
     agent_config_id: int | None = Form(None, description="智能体配置 ID"),
     file: UploadFile = File(..., description="上传文件"),
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     return await upload_viewer_file(
@@ -133,7 +133,7 @@ async def download_viewer(
     path: str = Query(..., description="文件路径"),
     agent_id: str | None = Query(None, description="智能体 ID"),
     agent_config_id: int | None = Query(None, description="智能体配置 ID"),
-    current_user: User = Depends(get_required_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     return await download_viewer_file(

@@ -142,7 +142,6 @@
           :before-upload="beforeUpload"
           :customRequest="customRequest"
           :action="'/api/knowledge/files/upload?db_id=' + databaseId"
-          :headers="getAuthHeaders()"
           @change="handleFileUpload"
           @drop="handleDrop"
         >
@@ -297,7 +296,6 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { message, Upload, Modal } from 'ant-design-vue'
-import { useUserStore } from '@/stores/user'
 import { useDatabaseStore } from '@/stores/database'
 import { useTaskerStore } from '@/stores/tasker'
 import { ocrApi } from '@/apis/system_api'
@@ -1237,11 +1235,6 @@ const runUploadTask = (task) => {
     task.xhr = xhr
     xhr.open('POST', `/api/knowledge/files/upload?db_id=${dbId}`)
 
-    const headers = getAuthHeaders()
-    for (const [key, value] of Object.entries(headers)) {
-      xhr.setRequestHeader(key, value)
-    }
-
     xhr.upload.onprogress = (event) => {
       if (!event.lengthComputable) {
         return
@@ -1361,11 +1354,6 @@ const handleOcrDropdownVisibleChange = (open) => {
     return
   }
   checkOcrHealth()
-}
-
-const getAuthHeaders = () => {
-  const userStore = useUserStore()
-  return userStore.getAuthHeaders()
 }
 
 const openDocLink = () => {

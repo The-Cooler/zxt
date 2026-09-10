@@ -67,8 +67,7 @@ export default defineConfig({
           { text: '文档解析', link: '/advanced/document-processing' },
           { text: '品牌自定义', link: '/advanced/branding' },
           { text: '其他配置', link: '/advanced/misc' },
-          { text: '生产部署', link: '/advanced/deployment' },
-          { text: 'API Key 外部集成', link: '/advanced/api-key-integration' }
+          { text: '生产部署', link: '/advanced/deployment' }
         ]
       },
       {

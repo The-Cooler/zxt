@@ -9,16 +9,10 @@ import pytest
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 
-async def test_graph_routes_require_auth(test_client):
-    """Test that graph endpoints require authentication."""
+async def test_graph_routes_are_available_to_single_user(test_client):
+    """Single-user mode exposes graph endpoints without login headers."""
     response = await test_client.get("/api/graph/list")
-    assert response.status_code == 401
-
-
-async def test_standard_user_cannot_access_graph_endpoints(test_client, standard_user):
-    """Test that standard users cannot access graph endpoints."""
-    response = await test_client.get("/api/graph/list", headers=standard_user["headers"])
-    assert response.status_code == 403
+    assert response.status_code == 200, response.text
 
 
 async def test_get_graphs_list(test_client, admin_headers):

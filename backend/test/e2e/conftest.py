@@ -18,17 +18,8 @@ load_dotenv(PROJECT_ROOT / ".env", override=False)
 load_dotenv(PROJECT_ROOT / "test/.env.test", override=False)
 
 E2E_BASE_URL = os.getenv("TEST_BASE_URL", os.getenv("API_BASE_URL", "http://localhost:5050")).rstrip("/")
-E2E_USERNAME = os.getenv("E2E_USERNAME") or os.getenv("TEST_USERNAME")
-E2E_PASSWORD = os.getenv("E2E_PASSWORD") or os.getenv("TEST_PASSWORD")
+E2E_USER_ID = os.getenv("E2E_USER_ID", "1")
 E2E_TIMEOUT = httpx.Timeout(300.0, connect=10.0)
-
-
-def _require_e2e_credentials() -> tuple[str, str]:
-    if not E2E_USERNAME or not E2E_PASSWORD:
-        pytest.skip(
-            "E2E credentials are not configured via E2E_USERNAME / E2E_PASSWORD or TEST_USERNAME / TEST_PASSWORD."
-        )
-    return E2E_USERNAME, E2E_PASSWORD
 
 
 @pytest.fixture(scope="session")
@@ -44,27 +35,13 @@ async def e2e_client(e2e_base_url: str) -> AsyncGenerator[httpx.AsyncClient, Non
 
 @pytest_asyncio.fixture(scope="function")
 async def e2e_headers(e2e_client: httpx.AsyncClient) -> dict[str, str]:
-    username, password = _require_e2e_credentials()
-    response = await e2e_client.post("/api/auth/token", data={"username": username, "password": password})
-    if response.status_code != 200:
-        pytest.fail(f"E2E login failed (status={response.status_code}): {response.text}")
-
-    access_token = response.json().get("access_token")
-    if not access_token:
-        pytest.fail("E2E login succeeded but no access token was returned.")
-    return {"Authorization": f"Bearer {access_token}"}
+    """单用户模式不需要平台登录头。"""
+    return {}
 
 
 @pytest_asyncio.fixture(scope="function")
 async def e2e_agent_context(e2e_client: httpx.AsyncClient, e2e_headers: dict[str, str]) -> dict[str, str | int]:
-    me_response = await e2e_client.get("/api/auth/me", headers=e2e_headers)
-    if me_response.status_code != 200:
-        pytest.fail(
-            f"Failed to fetch current user for E2E tests (status={me_response.status_code}): {me_response.text}"
-        )
-    user_id = me_response.json().get("id")
-    if user_id is None:
-        pytest.fail("Current user payload missing id field for E2E tests.")
+    user_id = int(E2E_USER_ID)
 
     default_response = await e2e_client.get("/api/chat/default_agent", headers=e2e_headers)
     default_agent_id = None

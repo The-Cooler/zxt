@@ -7,7 +7,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.responses import FileResponse
 
 from zixuetong.storage.postgres.models_business import User
-from server.utils.auth_middleware import get_admin_user
+from server.utils.auth_middleware import get_system_owner
 from zixuetong import config, get_version
 from zixuetong.utils.logging_config import logger
 
@@ -31,13 +31,13 @@ async def health_check():
 
 
 @system.get("/config")
-async def get_config(current_user: User = Depends(get_admin_user)):
+async def get_config(current_user: User = Depends(get_system_owner)):
     """获取系统配置"""
     return config.dump_config()
 
 
 @system.post("/config")
-async def update_config_single(key=Body(...), value=Body(...), current_user: User = Depends(get_admin_user)) -> dict:
+async def update_config_single(key=Body(...), value=Body(...), current_user: User = Depends(get_system_owner)) -> dict:
     """更新单个配置项"""
     config[key] = value
     config.save()
@@ -57,7 +57,7 @@ async def update_config_single(key=Body(...), value=Body(...), current_user: Use
 
 
 @system.post("/config/update")
-async def update_config_batch(items: dict = Body(...), current_user: User = Depends(get_admin_user)) -> dict:
+async def update_config_batch(items: dict = Body(...), current_user: User = Depends(get_system_owner)) -> dict:
     """批量更新配置项"""
     config.update(items)
     config.save()
@@ -77,7 +77,7 @@ async def update_config_batch(items: dict = Body(...), current_user: User = Depe
 
 
 @system.get("/logs")
-async def get_system_logs(levels: str | None = None, current_user: User = Depends(get_admin_user)):
+async def get_system_logs(levels: str | None = None, current_user: User = Depends(get_system_owner)):
     """获取系统日志
 
     Args:
@@ -153,7 +153,7 @@ async def load_info_config():
 
 @system.get("/info")
 async def get_info_config():
-    """获取系统信息配置（公开接口，无需认证）"""
+    """获取系统信息配置（直接可访问）"""
     try:
         config = await load_info_config()
         return {"success": True, "data": config}
@@ -164,7 +164,7 @@ async def get_info_config():
 
 @system.get("/logo")
 async def get_logo():
-    """获取系统 Logo（公开接口，无需认证）"""
+    """获取系统 Logo（直接可访问）"""
     logo_path = STATIC_CONFIG_DIR / "logo.png"
     if not logo_path.exists():
         raise HTTPException(status_code=404, detail="Logo 文件不存在")
@@ -172,7 +172,7 @@ async def get_logo():
 
 
 @system.post("/info/reload")
-async def reload_info_config(current_user: User = Depends(get_admin_user)):
+async def reload_info_config(current_user: User = Depends(get_system_owner)):
     """重新加载信息配置"""
     try:
         config = await load_info_config()
@@ -188,7 +188,7 @@ async def reload_info_config(current_user: User = Depends(get_admin_user)):
 
 
 @system.get("/ocr/health")
-async def check_ocr_services_health(current_user: User = Depends(get_admin_user)):
+async def check_ocr_services_health(current_user: User = Depends(get_system_owner)):
     """
     检查所有OCR服务的健康状态
     返回各个OCR服务的可用性信息
@@ -234,7 +234,7 @@ async def check_ocr_services_health(current_user: User = Depends(get_admin_user)
 
 
 @system.get("/custom-providers")
-async def get_custom_providers(current_user: User = Depends(get_admin_user)):
+async def get_custom_providers(current_user: User = Depends(get_system_owner)):
     """获取所有自定义供应商"""
     try:
         custom_providers = config.get_custom_providers()

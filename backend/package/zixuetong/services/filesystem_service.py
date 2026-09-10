@@ -30,7 +30,7 @@ async def _resolve_filesystem_context(
     config_item = None
     if agent_config_id is not None:
         config_item = await repo.get_by_id(config_id=int(agent_config_id))
-        if config_item is not None and not repo.belongs_to_personal_scope(config_item, agent_id):
+        if config_item is not None and not repo.belongs_to_agent(config_item, agent_id):
             config_item = None
 
     if config_item is None:

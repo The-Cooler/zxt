@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from server.utils.auth_middleware import get_admin_user, get_db
+from server.utils.auth_middleware import get_system_owner, get_db
 from zixuetong.services import subagent_service as service
 from zixuetong.storage.postgres.models_business import User
 from zixuetong.utils import logger
@@ -57,7 +57,7 @@ def _is_subagent_name_duplicate_error(error: IntegrityError) -> bool:
 
 @subagents_router.get("")
 async def list_subagents_route(
-    _current_user: User = Depends(get_admin_user),
+    _current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """获取 SubAgent 列表（管理员可读）"""
@@ -71,7 +71,7 @@ async def list_subagents_route(
 @subagents_router.get("/{name}")
 async def get_subagent_route(
     name: str,
-    _current_user: User = Depends(get_admin_user),
+    _current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """获取单个 SubAgent（管理员可读）"""
@@ -89,7 +89,7 @@ async def get_subagent_route(
 @subagents_router.post("")
 async def create_subagent_route(
     payload: SubAgentCreateRequest,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """创建 SubAgent（管理员）"""
@@ -113,7 +113,7 @@ async def create_subagent_route(
 async def update_subagent_route(
     name: str,
     payload: SubAgentUpdateRequest,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """更新 SubAgent（管理员）"""
@@ -134,7 +134,7 @@ async def update_subagent_route(
 @subagents_router.delete("/{name}")
 async def delete_subagent_route(
     name: str,
-    _current_user: User = Depends(get_admin_user),
+    _current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """删除 SubAgent（管理员）"""
@@ -155,7 +155,7 @@ async def delete_subagent_route(
 async def update_subagent_status_route(
     name: str,
     payload: SubAgentStatusRequest,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_system_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """更新 SubAgent 启用状态（管理员）。"""

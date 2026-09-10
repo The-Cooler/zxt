@@ -30,9 +30,9 @@ async def test_logo_endpoint_is_public(test_client):
     assert response.content.startswith(b"\x89PNG")
 
 
-async def test_config_endpoints_require_admin(test_client, standard_user):
-    assert (await test_client.get("/api/system/config")).status_code == 401
-    assert (await test_client.get("/api/system/config", headers=standard_user["headers"])).status_code == 403
+async def test_config_endpoint_is_available_to_single_user(test_client):
+    response = await test_client.get("/api/system/config")
+    assert response.status_code == 200, response.text
 
 
 async def test_admin_can_fetch_config_and_reload_info(test_client, admin_headers):

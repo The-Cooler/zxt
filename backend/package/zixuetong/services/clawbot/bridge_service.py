@@ -133,7 +133,7 @@ class ClawBotBridge:
         response = await self._post("/ilink/bot/get_bot_qrcode?bot_type=3", {"local_token_list": []}, timeout=30)
         qrcode = str(response.get("qrcode") or "")
         if not qrcode:
-            raise RuntimeError("ClawBot 未返回登录二维码")
+            raise RuntimeError("ClawBot 未返回连接二维码")
         self._qr_content = str(response.get("qrcode_img_content") or qrcode)
         if self._login_task and not self._login_task.done():
             self._login_task.cancel()
@@ -198,7 +198,7 @@ class ClawBotBridge:
             return
 
         async with pg_manager.get_async_session_context() as db:
-            user = await db.scalar(select(User).where(User.role == "superadmin", User.is_deleted == 0).limit(1))
+            user = await db.scalar(select(User).order_by(User.id).limit(1))
             if user is None:
                 logger.warning("ClawBot 无法找到单人模式系统用户")
                 return

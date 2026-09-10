@@ -32,9 +32,8 @@
               themeStore.isDark ? '切换到浅色模式' : '切换到深色模式 (Beta)'
             }}</span>
           </a-menu-item>
-          <a-menu-divider v-if="userStore.isAdmin" />
+          <a-menu-divider />
           <a-menu-item
-            v-if="userStore.isSuperAdmin"
             key="debug"
             @click="showDebug = true"
             :icon="TerminalIcon"
@@ -42,7 +41,6 @@
             <span class="menu-text">调试面板（非生产环境）</span>
           </a-menu-item>
           <a-menu-item
-            v-if="userStore.isAdmin"
             key="setting"
             @click="goToSetting"
             :icon="SettingsIcon"
@@ -86,14 +84,12 @@
 
 <script setup>
 import { computed, h, inject, ref, useSlots } from 'vue'
-import { useUserStore } from '@/stores/user'
 import { agentApi } from '@/apis/agent_api'
 import DebugComponent from '@/components/DebugComponent.vue'
 import { message } from 'ant-design-vue'
 import { BookOpen, Moon, Settings, Sun, Terminal } from 'lucide-vue-next'
 import { useThemeStore } from '@/stores/theme'
 
-const userStore = useUserStore()
 const themeStore = useThemeStore()
 const slots = useSlots()
 const BookOpenIcon = h(BookOpen, { size: '16' })
@@ -237,7 +233,7 @@ const saveProfile = async () => {
   }
 
   &.user {
-    background-color: var(--color-success-500); /* 绿色，普通用户 */
+    background-color: var(--color-success-500);
   }
 }
 

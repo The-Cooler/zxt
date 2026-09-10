@@ -1,6 +1,5 @@
-"""PostgreSQL 业务数据模型 - 用户、部门、对话等相关表"""
+"""PostgreSQL 业务数据模型 - 用户、对话等相关表"""
 
-from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import (
@@ -22,121 +21,35 @@ from zixuetong.utils.datetime_utils import format_utc_datetime, utc_now_naive
 
 Base = declarative_base()
 
-MAX_LOGIN_FAILED_ATTEMPTS = 5
-LOGIN_LOCK_DURATION_SECONDS = 300
-
-
-class Department(Base):
-    """部门模型"""
-
-    __tablename__ = "departments"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(50), nullable=False, unique=True, index=True)
-    description = Column(String(255), nullable=True)
-    created_at = Column(DateTime, default=utc_now_naive)
-
-    # 关联关系
-    users = relationship("User", back_populates="department", cascade="all, delete-orphan")
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "name": self.name,
-            "description": self.description,
-            "created_at": format_utc_datetime(self.created_at),
-        }
-
 
 class User(Base):
-    """用户模型"""
+    """单用户系统 owner。"""
 
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String, nullable=False, unique=True, index=True)  # 显示名称
-    user_id = Column(String, nullable=False, unique=True, index=True)  # 登录ID
-    phone_number = Column(String, nullable=True, unique=True, index=True)  # 手机号
-    avatar = Column(String, nullable=True)  # 头像URL
-    password_hash = Column(String, nullable=False)
-    role = Column(String, nullable=False, default="user")  # 角色: superadmin, admin, user
-    department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)  # 部门ID
+    user_id = Column(String, nullable=False, unique=True, index=True)  # 内部 owner 标识
     created_at = Column(DateTime, default=utc_now_naive)
-    last_login = Column(DateTime, nullable=True)
-
-    # 登录失败限制相关字段
-    login_failed_count = Column(Integer, nullable=False, default=0)  # 登录失败次数
-    last_failed_login = Column(DateTime, nullable=True)  # 最后一次登录失败时间
-    login_locked_until = Column(DateTime, nullable=True)  # 锁定到什么时候
-
-    # 软删除相关字段
-    is_deleted = Column(Integer, nullable=False, default=0, index=True)  # 是否已删除：0=否，1=是
-    deleted_at = Column(DateTime, nullable=True)  # 删除时间
 
     # 关联操作日志
     operation_logs = relationship("OperationLog", back_populates="user", cascade="all, delete-orphan")
 
-    # 关联部门
-    department = relationship("Department", back_populates="users")
-
-    # 关联 API Keys
-    api_keys = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")
-
-    def to_dict(self, include_password: bool = False) -> dict[str, Any]:
-        result = {
+    def to_dict(self) -> dict[str, Any]:
+        return {
             "id": self.id,
             "username": self.username,
             "user_id": self.user_id,
-            "phone_number": self.phone_number,
-            "avatar": self.avatar,
-            "role": self.role,
-            "department_id": self.department_id,
             "created_at": format_utc_datetime(self.created_at),
-            "last_login": format_utc_datetime(self.last_login),
-            "login_failed_count": self.login_failed_count,
-            "last_failed_login": format_utc_datetime(self.last_failed_login),
-            "login_locked_until": format_utc_datetime(self.login_locked_until),
-            "is_deleted": self.is_deleted,
-            "deleted_at": format_utc_datetime(self.deleted_at),
         }
-        if include_password:
-            result["password_hash"] = self.password_hash
-        return result
-
-    def is_login_locked(self) -> bool:
-        """检查用户是否处于登录锁定状态"""
-        if self.login_locked_until is None:
-            return False
-        return utc_now_naive() < self.login_locked_until
-
-    def get_remaining_lock_time(self) -> int:
-        """获取剩余锁定时间（秒）"""
-        if self.login_locked_until is None:
-            return 0
-        remaining = int((self.login_locked_until - utc_now_naive()).total_seconds())
-        return max(0, remaining)
-
-    def increment_failed_login(self):
-        """增加登录失败计数，并在达到阈值后锁定登录"""
-        self.login_failed_count += 1
-        self.last_failed_login = utc_now_naive()
-        if self.login_failed_count >= MAX_LOGIN_FAILED_ATTEMPTS:
-            self.login_locked_until = self.last_failed_login + timedelta(seconds=LOGIN_LOCK_DURATION_SECONDS)
-
-    def reset_failed_login(self):
-        """重置登录失败相关字段"""
-        self.login_failed_count = 0
-        self.last_failed_login = None
-        self.login_locked_until = None
 
 
 class AgentConfig(Base):
-    """智能体配置（按部门共享，多份可切换）"""
+    """智能体配置（个人使用，多份可切换）。"""
 
     __tablename__ = "agent_configs"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    department_id = Column(Integer, ForeignKey("departments.id"), nullable=False, index=True)
     agent_id = Column(String(64), nullable=False, index=True)
 
     name = Column(String(100), nullable=False)
@@ -155,10 +68,9 @@ class AgentConfig(Base):
     updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
 
     __table_args__ = (
-        UniqueConstraint("department_id", "agent_id", "name", name="uq_agent_configs_department_agent_name"),
+        UniqueConstraint("agent_id", "name", name="uq_agent_configs_agent_name"),
         Index(
-            "uq_agent_configs_department_agent_default",
-            "department_id",
+            "uq_agent_configs_agent_default",
             "agent_id",
             unique=True,
             postgresql_where=is_default.is_(True),
@@ -168,7 +80,6 @@ class AgentConfig(Base):
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
-            "department_id": self.department_id,
             "agent_id": self.agent_id,
             "name": self.name,
             "description": self.description,
@@ -676,66 +587,19 @@ class SubAgent(Base):
         return spec
 
 
-class APIKey(Base):
-    """API Key 模型"""
-
-    __tablename__ = "api_keys"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    key_hash = Column(String(64), nullable=False, unique=True, index=True)
-    key_prefix = Column(String(16), nullable=False)
-    name = Column(String(100), nullable=False)
-
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
-    department_id = Column(Integer, ForeignKey("departments.id"), nullable=True, index=True)
-
-    expires_at = Column(DateTime, nullable=True)
-    is_enabled = Column(Boolean, nullable=False, default=True)
-    last_used_at = Column(DateTime, nullable=True)
-
-    created_by = Column(String(64), nullable=False)
-    created_at = Column(DateTime, default=utc_now_naive)
-
-    # 关联
-    user = relationship("User", back_populates="api_keys")
-    department = relationship("Department")
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "key_prefix": self.key_prefix,
-            "name": self.name,
-            "user_id": self.user_id,
-            "department_id": self.department_id,
-            "expires_at": format_utc_datetime(self.expires_at),
-            "is_enabled": bool(self.is_enabled),
-            "last_used_at": format_utc_datetime(self.last_used_at),
-            "created_by": self.created_by,
-            "created_at": format_utc_datetime(self.created_at),
-        }
-
-    def is_valid(self) -> bool:
-        """检查 Key 是否有效"""
-        if not self.is_enabled:
-            return False
-        if self.expires_at and utc_now_naive() > self.expires_at:
-            return False
-        return True
-
-
 class Notification(Base):
-    """通知模型 - 学习提醒、警告、知识更新、OpenClaw 事件等"""
+    """通知模型 - 学习提醒、警告、知识更新等。"""
 
     __tablename__ = "notifications"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(String(64), index=True, nullable=False, comment="接收用户 ID")
-    type = Column(String(32), nullable=False, comment="类型: learning_reminder/warning/knowledge_update/openclaw_event")
+    type = Column(String(32), nullable=False, comment="类型: learning_reminder/warning/knowledge_update")
     title = Column(String(255), nullable=False)
     body = Column(Text, nullable=True)
     severity = Column(String(16), default="info", comment="严重程度: info/warning/error")
     is_read = Column(Boolean, default=False, index=True)
-    source = Column(String(64), nullable=True, comment="来源: openclaw/system/agent")
+    source = Column(String(64), nullable=True, comment="来源: system/agent")
     extra_data = Column(JSON, nullable=True, comment="附加数据（如 kb_id, thread_id 等）")
     created_at = Column(DateTime, default=utc_now_naive)
     read_at = Column(DateTime, nullable=True)
