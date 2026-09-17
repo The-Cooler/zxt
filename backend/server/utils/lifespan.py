@@ -22,9 +22,7 @@ async def lifespan(app: FastAPI):
     # 初始化数据库连接
     try:
         pg_manager.initialize()
-        await pg_manager.create_business_tables()
-        await pg_manager.ensure_business_schema()
-        await pg_manager.ensure_knowledge_schema()
+        await pg_manager.create_tables()
     except Exception as e:
         logger.error(f"Failed to initialize database during startup: {e}")
 
@@ -96,6 +94,10 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"ClawBot startup skipped: {e}")
 
+    from zixuetong.services.learning_reminder_service import learning_reminder_scheduler
+
+    await learning_reminder_scheduler.start()
+
     logger.info(f"""
 
 ░██     ░██                       ░██
@@ -109,6 +111,7 @@ async def lifespan(app: FastAPI):
     """)
     logger.info("自学通 backend startup complete")
     yield
+    await learning_reminder_scheduler.stop()
     await tasker.shutdown()
 
     try:

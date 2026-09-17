@@ -77,6 +77,12 @@ export const agentApi = {
 
   updateLearningProfile: (profile) => apiPut('/api/chat/learning/profile', profile),
 
+  updateLearningPlanReminder: (filePath, reminderTime) =>
+    apiPut('/api/chat/learning/reminder', {
+      file_path: filePath,
+      reminder_time: reminderTime
+    }),
+
   /**
    * 获取单个智能体详情
    * @param {string} agentId - 智能体ID

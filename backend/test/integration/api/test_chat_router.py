@@ -92,7 +92,12 @@ async def test_learning_overview_reads_current_user_workspace(test_client, stand
             "topic": "Java",
             "file_path": "/home/gem/user-data/workspace/learning-plans/java.md",
             "status": "进行中",
+            "reminder_time": "",
             "updated_at": "2026-06-08",
+            "completed_tasks": 0,
+            "total_tasks": 0,
+            "progress_percent": 0,
+            "next_task": "",
         }
     ]
 

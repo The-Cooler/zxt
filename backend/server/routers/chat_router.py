@@ -40,7 +40,12 @@ from zixuetong.services.thread_files_service import (
     save_thread_artifact_to_workspace_view,
 )
 from zixuetong.services.feedback_service import get_message_feedback_view, submit_message_feedback_view
-from zixuetong.services.learning_plan_service import get_learning_overview, get_learning_profile, save_learning_profile
+from zixuetong.services.learning_plan_service import (
+    get_learning_overview,
+    get_learning_profile,
+    save_learning_profile,
+    set_learning_plan_reminder,
+)
 from zixuetong.repositories.agent_config_repository import AgentConfigRepository
 from zixuetong.utils.logging_config import logger
 from zixuetong.utils.image_processor import process_uploaded_image
@@ -68,6 +73,11 @@ class LearningProfilePayload(BaseModel):
     knowledge_level: str = ""
     weaknesses: str = ""
     learning_history: str = ""
+
+
+class LearningPlanReminderPayload(BaseModel):
+    file_path: str
+    reminder_time: str | None = None
 
 
 class AgentConfigCreate(BaseModel):
@@ -202,6 +212,21 @@ async def update_learning_profile_view(
     current_user: User = Depends(get_system_owner),
 ):
     return save_learning_profile(current_user, payload.model_dump())
+
+
+@chat.put("/learning/reminder")
+async def update_learning_plan_reminder(
+    payload: LearningPlanReminderPayload,
+    current_user: User = Depends(get_system_owner),
+):
+    try:
+        return set_learning_plan_reminder(
+            current_user,
+            payload.file_path,
+            payload.reminder_time,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @chat.get("/agent/{agent_id}")

@@ -365,8 +365,7 @@ async def process_agent_run(ctx, run_id: str):
 async def _worker_startup(ctx):
     del ctx
     pg_manager.initialize()
-    await pg_manager.create_business_tables()
-    await pg_manager.ensure_business_schema()
+    await pg_manager.create_tables()
     await ensure_builtin_mcp_servers_in_db()
 
 

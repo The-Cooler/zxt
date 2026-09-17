@@ -37,7 +37,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useInfoStore } from '@/stores/info'
-import { useUserStore } from '@/stores/user'
 import { Clock, User, ClipboardList } from 'lucide-vue-next'
 import { useTaskerStore } from '@/stores/tasker'
 import { storeToRefs } from 'pinia'
@@ -45,7 +44,6 @@ import dayjs from '@/utils/time'
 
 // 使用 stores
 const infoStore = useInfoStore()
-const userStore = useUserStore()
 const taskerStore = useTaskerStore()
 const { activeCount: activeCountRef } = storeToRefs(taskerStore)
 
@@ -54,11 +52,6 @@ const currentTime = ref('')
 
 // 计算属性
 const branding = computed(() => infoStore.branding)
-
-// 用户名计算属性
-const currentUser = computed(() => {
-  return userStore.username || '游客'
-})
 
 // 问候语计算属性
 const greeting = computed(() => {
@@ -77,7 +70,7 @@ const greeting = computed(() => {
     greetingText = '夜深了'
   }
 
-  return `${greetingText}！${currentUser.value}`
+  return `${greetingText}！`
 })
 
 const activeTaskCount = computed(() => activeCountRef.value || 0)
@@ -95,16 +88,9 @@ const updateTime = () => {
 // 定时器
 let timeInterval = null
 
-onMounted(async () => {
+onMounted(() => {
   updateTime()
   timeInterval = setInterval(updateTime, 1000)
-
-  // 获取用户信息
-  try {
-    await userStore.getCurrentUser()
-  } catch (error) {
-    console.error('获取用户信息失败:', error)
-  }
 })
 
 onUnmounted(() => {

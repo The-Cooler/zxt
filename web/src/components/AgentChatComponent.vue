@@ -158,23 +158,66 @@
                   <span>正在加载学习计划...</span>
                 </div>
                 <div v-else class="learning-plan-list">
-                  <button
+                  <div
                     v-for="plan in learningPlans"
                     :key="`${plan.topic}-${plan.file_path}`"
-                    type="button"
                     class="learning-plan-item"
-                    @click="handleLearningPlanClick(plan)"
                   >
-                    <BookOpen size="16" class="learning-plan-icon" />
-                    <span class="learning-plan-main">
-                      <span class="learning-plan-topic">{{ plan.topic }}</span>
-                      <span class="learning-plan-meta">
-                        {{ plan.status || '未标记状态' }}
-                        <template v-if="plan.updated_at"> · {{ plan.updated_at }}</template>
+                    <button
+                      type="button"
+                      class="learning-plan-open"
+                      @click="handleLearningPlanClick(plan)"
+                    >
+                      <BookOpen size="16" class="learning-plan-icon" />
+                      <span class="learning-plan-main">
+                        <span class="learning-plan-topic">{{ plan.topic }}</span>
+                        <span class="learning-plan-meta">
+                          {{ plan.status || '未标记状态' }}
+                          <template v-if="plan.total_tasks">
+                            · 进度 {{ plan.completed_tasks }}/{{ plan.total_tasks }}
+                          </template>
+                          <template v-if="plan.reminder_time"> · 提醒 {{ plan.reminder_time }}</template>
+                          <template v-else> · 未安排提醒</template>
+                        </span>
                       </span>
-                    </span>
-                    <ChevronRight size="16" class="learning-plan-arrow" />
-                  </button>
+                      <ChevronRight size="16" class="learning-plan-arrow" />
+                    </button>
+                    <a-popover trigger="click" placement="left">
+                      <template #content>
+                        <div class="learning-reminder-editor" @click.stop>
+                          <a-input
+                            :value="reminderDrafts[plan.file_path] ?? plan.reminder_time"
+                            placeholder="HH:MM"
+                            maxlength="5"
+                            @update:value="reminderDrafts[plan.file_path] = $event"
+                          />
+                          <a-button
+                            type="primary"
+                            size="small"
+                            :loading="reminderSavingPath === plan.file_path"
+                            @click="saveLearningReminder(plan)"
+                          >
+                            保存
+                          </a-button>
+                          <a-button
+                            size="small"
+                            :disabled="reminderSavingPath === plan.file_path"
+                            @click="disableLearningReminder(plan)"
+                          >
+                            关闭提醒
+                          </a-button>
+                        </div>
+                      </template>
+                      <button
+                        type="button"
+                        class="learning-reminder-button"
+                        :aria-label="`设置${plan.topic}的提醒时间`"
+                        @click.stop
+                      >
+                        <Clock3 size="15" />
+                      </button>
+                    </a-popover>
+                  </div>
                   <button
                     type="button"
                     class="learning-plan-item learning-plan-item--new"
@@ -287,6 +330,7 @@ import {
   ChevronRight,
   GraduationCap,
   BookOpen,
+  Clock3,
   Plus
 } from 'lucide-vue-next'
 import { handleChatError, handleValidationError } from '@/utils/errorHandler'
@@ -340,6 +384,8 @@ const { threads, currentThreadId, currentThread } = storeToRefs(chatThreadsStore
 const userInput = ref('')
 const learningOverview = ref(null)
 const learningOverviewLoading = ref(false)
+const reminderDrafts = reactive({})
+const reminderSavingPath = ref('')
 let learningOverviewRequest = null
 const sendCooldownActive = ref(false)
 let sendCooldownTimer = null
@@ -1650,6 +1696,32 @@ const handleLearningPlanClick = (plan) => {
   userInput.value = `继续学习：${topic}`
 }
 
+const updateLearningReminder = async (plan, reminderTime) => {
+  const normalized = String(reminderTime || '').trim()
+  if (normalized && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(normalized)) {
+    message.error('提醒时间必须使用 HH:MM 格式')
+    return
+  }
+  reminderSavingPath.value = plan.file_path
+  try {
+    await agentApi.updateLearningPlanReminder(plan.file_path, normalized || null)
+    reminderDrafts[plan.file_path] = normalized
+    await fetchLearningOverview()
+    message.success(normalized ? `已将提醒时间设置为 ${normalized}` : '已关闭该计划提醒')
+  } catch (error) {
+    message.error(error.message || '保存提醒时间失败')
+  } finally {
+    reminderSavingPath.value = ''
+  }
+}
+
+const saveLearningReminder = (plan) => {
+  const reminderTime = reminderDrafts[plan.file_path] ?? plan.reminder_time
+  return updateLearningReminder(plan, reminderTime)
+}
+
+const disableLearningReminder = (plan) => updateLearningReminder(plan, '')
+
 const handleNewLearningTopicClick = () => {
   userInput.value = newLearningTopicPrompt.value
 }
@@ -2367,18 +2439,15 @@ watch(currentChatId, (threadId, oldThreadId) => {
 
 .learning-plan-item {
   display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) 20px;
+  grid-template-columns: minmax(0, 1fr) 34px;
   align-items: center;
-  gap: 10px;
   width: 100%;
   min-height: 54px;
-  padding: 8px 14px;
   border: 0;
   border-bottom: 1px solid var(--gray-100);
   background: var(--gray-0);
   color: var(--gray-900);
   text-align: left;
-  cursor: pointer;
   transition:
     background-color 0.15s ease,
     color 0.15s ease;
@@ -2398,8 +2467,58 @@ watch(currentChatId, (threadId, oldThreadId) => {
   }
 }
 
+.learning-plan-open {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 54px;
+  padding: 8px 8px 8px 14px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.learning-reminder-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--gray-500);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--gray-100);
+    color: var(--main-700);
+  }
+}
+
+.learning-reminder-editor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 310px;
+}
+
+.learning-reminder-editor .ant-input {
+  width: 90px;
+}
+
 .learning-plan-item--new {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 20px;
+  gap: 10px;
+  padding: 8px 14px;
   background: var(--gray-25);
+  cursor: pointer;
 }
 
 .learning-plan-icon,

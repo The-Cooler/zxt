@@ -609,7 +609,9 @@ div.header,
       }
 
       :deep(.user-info-dropdown) {
-        width: 100%;
+        flex: 1 1 auto;
+        width: auto;
+        min-width: 0;
         height: @sidebar-item-height;
         border-radius: 8px;
         transition:

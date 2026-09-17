@@ -150,6 +150,7 @@ class ClawBotBridge:
                         "baseurl": response.get("baseurl") or ILINK_BASE_URL,
                         "get_updates_buf": "",
                         "threads": {},
+                        "contexts": {},
                     }
                     self._save_state()
                     self._qr_content = ""
@@ -208,6 +209,9 @@ class ClawBotBridge:
                 created_by=str(user.id),
             )
             threads = self._state.setdefault("threads", {})
+            contexts = self._state.setdefault("contexts", {})
+            contexts[sender] = context_token
+            self._save_state()
             thread_id = threads.get(sender)
             result = await agent_chat(
                 query=text,
@@ -223,6 +227,19 @@ class ClawBotBridge:
                 self._save_state()
             reply = str(result.get("response") or result.get("error_message") or "暂时无法处理这条消息。")
         await self.send_text(sender, context_token, reply)
+
+    async def send_learning_reminder(self, text: str) -> bool:
+        """向最近与 ClawBot 交互过的微信会话主动发送学习提醒。"""
+        if not self.is_connected:
+            return False
+        contexts = self._state.get("contexts")
+        if not isinstance(contexts, dict) or not contexts:
+            return False
+        recipient, context_token = next(reversed(contexts.items()))
+        if not recipient or not context_token:
+            return False
+        await self.send_text(str(recipient), str(context_token), text)
+        return True
 
     async def send_text(self, recipient: str, context_token: str, text: str) -> None:
         token = str(self._state.get("bot_token") or "")

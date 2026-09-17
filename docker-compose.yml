@@ -201,7 +201,7 @@ services:
       - "5173:5173"
     depends_on:
       - api
-      - docs
+      # - docs
     networks:
       - app-network
     environment:
@@ -214,6 +214,8 @@ services:
     restart: unless-stopped
 
   docs:
+    profiles:
+      - docs
     build:
       context: .
       dockerfile: docker/docs.Dockerfile

@@ -620,6 +620,30 @@ class Notification(Base):
         }
 
 
+class LearningReminderDelivery(Base):
+    """学习计划每日提醒发送记录。"""
+
+    __tablename__ = "learning_reminder_deliveries"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(64), nullable=False, index=True)
+    plan_path = Column(String(1024), nullable=False)
+    reminder_date = Column(String(10), nullable=False)
+    reminder_time = Column(String(5), nullable=False)
+    notification_id = Column(Integer, ForeignKey("notifications.id", ondelete="SET NULL"), nullable=True)
+    wechat_status = Column(String(16), nullable=False, default="skipped")
+    created_at = Column(DateTime, default=utc_now_naive)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "plan_path",
+            "reminder_date",
+            name="uq_learning_reminder_delivery_daily",
+        ),
+    )
+
+
 class AgentRun(Base):
     """AgentRun table - 运行任务表"""
 

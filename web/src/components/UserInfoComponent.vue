@@ -3,10 +3,7 @@
     <a-dropdown :trigger="['hover']">
       <div class="user-info-dropdown" :data-align="showRole ? 'left' : 'center'">
         <div class="user-avatar"><BookOpen /></div>
-        <div v-if="showRole" class="user-name">学习画像</div>
-        <div v-if="slots.actions" class="user-info-actions">
-          <slot name="actions" />
-        </div>
+        <div v-if="showRole" class="user-name">更多</div>
       </div>
       <template #overlay>
         <a-menu>
@@ -50,6 +47,9 @@
         </a-menu>
       </template>
     </a-dropdown>
+    <div v-if="slots.actions" class="user-info-actions" @click.stop @mouseenter.stop>
+      <slot name="actions" />
+    </div>
 
     <a-modal v-model:open="profileModalVisible" title="学习用户画像" :footer="null" width="560px">
       <a-form layout="vertical" :model="learningProfile">
@@ -155,7 +155,7 @@ const saveProfile = async () => {
 }
 
 .user-info-dropdown {
-  width: 100%;
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -181,6 +181,7 @@ const saveProfile = async () => {
   display: inline-flex;
   align-items: center;
   margin-left: auto;
+  gap: 2px;
 }
 
 .user-avatar {

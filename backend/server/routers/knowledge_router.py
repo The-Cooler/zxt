@@ -22,7 +22,7 @@ from zixuetong.knowledge.web_reader.cleaner import clean_web_page_to_markdown
 from zixuetong.knowledge.web_reader.models import CleanedWebPage, DiscoveredLink, WebReadSession
 from zixuetong.knowledge.web_reader.scrapling_reader import ScraplingWebReader
 from zixuetong.knowledge.web_reader.session_store import load_session, save_session
-from zixuetong.knowledge.web_reader.similarity import compute_similarities
+from zixuetong.knowledge.web_reader.similarity import WebReaderSimilarityError, compute_similarities
 from zixuetong.models.embed import test_all_embedding_models_status, test_embedding_model_status
 from zixuetong.services.model_cache import is_v2_spec_format
 from zixuetong.storage.postgres.models_business import User
@@ -630,6 +630,9 @@ async def create_web_reader_session(
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except WebReaderSimilarityError as e:
+        logger.warning(f"Failed to compute web reader similarity: {e}")
+        raise HTTPException(status_code=e.status_code, detail=e.message)
     except Exception as e:
         logger.error(f"Failed to create web reader session: {e}, {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"创建网页读取会话失败: {e}")
@@ -728,6 +731,9 @@ async def expand_web_reader_session(
         raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except WebReaderSimilarityError as e:
+        logger.warning(f"Failed to compute web reader similarity for session {session_id}: {e}")
+        raise HTTPException(status_code=e.status_code, detail=e.message)
     except Exception as e:
         logger.error(f"Failed to expand web reader session {session_id}: {e}, {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"展开网页读取会话失败: {e}")
