@@ -242,6 +242,46 @@
           <Info :size="16" />
           <span>输入 URL 后点击读取网页，选择发现的子页面后可继续展开或入库</span>
         </div>
+
+        <div v-else class="web-session-list">
+          <div v-for="(item, index) in urlList" :key="item.url" class="web-session-card">
+            <div class="web-session-header">
+              <span class="url-icon-wrapper">
+                <RotateCw v-if="item.status === 'fetching'" class="url-icon spinning" :size="16" />
+                <Link v-else class="url-icon" :class="item.status" :size="16" />
+              </span>
+              <div class="url-content">
+                <span class="url-text" :title="item.url">{{ item.url }}</span>
+                <span v-if="item.status === 'error'" class="url-error-msg" :title="item.error">
+                  {{ item.error }}
+                </span>
+                <span v-else-if="item.status === 'success'" class="url-title">
+                  {{ item.data?.root_page?.title || '网页读取成功' }}
+                </span>
+                <span v-else class="url-title">{{ getWebSessionStatusText(item.status) }}</span>
+              </div>
+              <a-space>
+                <a-button
+                  v-if="item.status === 'success'"
+                  type="link"
+                  size="small"
+                  @click="openWebReaderPreview(item)"
+                >
+                  预览并清洗
+                </a-button>
+                <a-button
+                  type="text"
+                  size="small"
+                  class="remove-url-btn"
+                  :aria-label="`移除${item.url}`"
+                  @click="removeUrl(index)"
+                >
+                  <X :size="14" />
+                </a-button>
+              </a-space>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- 同名文件提示 -->
@@ -644,7 +684,8 @@ const fetchSingleUrlItem = async (item) => {
     const detailData = error.response?.data?.detail
     const detailMessage =
       (typeof detailData === 'string' ? detailData : detailData?.message) || error.message || ''
-    item.error = detailMessage || '读取失败'
+    item.error = detailMessage || '网页读取失败：后端未返回错误详情'
+    message.error(item.error)
   }
 }
 
@@ -844,6 +885,16 @@ const getLinkStatusText = (status) => {
     expanded: '已展开',
     error: '失败',
     pending: '待处理'
+  }
+  return statusMap[status] || status || '-'
+}
+
+const getWebSessionStatusText = (status) => {
+  const statusMap = {
+    pending: '等待读取',
+    fetching: '正在读取网页',
+    success: '读取成功',
+    error: '读取失败'
   }
   return statusMap[status] || status || '-'
 }
