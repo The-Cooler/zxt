@@ -223,6 +223,7 @@ async def get_accessible_databases(current_user: User = Depends(get_system_owner
                 "name": db.get("name", ""),
                 "db_id": db.get("db_id"),
                 "description": db.get("description", ""),
+                "row_count": db.get("row_count", 0),
             }
             for db in databases.get("databases", [])
         ]
