@@ -1172,7 +1172,7 @@ async def index_documents(
                     )
 
                     result = await asyncio.wait_for(
-                        knowledge_base.index_file(db_id, file_id, operator_id=operator_id, params=params),
+                        knowledge_base.index_file(db_id, file_id, operator_id=operator_id, params=params, context=context),
                         timeout=timeout_seconds
                     )
                     processed_items.append(result)

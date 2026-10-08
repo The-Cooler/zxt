@@ -398,7 +398,14 @@ class KnowledgeBase(ABC):
         return content_bytes.decode("utf-8")
 
     @abstractmethod
-    async def index_file(self, db_id: str, file_id: str, operator_id: str | None = None) -> dict:
+    async def index_file(
+        self,
+        db_id: str,
+        file_id: str,
+        operator_id: str | None = None,
+        params: dict | None = None,
+        context: "TaskContext | None" = None,
+    ) -> dict:
         """
         Index parsed file (Status: INDEXING -> INDEXED/ERROR_INDEXING)
 
@@ -406,6 +413,8 @@ class KnowledgeBase(ABC):
             db_id: Database ID
             file_id: File ID
             operator_id: ID of the user performing the operation
+            params: Override processing params to apply during indexing
+            context: Task context for progress reporting
 
         Returns:
             Updated file metadata
@@ -692,6 +701,8 @@ class KnowledgeBase(ABC):
                         "created_at": created_at,
                         "is_folder": file_info.get("is_folder", False),
                         "parent_id": file_info.get("parent_id", None),
+                        "graph_error": file_info.get("graph_error"),
+                        "processing_params": file_info.get("processing_params"),
                     }
 
             # 按创建时间倒序排序文件列表
@@ -749,6 +760,8 @@ class KnowledgeBase(ABC):
                             "created_at": created_at,
                             "is_folder": file_info.get("is_folder", False),
                             "parent_id": file_info.get("parent_id", None),
+                            "graph_error": file_info.get("graph_error"),
+                            "processing_params": file_info.get("processing_params"),
                         }
 
                 # 按创建时间倒序排序文件列表

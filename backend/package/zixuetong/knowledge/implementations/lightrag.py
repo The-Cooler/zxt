@@ -329,6 +329,15 @@ class LightRagKB(KnowledgeBase):
         # 默认语言从环境变量读取，默认 English
         addon_params.setdefault("language", os.getenv("SUMMARY_LANGUAGE") or "English")
 
+        # 为知识库系统设置知识相关的实体类型（如果未指定）
+        if "entity_types" not in addon_params:
+            addon_params["entity_types"] = ["Concept", "Method", "Content", "Data", "Event"]
+
+        # 读取图谱节点数量限制
+        max_graph_nodes = metadata.get("max_graph_nodes")
+        if max_graph_nodes is None:
+            max_graph_nodes = addon_params.get("max_graph_nodes", 50)
+
         # 创建工作目录
         working_dir = os.path.join(self.work_dir, db_id)
         os.makedirs(working_dir, exist_ok=True)
@@ -345,6 +354,7 @@ class LightRagKB(KnowledgeBase):
             doc_status_storage="JsonDocStatusStorage",
             log_file_path=os.path.join(working_dir, "lightrag.log"),
             addon_params=addon_params,
+            max_graph_nodes=max_graph_nodes,
         )
 
         return rag
@@ -479,7 +489,12 @@ class LightRagKB(KnowledgeBase):
         )
 
     async def index_file(
-        self, db_id: str, file_id: str, operator_id: str | None = None, params: dict | None = None
+        self,
+        db_id: str,
+        file_id: str,
+        operator_id: str | None = None,
+        params: dict | None = None,
+        context: "TaskContext | None" = None,
     ) -> dict:
         """
         Index parsed file (Status: INDEXING -> INDEXED/ERROR_INDEXING)
@@ -489,6 +504,7 @@ class LightRagKB(KnowledgeBase):
             file_id: File ID
             operator_id: ID of the user performing the operation
             params: Override processing params to apply during indexing (merged on top of stored params)
+            context: Task context for progress reporting
 
         Returns:
             Updated file metadata
@@ -580,36 +596,68 @@ class LightRagKB(KnowledgeBase):
                 # Clean up existing chunks if any (for re-indexing)
                 await self.delete_file_chunks_only(db_id, file_id)
 
-                # Insert
-                if ingestion_options["index_mode"] == INDEX_MODE_FAST:
-                    await self._fast_insert_chunks(
-                        rag,
-                        markdown_content=markdown_content,
-                        chunks=chunks,
-                        file_id=file_id,
-                        file_path=file_path,
-                    )
-                else:
-                    async with self._scoped_graph_limits(
-                        rag,
-                        file_id=file_id,
-                        max_nodes=ingestion_options["max_graph_nodes"],
-                        max_relations=ingestion_options["max_graph_relations"],
-                    ):
-                        await rag.ainsert(
-                            input=chunk_input,
-                            ids=file_id,
-                            file_paths=file_path,
-                            split_by_character=split_by_character,
-                            split_by_character_only=split_by_character_only,
-                        )
-                    await self._ensure_doc_processed(rag, file_id)
+                # 分离向量入库和图谱构建，避免图谱失败导致整个入库失败
+                # Step 1: 向量入库 (总是执行)
+                if context:
+                    await context.set_progress(context._tasker._tasks[context.task_id].progress, "正在进行向量化入库...")
+                await self._fast_insert_chunks(
+                    rag,
+                    markdown_content=markdown_content,
+                    chunks=chunks,
+                    file_id=file_id,
+                    file_path=file_path,
+                )
 
                 logger.info(
-                    f"Indexed file {file_id} into LightRAG with {len(chunks)} chunks, "
-                    f"chunk_preset_id={params.get('chunk_preset_id')}, "
-                    f"index_mode={ingestion_options['index_mode']}"
+                    f"Vector indexed file {file_id} into LightRAG with {len(chunks)} chunks, "
+                    f"chunk_preset_id={params.get('chunk_preset_id')}"
                 )
+
+                # Step 2: 图谱构建 (仅非 fast 模式)
+                graph_error = None
+                if ingestion_options["index_mode"] != INDEX_MODE_FAST:
+                    try:
+                        if context:
+                            await context.set_progress(
+                                context._tasker._tasks[context.task_id].progress, "开始构建知识图谱..."
+                            )
+                        # 先删除已有的向量块，然后用完整模式重新入库（包含图谱）
+                        await self.delete_file_chunks_only(db_id, file_id)
+                        if context:
+                            await context.set_progress(
+                                context._tasker._tasks[context.task_id].progress, "正在提取实体和关系..."
+                            )
+                        async with self._scoped_graph_limits(
+                            rag,
+                            file_id=file_id,
+                            max_nodes=ingestion_options["max_graph_nodes"],
+                            max_relations=ingestion_options["max_graph_relations"],
+                        ):
+                            await rag.ainsert(
+                                input=chunk_input,
+                                ids=file_id,
+                                file_paths=file_path,
+                                split_by_character=split_by_character,
+                                split_by_character_only=split_by_character_only,
+                            )
+                        if context:
+                            await context.set_progress(
+                                context._tasker._tasks[context.task_id].progress, "正在保存图谱数据..."
+                            )
+                        await self._ensure_doc_processed(rag, file_id)
+                        logger.info(f"Graph built successfully for file {file_id}")
+                    except Exception as graph_ex:
+                        logger.warning(f"Graph building failed for {file_id}, but vector indexing succeeded: {graph_ex}")
+                        graph_error = str(graph_ex)
+                        # 图谱构建失败，回退到快速模式的向量入库
+                        await self.delete_file_chunks_only(db_id, file_id)
+                        await self._fast_insert_chunks(
+                            rag,
+                            markdown_content=markdown_content,
+                            chunks=chunks,
+                            file_id=file_id,
+                            file_path=file_path,
+                        )
 
                 # 记录已入库的 content_hash，防止后续重复入库
                 if content_hash:
@@ -629,6 +677,19 @@ class LightRagKB(KnowledgeBase):
                 self.files_meta[file_id]["updated_at"] = utc_isoformat()
                 if operator_id:
                     self.files_meta[file_id]["updated_by"] = operator_id
+
+                # 如果图谱构建失败，记录错误并将模式标记为 fast
+                if graph_error:
+                    self.files_meta[file_id]["graph_error"] = graph_error
+                    # 修改 processing_params.index_mode 为 fast，前端会显示"生成图谱"按钮
+                    if "processing_params" not in self.files_meta[file_id]:
+                        self.files_meta[file_id]["processing_params"] = {}
+                    self.files_meta[file_id]["processing_params"]["index_mode"] = INDEX_MODE_FAST
+                    logger.info(f"File {file_id} marked as indexed with fast mode due to graph building failure")
+                else:
+                    # 清除之前的 graph_error
+                    self.files_meta[file_id].pop("graph_error", None)
+
                 await self._persist_file(file_id)
 
                 return self.files_meta[file_id]

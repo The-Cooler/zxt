@@ -247,6 +247,10 @@
                   <span class="label">错误:</span>
                   <span class="value">{{ record.error_message }}</span>
                 </div>
+                <div v-if="record.graph_error" class="info-row warning">
+                  <span class="label">图谱构建失败:</span>
+                  <span class="value">{{ record.graph_error }}</span>
+                </div>
               </div>
             </template>
             <a-button class="main-btn" type="link" @click="openFileDetail(record)">
@@ -1663,6 +1667,15 @@ import ChunkParamsConfig from '@/components/ChunkParamsConfig.vue'
         }
         .value {
           color: var(--color-error-500);
+        }
+      }
+
+      &.warning {
+        .label {
+          color: var(--color-warning-500);
+        }
+        .value {
+          color: var(--color-warning-500);
         }
       }
     }
