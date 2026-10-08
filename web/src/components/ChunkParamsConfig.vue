@@ -164,8 +164,8 @@ const indexModeOptions = [
 
 const modeGraphDefaults = {
   standard: {
-    max_graph_nodes: 100,
-    max_graph_relations: 200
+    max_graph_nodes: 5,
+    max_graph_relations: 10
   },
   graph: {
     max_graph_nodes: 300,

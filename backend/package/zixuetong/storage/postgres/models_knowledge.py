@@ -71,6 +71,22 @@ class KnowledgeFile(Base):
     updated_at = Column(DateTime(timezone=True), default=utc_now_naive, onupdate=utc_now_naive)
 
 
+class KnowledgeContentHash(Base):
+    """知识库内容哈希记录表 - 用于防止重复 embedding"""
+
+    __tablename__ = "knowledge_content_hashes"
+    __table_args__ = (
+        UniqueConstraint("db_id", "content_hash", name="uq_knowledge_content_hash_db_content"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    db_id = Column(String(80), ForeignKey("knowledge_bases.db_id", ondelete="CASCADE"), nullable=False, index=True)
+    content_hash = Column(String(128), nullable=False, index=True)
+    original_filename = Column(String(512))
+    first_indexed_at = Column(DateTime(timezone=True), default=utc_now_naive)
+    last_file_id = Column(String(64))
+
+
 class EvaluationBenchmark(Base):
     """评估基准模型"""
 

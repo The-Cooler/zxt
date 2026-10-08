@@ -527,6 +527,23 @@ class LightRagKB(KnowledgeBase):
                 await self._mark_file_unparsed(file_id, operator_id)
                 raise ValueError("File has not been parsed yet (no markdown_file)")
 
+            # 检查 content_hash 是否已入库，避免重复 embedding
+            content_hash = file_meta.get("content_hash")
+            if content_hash and current_status != FileStatus.INDEXED:
+                from zixuetong.repositories.knowledge_content_hash_repository import KnowledgeContentHashRepository
+
+                hash_repo = KnowledgeContentHashRepository()
+                is_duplicate = await hash_repo.exists(db_id, content_hash)
+                if is_duplicate:
+                    logger.warning(
+                        f"跳过重复内容入库: file_id={file_id}, content_hash={content_hash}, "
+                        f"该内容已在知识库中存在，避免重复 embedding 消耗额度"
+                    )
+                    raise ValueError(
+                        f"该文件内容已在知识库中存在（content_hash: {content_hash[:16]}...），"
+                        f"无需重复入库。若需重新入库，请先删除已存在的相同内容文件。"
+                    )
+
             # Clear previous error if any
             if "error" in file_meta:
                 self.files_meta[file_id].pop("error", None)
@@ -593,6 +610,19 @@ class LightRagKB(KnowledgeBase):
                     f"chunk_preset_id={params.get('chunk_preset_id')}, "
                     f"index_mode={ingestion_options['index_mode']}"
                 )
+
+                # 记录已入库的 content_hash，防止后续重复入库
+                if content_hash:
+                    from zixuetong.repositories.knowledge_content_hash_repository import KnowledgeContentHashRepository
+
+                    hash_repo = KnowledgeContentHashRepository()
+                    await hash_repo.record_indexed_content(
+                        db_id=db_id,
+                        content_hash=content_hash,
+                        file_id=file_id,
+                        original_filename=file_meta.get("original_filename"),
+                    )
+                    logger.info(f"已记录 content_hash 到去重表: file_id={file_id}, hash={content_hash[:16]}...")
 
                 # Update status
                 self.files_meta[file_id]["status"] = FileStatus.INDEXED
@@ -810,9 +840,14 @@ class LightRagKB(KnowledgeBase):
         # 注意：这里不删除 files_meta[file_id]，保留元数据用于后续操作
 
     async def delete_file(self, db_id: str, file_id: str) -> None:
-        """删除文件（包括元数据）"""
+        """删除文件（包括元数据和 content_hash 记录）"""
         # 先删除 LightRAG 中的 chunks 数据
         await self.delete_file_chunks_only(db_id, file_id)
+
+        # 获取文件的 content_hash，用于清理去重表
+        content_hash = None
+        if file_id in self.files_meta:
+            content_hash = self.files_meta[file_id].get("content_hash")
 
         # 删除文件记录
         if file_id in self.files_meta:
@@ -820,6 +855,14 @@ class LightRagKB(KnowledgeBase):
             from zixuetong.repositories.knowledge_file_repository import KnowledgeFileRepository
 
             await KnowledgeFileRepository().delete(file_id)
+
+        # 删除 content_hash 记录，允许相同内容重新入库
+        if content_hash:
+            from zixuetong.repositories.knowledge_content_hash_repository import KnowledgeContentHashRepository
+
+            hash_repo = KnowledgeContentHashRepository()
+            await hash_repo.delete_by_db_and_hash(db_id, content_hash)
+            logger.info(f"已删除文件 {file_id} 的 content_hash 记录，允许相同内容重新入库")
 
     async def get_file_basic_info(self, db_id: str, file_id: str) -> dict:
         """获取文件基本信息（仅元数据）"""

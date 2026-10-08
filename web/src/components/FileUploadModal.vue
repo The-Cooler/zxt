@@ -922,8 +922,8 @@ const defaultIndexParams = {
   qa_separator: '',
   chunk_preset_id: '',
   index_mode: 'standard',
-  max_graph_nodes: 100,
-  max_graph_relations: 200
+  max_graph_nodes: 5,
+  max_graph_relations: 10
 }
 const indexParams = ref({ ...defaultIndexParams })
 

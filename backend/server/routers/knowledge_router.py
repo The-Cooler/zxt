@@ -1140,8 +1140,48 @@ async def index_documents(
                 await context.set_progress(progress, f"正在入库第 {idx}/{total} 个文档")
 
                 try:
-                    result = await knowledge_base.index_file(db_id, file_id, operator_id=operator_id, params=params)
+                    # 根据文件大小和chunk配置动态计算超时时间
+                    try:
+                        file_info = await knowledge_base.get_file_info(db_id, file_id)
+                        file_size = file_info.get("size", 0)  # 字节
+                        # 从params或文件元数据中获取chunk_size
+                        chunk_size = params.get("chunk_size", file_info.get("meta", {}).get("chunk_size", 1000))
+                    except Exception as e:
+                        logger.warning(f"Failed to get file info for {file_id}: {e}, using default values")
+                        file_size = 0
+                        chunk_size = 1000
+
+                    # 估算总token数：文件字节数 / 每token平均字节数
+                    # 中文约3字节/字符≈3字节/token，英文约4字符/token≈1字节/token，平均按2.5字节/token
+                    estimated_tokens = file_size / 2.5
+
+                    # 基于实测数据：82 chunks × 512 tokens = 42K tokens 用了 34 分钟 (2040秒)
+                    # 平均每1000 tokens需要 48.5秒
+                    # 包括：LLM提取 + Embedding + 数据库写入 + 网络延迟
+                    seconds_per_1k_tokens = 48.5
+
+                    # 超时 = (总tokens / 1000) × 每1K_tokens时间 + 初始化时间(30秒) + 20%缓冲
+                    timeout_seconds = ((estimated_tokens / 1000) * seconds_per_1k_tokens + 30) * 1.2
+                    # 最少2分钟，最多60分钟
+                    timeout_seconds = max(120, min(3600, timeout_seconds))
+
+                    logger.info(
+                        f"File {file_id}: size={file_size} bytes, estimated_tokens={int(estimated_tokens)}, "
+                        f"chunk_size={chunk_size}, timeout={int(timeout_seconds)}s ({timeout_seconds/60:.1f}min)"
+                    )
+
+                    result = await asyncio.wait_for(
+                        knowledge_base.index_file(db_id, file_id, operator_id=operator_id, params=params),
+                        timeout=timeout_seconds
+                    )
                     processed_items.append(result)
+                except asyncio.TimeoutError:
+                    error_msg = f"入库超时（超过 {int(timeout_seconds)} 秒），请检查网络或更换 API 提供商"
+                    logger.error(f"Index timeout for {file_id}: {error_msg}")
+                    processed_items.append({"file_id": file_id, "status": "failed", "error": error_msg})
+                except asyncio.CancelledError:
+                    logger.warning(f"Index cancelled for {file_id}")
+                    raise  # 重新抛出取消异常，让外层处理
                 except Exception as e:
                     logger.error(f"Index failed for {file_id}: {e}")
                     processed_items.append({"file_id": file_id, "status": "failed", "error": str(e)})
