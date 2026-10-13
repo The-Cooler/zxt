@@ -209,6 +209,33 @@ class ConversationRepository:
         result = await self.db.execute(query)
         return list(result.scalars().unique().all())
 
+    async def delete_messages_from(self, conversation_id: int, from_message_id: int) -> int:
+        """删除指定消息及其之后的全部消息，返回实际删除数量。
+
+        用于「重新生成」：把该条 AI 回复及其后续内容一并移除，
+        随后由调用方以对应的用户提问重新发起生成。
+        """
+        from sqlalchemy import delete as sql_delete
+
+        result = await self.db.execute(
+            select(Message.id)
+            .where(Message.conversation_id == conversation_id)
+            .order_by(Message.created_at.asc(), Message.id.asc())
+        )
+        ordered_ids = list(result.scalars().all())
+        if from_message_id not in ordered_ids:
+            return 0
+
+        target_ids = ordered_ids[ordered_ids.index(from_message_id) :]
+        if not target_ids:
+            return 0
+
+        # tool_calls / feedbacks 通过外键级联删除，这里只需删除消息本身
+        await self.db.execute(sql_delete(Message).where(Message.id.in_(target_ids)))
+        await self.db.commit()
+        await self._update_message_count(conversation_id)
+        return len(target_ids)
+
     async def get_messages_by_thread_id(
         self, thread_id: str, limit: int | None = None, offset: int = 0
     ) -> list[Message]:

@@ -10,11 +10,18 @@ from zixuetong.utils import get_docker_safe_url
 from zixuetong.utils.logging_config import logger
 
 
-def load_chat_model_v2(spec: str, **kwargs) -> BaseChatModel:
+def load_chat_model_v2(spec: str, enable_thinking: bool | None = None, **kwargs) -> BaseChatModel:
     """根据 v2 spec（provider_id:model_id）加载 LangChain 聊天模型。
 
     v2 spec 格式使用冒号分隔，如: siliconflow-cn:deepseek-ai/DeepSeek-V4-Flash
     数据来源为数据库中的 model_providers 表，通过全局缓存访问。
+
+    Args:
+        spec: v2 模型 spec。
+        enable_thinking: 是否开启模型思考（推理过程）。None 表示不干预，
+            由服务端默认行为决定；True/False 会以 enable_thinking 透传给
+            OpenAI 兼容服务。
+        **kwargs: 透传给底层 LangChain 模型构造函数的额外参数。
     """
     from zixuetong.services.model_cache import model_cache
 
@@ -49,10 +56,17 @@ def load_chat_model_v2(spec: str, **kwargs) -> BaseChatModel:
             **kwargs,
         )
     else:
-        # 默认使用 OpenAI 兼容层（openai, openrouter, ollama, lmstudio 等）
-        from langchain_openai import ChatOpenAI
+        # 默认使用 OpenAI 兼容层（openai, openrouter, ollama, lmstudio 等）。
+        # 使用 ChatOpenAIWithReasoning 以保留第三方服务返回的 reasoning_content，
+        # 标准 ChatOpenAI 会丢弃该非标准字段。
+        from zixuetong.agents.chat_models import ChatOpenAIWithReasoning
 
-        return ChatOpenAI(
+        if enable_thinking is not None:
+            extra_body = dict(kwargs.pop("extra_body", None) or {})
+            extra_body["enable_thinking"] = bool(enable_thinking)
+            kwargs["extra_body"] = extra_body
+
+        return ChatOpenAIWithReasoning(
             model=info.model_id,
             api_key=SecretStr(api_key),
             base_url=base_url,
@@ -121,10 +135,10 @@ def load_chat_model(fully_specified_name: str, **kwargs) -> BaseChatModel:
         )
 
     else:
-        try:  # 其他模型，默认使用OpenAIBase, like openai, zhipuai
-            from langchain_openai import ChatOpenAI
+        try:  # 其他模型，默认使用 OpenAI 兼容层, like openai, zhipuai
+            from zixuetong.agents.chat_models import ChatOpenAIWithReasoning
 
-            return ChatOpenAI(
+            return ChatOpenAIWithReasoning(
                 model=model,
                 api_key=SecretStr(api_key),
                 base_url=base_url,

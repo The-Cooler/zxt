@@ -114,6 +114,18 @@ class BaseContext:
         },
     )
 
+    enable_thinking: bool = field(
+        default=False,
+        metadata={
+            "name": "显示思考过程",
+            "description": (
+                "开启后，模型会在回答前展示推理过程。仅在支持该能力的模型（如 DeepSeek 系列）上生效；"
+                "若所用模型不返回推理内容，开启也不会有任何显示。"
+            ),
+            "type": "boolean",
+        },
+    )
+
     @classmethod
     def get_configurable_items(cls):
         """实现一个可配置的参数列表，在 UI 上配置时使用"""

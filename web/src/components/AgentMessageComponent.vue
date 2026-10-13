@@ -70,13 +70,6 @@
         :tool-calls="validToolCalls"
       />
 
-      <div v-if="message.type === 'human' || message.type === 'ai'" class="message-actions">
-        <button type="button" class="message-action" title="从此处分支" @click="emit('branch', message.id)">
-          <GitBranch size="14" />
-          <span>从此处分支</span>
-        </button>
-      </div>
-
       <div v-if="message.isStoppedByUser" class="retry-hint">
         你停止生成了本次回答
         <span class="retry-link" @click="emit('retryStoppedMessage', message.id)"
@@ -84,9 +77,12 @@
         >
       </div>
 
+      <!-- 历史消息只有 type 没有 role，故同时兼容 type === 'ai' -->
       <div
         v-if="
-          (message.role == 'received' || message.role == 'assistant') &&
+          (message.role == 'received' ||
+            message.role == 'assistant' ||
+            message.type === 'ai') &&
           message.status == 'finished' &&
           showRefs
         "

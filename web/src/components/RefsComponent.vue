@@ -1,8 +1,10 @@
 <template>
   <div class="refs" v-if="showRefs">
     <div class="tags">
-      <!-- 反馈 -->
+      <!-- 反馈：同一条消息可能被消息级与对话级两个 RefsComponent 渲染，
+           对话级传 hideFeedback 关闭，避免出现两组点赞/点踩 -->
       <span
+        v-if="!hideFeedback"
         class="item btn"
         :class="{ disabled: feedbackState.hasSubmitted }"
         @click="likeThisResponse(msg)"
@@ -11,6 +13,7 @@
         <ThumbsUp size="12" :fill="feedbackState.rating === 'like' ? 'currentColor' : 'none'" />
       </span>
       <span
+        v-if="!hideFeedback"
         class="item btn"
         :class="{ disabled: feedbackState.hasSubmitted }"
         @click="dislikeThisResponse(msg)"
@@ -121,6 +124,11 @@ const props = defineProps({
   sources: {
     type: Object,
     default: () => ({})
+  },
+  // 是否隐藏点赞/点踩，对话级 RefsComponent 用它避免与消息级重复
+  hideFeedback: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -217,10 +225,11 @@ const showRefs = computed(() => {
   if (props.showRefs && Array.isArray(props.showRefs) && props.showRefs.includes('model')) {
     return true
   }
-  // 原有的逻辑
+  // 原有的逻辑（历史消息只有 type 没有 role，故同时兼容 type === 'ai'）
+  const current = msg.value
   return (
-    (msg.value.role == 'received' || msg.value.role == 'assistant') &&
-    msg.value.status == 'finished'
+    (current.role == 'received' || current.role == 'assistant' || current.type === 'ai') &&
+    current.status == 'finished'
   )
 })
 

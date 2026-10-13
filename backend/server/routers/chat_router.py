@@ -14,6 +14,7 @@ from zixuetong import config as conf
 from zixuetong.agents.buildin import agent_manager
 from zixuetong.models import select_model
 from zixuetong.services.chat_service import agent_chat, get_agent_state_view, stream_agent_chat, stream_agent_resume
+from zixuetong.services.regenerate_service import RegenerateError, regenerate_from_message_view
 from zixuetong.services.agent_run_service import (
     cancel_agent_run_view,
     create_agent_run_view,
@@ -179,7 +180,8 @@ async def call(query: str = Body(...), meta: dict = Body(None), current_user: Us
     model = select_model(
         model_provider=meta.get("model_provider"),
         model_name=meta.get("model_name"),
-        model_spec=meta.get("model_spec") or meta.get("model"),
+        # 未指定时回退到配置的默认模型（v2 spec），避免落入只认 v1 格式的旧分支
+        model_spec=meta.get("model_spec") or meta.get("model") or conf.default_model,
     )
 
     response = await model.call(query)
@@ -1008,6 +1010,29 @@ async def get_message_feedback(
         db=db,
         current_user_id=str(current_user.id),
     )
+
+
+class RegenerateRequest(BaseModel):
+    message_id: int = Field(..., description="要重新生成的助手消息 ID")
+
+
+@chat.post("/thread/{thread_id}/regenerate")
+async def regenerate_from_message(
+    thread_id: str,
+    payload: RegenerateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_system_owner),
+):
+    """截断指定 AI 回复及其后续消息，返回对应的用户提问以便重新生成。"""
+    try:
+        return await regenerate_from_message_view(
+            thread_id=thread_id,
+            message_id=payload.message_id,
+            current_user_id=str(current_user.id),
+            db=db,
+        )
+    except RegenerateError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 # =============================================================================

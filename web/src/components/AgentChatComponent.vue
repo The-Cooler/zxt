@@ -37,7 +37,7 @@
                     :is-processing="isDisplayMessageProcessing(row.conv, displayItem)"
                     :show-refs="showMsgRefs(displayItem.message)"
                     :hide-tool-calls="true"
-                    @retry="retryMessage(displayItem.message)"
+                    @retry="regenerateMessage(displayItem.message)"
                     @branch="branchFromMessage"
                   >
                   </AgentMessageComponent>
@@ -53,9 +53,10 @@
                 <RefsComponent
                   v-if="shouldShowRefs(row.conv)"
                   :message="getLastMessage(row.conv)"
-                  :show-refs="['model', 'copy', 'sources']"
+                  :show-refs="['model', 'sources']"
                   :is-latest-message="false"
                   :sources="getConversationSources(row.conv)"
+                  :hide-feedback="true"
                 />
               </div>
               <div v-else class="chat-inline-notice">
@@ -628,6 +629,20 @@ const conversations = computed(() => {
     return [...historyConvs, onGoingConv]
   }
   return historyConvs
+})
+
+// 只有全局最后一条助手回复才提供「重新生成」，与 ChatGPT 的行为一致：
+// 重新生成会从该条截断，若其后仍有对话则语义不成立。
+const latestAssistantMessageKey = computed(() => {
+  for (let c = conversations.value.length - 1; c >= 0; c--) {
+    const msgs = conversations.value[c].messages || []
+    for (let m = msgs.length - 1; m >= 0; m--) {
+      if (msgs[m].type === 'ai') {
+        return msgs[m].id
+      }
+    }
+  }
+  return null
 })
 
 const conversationRows = computed(() => {
@@ -1343,6 +1358,66 @@ const branchFromMessage = async (messageId) => {
   }
 }
 
+// 重新生成：从该条助手回复处截断，并用对应的用户提问重新发起生成。
+// 仅对最后一条助手回复开放，因此截断后不会丢失后续对话。
+const regenerateMessage = async (msg) => {
+  const messageId = msg?.id
+  const threadId = currentChatId.value
+  if (!threadId || messageId === null || messageId === undefined) return
+  if (isProcessing.value) {
+    message.info('请等待当前回复完成')
+    return
+  }
+
+  const threadState = getThreadState(threadId)
+  if (!threadState) return
+
+  let query
+  try {
+    const result = await threadApi.regenerateFromMessage(threadId, messageId)
+    query = result?.query || ''
+    if (!query) {
+      message.error('未能找到对应的提问，无法重新生成')
+      return
+    }
+  } catch (error) {
+    handleChatError(error, 'update')
+    return
+  }
+
+  // 先同步被截断的历史，避免界面残留已删除的消息
+  await fetchThreadMessages({ agentId: currentAgentId.value, threadId }).catch(() => {})
+  resetOnGoingConv(threadId)
+
+  threadState.isStreaming = true
+  const requestId = createClientRequestId()
+  insertOptimisticHumanMessage(threadState, { requestId, text: query, imageContent: null })
+  threadState.streamAbortController = new AbortController()
+
+  try {
+    const response = await sendMessage({
+      agentId: currentAgentId.value,
+      threadId,
+      text: query,
+      signal: threadState.streamAbortController?.signal
+    })
+    await handleAgentResponse(response, threadId)
+  } catch (error) {
+    if (error.name !== 'AbortError') {
+      console.error('Regenerate stream error:', error)
+      handleChatError(error, 'send')
+    }
+    threadState.isStreaming = false
+  } finally {
+    threadState.streamAbortController = null
+    fetchThreadMessages({ agentId: currentAgentId.value, threadId }).finally(() => {
+      resetOnGoingConv(threadId)
+      handleAgentStateRefresh(threadId)
+      scrollController.scrollToBottom()
+    })
+  }
+}
+
 const selectChat = async (chatId) => {
   const targetChat = threads.value.find((chat) => chat.id === chatId) || null
   const targetAgentId = targetChat?.agent_id || currentAgentId.value
@@ -1954,6 +2029,10 @@ const showMsgRefs = (msg) => {
 
   // 只有真正完成的消息才显示 refs
   if (msg.isLast && msg.status === 'finished') {
+    // 仅最后一条助手回复可重新生成
+    if (msg.id !== null && msg.id !== undefined && msg.id === latestAssistantMessageKey.value) {
+      return ['copy', 'sources', 'regenerate']
+    }
     return ['copy', 'sources']
   }
   return false

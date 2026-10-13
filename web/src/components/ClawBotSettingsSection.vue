@@ -15,8 +15,8 @@
       <div v-if="configStore.config?.clawbot_enabled" class="card login-card">
         <a-button type="primary" :loading="connectLoading" @click="startConnect">{{ status.connected ? '重新连接微信' : '微信扫码连接' }}</a-button>
         <div v-if="qrContent" class="qr-content">
-          <img v-if="imageSrc" :src="imageSrc" alt="ClawBot 微信连接二维码" />
-          <a v-else :href="qrContent" target="_blank" rel="noopener noreferrer">打开微信连接二维码</a>
+          <img v-if="qrImageSrc" :src="qrImageSrc" alt="ClawBot 微信连接二维码" />
+          <a v-else :href="qrContent" target="_blank" rel="noopener noreferrer">{{ qrContent }}</a>
         </div>
         <span v-else class="hint">首次启用后会自动申请二维码；也可手动重新获取。</span>
       </div>
@@ -25,20 +25,43 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
+import QRCode from 'qrcode'
 import { useConfigStore } from '@/stores/config'
 import { getClawBotStatus, requestClawBotLogin } from '@/apis/clawbot_api'
 
 const configStore = useConfigStore()
 const connectLoading = ref(false)
 const qrContent = ref('')
+const qrImageSrc = ref('')
 const status = ref({ enabled: false, connected: false, awaiting_scan: false })
 
-const imageSrc = computed(() => {
-  if (qrContent.value.startsWith('data:image/') || qrContent.value.startsWith('http')) return qrContent.value
-  if (qrContent.value.startsWith('<svg')) return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(qrContent.value)}`
-  return ''
+// 微信返回的 qrcode_img_content 是二维码内容（非微信环境不可直接渲染），
+// 与 openclaw 官方实现一致：优先按图片处理，否则用该内容本地生成二维码。
+const renderQrCode = async (content) => {
+  if (!content) {
+    qrImageSrc.value = ''
+    return
+  }
+  if (content.startsWith('data:image/')) {
+    qrImageSrc.value = content
+    return
+  }
+  if (content.startsWith('<svg')) {
+    qrImageSrc.value = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(content)}`
+    return
+  }
+  try {
+    qrImageSrc.value = await QRCode.toDataURL(content, { margin: 1, width: 220 })
+  } catch (error) {
+    console.error('二维码生成失败:', error)
+    qrImageSrc.value = ''
+  }
+}
+
+watch(qrContent, (value) => {
+  void renderQrCode(value)
 })
 const statusText = computed(() => {
   if (status.value.connected) return '已连接'

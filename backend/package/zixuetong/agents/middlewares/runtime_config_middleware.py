@@ -80,7 +80,10 @@ class RuntimeConfigMiddleware(AgentMiddleware):
 
         # 1. 模型覆盖（可选）
         if self.enable_model_override:
-            model = load_chat_model(getattr(runtime_context, self.model_context_name, None))
+            model = load_chat_model(
+                getattr(runtime_context, self.model_context_name, None),
+                enable_thinking=getattr(runtime_context, "enable_thinking", None),
+            )
             overrides["model"] = model
 
         # 2. 工具覆盖（可选）
@@ -104,7 +107,9 @@ class RuntimeConfigMiddleware(AgentMiddleware):
         if self.enable_system_prompt_override:
             cur_datetime = f"当前时间：{shanghai_now().strftime('%Y-%m-%d %H:%M:%S')} UTC"
             system_prompt = getattr(runtime_context, self.system_prompt_context_name, "") or ""
-            merged_system_prompt = f"{cur_datetime}\n\n{system_prompt}"
+            # 稳定内容必须在前、动态时间戳在后：prompt cache 按前缀匹配，
+            # 时间戳若置于前缀会使每次请求的前缀都不同，导致缓存永不命中。
+            merged_system_prompt = f"{system_prompt}\n\n{cur_datetime}"
 
             content_blocks = list(request.system_message.content_blocks) if request.system_message else []
             new_content = content_blocks + [{"type": "text", "text": merged_system_prompt}]

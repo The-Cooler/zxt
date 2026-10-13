@@ -312,6 +312,17 @@ export const threadApi = {
     }),
 
   /**
+   * 从指定助手消息处截断，用于重新生成
+   * @param {string} threadId - 对话线程ID
+   * @param {number} messageId - 要重新生成的助手消息ID
+   * @returns {Promise} - { thread_id, agent_id, query, deleted_count }
+   */
+  regenerateFromMessage: (threadId, messageId) =>
+    apiPost(`/api/chat/thread/${threadId}/regenerate`, {
+      message_id: Number(messageId)
+    }),
+
+  /**
    * 更新对话线程
    * @param {string} threadId - 对话线程ID
    * @param {string} title - 对话标题

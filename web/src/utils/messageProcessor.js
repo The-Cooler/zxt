@@ -63,6 +63,8 @@ export class MessageProcessor {
           for (let i = currentConv.messages.length - 1; i >= 0; i--) {
             if (currentConv.messages[i].type === 'ai') {
               currentConv.messages[i].isLast = true
+              // 历史消息统一标记为已完成，供消息级操作（复制、重新生成）判断可用性
+              currentConv.messages[i].status = 'finished'
               currentConv.status = 'finished'
               break
             }
@@ -84,6 +86,7 @@ export class MessageProcessor {
       for (let i = currentConv.messages.length - 1; i >= 0; i--) {
         if (currentConv.messages[i].type === 'ai') {
           currentConv.messages[i].isLast = true
+          currentConv.messages[i].status = 'finished'
           currentConv.status = 'finished'
           break
         }

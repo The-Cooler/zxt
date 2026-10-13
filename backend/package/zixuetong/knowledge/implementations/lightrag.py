@@ -18,6 +18,7 @@ from zixuetong import config
 from zixuetong.knowledge.base import FileStatus, KnowledgeBase
 from zixuetong.knowledge.chunking.ragflow_like.dispatcher import chunk_markdown
 from zixuetong.knowledge.chunking.ragflow_like.presets import resolve_chunk_processing_params
+from zixuetong.knowledge.tokenizer import OfflineTokenizer
 from zixuetong.models.embed import get_embedding_model_info_by_id
 from zixuetong.plugins.parser.unified import Parser
 from zixuetong.utils import logger
@@ -355,6 +356,9 @@ class LightRagKB(KnowledgeBase):
             log_file_path=os.path.join(working_dir, "lightrag.log"),
             addon_params=addon_params,
             max_graph_nodes=max_graph_nodes,
+            # 显式传入离线 tokenizer：LightRAG 默认的 TiktokenTokenizer 会同步联网
+            # 下载编码表，国内网络下可阻塞事件循环数十秒。
+            tokenizer=OfflineTokenizer(),
         )
 
         return rag

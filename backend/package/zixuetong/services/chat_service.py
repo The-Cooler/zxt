@@ -1158,6 +1158,7 @@ async def stream_agent_chat(
 
         full_msg = None
         accumulated_content = []
+        accumulated_reasoning = []
         async for mode, payload in _stream_agent_events(
             agent,
             messages,
@@ -1176,7 +1177,14 @@ async def stream_agent_chat(
 
             msg, metadata = payload
             if isinstance(msg, AIMessageChunk):
-                accumulated_content.append(msg.content)
+                # 推理内容（reasoning_content）只透传给前端展示，不计入正文，
+                # 否则会污染用于落库与敏感词检测的 content 累积。
+                reasoning_content = (msg.additional_kwargs or {}).get("reasoning_content")
+                if reasoning_content:
+                    accumulated_reasoning.append(reasoning_content)
+
+                if msg.content:
+                    accumulated_content.append(msg.content)
                 trace_info = get_trace_info(langfuse_run)
 
                 content_for_check = "".join(accumulated_content[-10:])
@@ -1193,7 +1201,15 @@ async def stream_agent_chat(
                     yield make_chunk(status="interrupted", message="检测到敏感内容，已中断输出", meta=meta)
                     return
 
-                yield make_chunk(content=msg.content, msg=msg.model_dump(), metadata=metadata, status="loading")
+                # msg.model_dump() 已包含 additional_kwargs.reasoning_content，
+                # 无需再手动补写；reasoning_content 单独放顶层便于前端合并。
+                yield make_chunk(
+                    content=msg.content,
+                    reasoning_content=reasoning_content,
+                    msg=msg.model_dump(),
+                    metadata=metadata,
+                    status="loading",
+                )
             else:
                 msg_dict = msg.model_dump()
                 trace_info = get_trace_info(langfuse_run)
@@ -1201,6 +1217,18 @@ async def stream_agent_chat(
 
         full_msg = _ensure_full_msg(full_msg, accumulated_content)
         trace_info = get_trace_info(langfuse_run)
+
+        # 用户开启了"显示思考过程"，但本轮没有任何推理内容返回：
+        # 说明所用模型不支持该能力，明确告知用户去关掉开关，
+        # 避免用户一直等待一个永远不出现的思考区。
+        if input_context.get("enable_thinking") and full_msg and not accumulated_reasoning:
+            meta["time_cost"] = asyncio.get_event_loop().time() - start_time
+            yield make_chunk(
+                status="warning",
+                warning_type="reasoning_unavailable",
+                message="当前模型未返回思考过程，请在智能体配置中关闭「显示思考过程」。",
+                meta=meta,
+            )
 
         if conf.enable_content_guard and hasattr(full_msg, "content") and await content_guard.check(full_msg.content):
             await save_partial_message(
