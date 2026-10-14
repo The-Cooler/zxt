@@ -154,6 +154,18 @@ class DashscopeReranker(BaseReranker):
 
 
 def get_reranker(model_id, **kwargs):
+    """按模型标识构建重排器。
+
+    支持两种标识格式：
+    - v2：provider_id:model_id（如 siliconflow-cn:Pro/BAAI/bge-reranker-v2-m3），
+      数据来自 model_providers 表，与 config.reranker 的默认值一致
+    - v1：provider/model_name，沿用 config.reranker_names 的静态配置
+    """
+    from zixuetong.services.model_cache import is_v2_spec_format
+
+    if is_v2_spec_format(model_id):
+        return _build_reranker_v2(model_id, **kwargs)
+
     support_rerankers = config.reranker_names.keys()
     assert model_id in support_rerankers, f"Unsupported Reranker: {model_id}, only support {support_rerankers}"
 
@@ -167,3 +179,22 @@ def get_reranker(model_id, **kwargs):
     if provider == "dashscope":
         return DashscopeReranker(model_name=model_info.name, api_key=api_key, base_url=base_url, **kwargs)
     return OpenAIReranker(model_name=model_info.name, api_key=api_key, base_url=base_url, **kwargs)
+
+
+def _build_reranker_v2(spec: str, **kwargs):
+    """按 v2 spec（provider_id:model_id）构建重排器。"""
+    from zixuetong.services.model_cache import model_cache
+
+    info = model_cache.get_model_info(spec)
+    if not info:
+        raise ValueError(f"Unknown v2 reranker spec: {spec}")
+    if info.model_type != "rerank":
+        raise ValueError(f"Model {spec} is not a reranker (type={info.model_type})")
+
+    base_url = get_docker_safe_url(info.base_url)
+    if not base_url.rstrip("/").endswith("/rerank"):
+        base_url = base_url.rstrip("/") + "/rerank"
+
+    provider = str(info.provider_id).split("-")[0]
+    reranker_cls = DashscopeReranker if provider == "dashscope" else OpenAIReranker
+    return reranker_cls(model_name=info.model_id, api_key=info.api_key, base_url=base_url, **kwargs)

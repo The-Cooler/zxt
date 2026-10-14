@@ -8,7 +8,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from zixuetong.storage.postgres.models_business import Conversation, ConversationStats, Message, ToolCall
+from zixuetong.storage.postgres.models_business import (
+    Conversation,
+    ConversationStats,
+    Message,
+    MessageFeedback,
+    ToolCall,
+)
 from zixuetong.utils import logger
 from zixuetong.utils.datetime_utils import utc_now_naive
 
@@ -230,7 +236,10 @@ class ConversationRepository:
         if not target_ids:
             return 0
 
-        # tool_calls / feedbacks 通过外键级联删除，这里只需删除消息本身
+        # tool_calls 与 feedbacks 的外键未设置 ON DELETE CASCADE，
+        # 必须先清理子表记录，否则删除 messages 会触发外键约束错误。
+        await self.db.execute(sql_delete(ToolCall).where(ToolCall.message_id.in_(target_ids)))
+        await self.db.execute(sql_delete(MessageFeedback).where(MessageFeedback.message_id.in_(target_ids)))
         await self.db.execute(sql_delete(Message).where(Message.id.in_(target_ids)))
         await self.db.commit()
         await self._update_message_count(conversation_id)

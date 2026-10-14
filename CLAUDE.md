@@ -13,9 +13,12 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 
 ## 1. Think Before Coding
 
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
+**IMPORTANT: Don't assume — read the definition first. Don't hide confusion. Surface tradeoffs.**
 
 Before implementing:
+- 关于代码行为的事实性判断，先读定义再落笔：外键约束、三方库字段与返回结构、经 manager/service 转发后的真实签名，一律读源码确认，不要按惯例推断。
+- 改签名时整条调用链一起改：基类 → 中间层 → 具体实现 → 调用点。
+- 修复 bug 时用能触发该 bug 的数据验证；跑通不代表修好，要说明覆盖了哪个触发路径。
 - State your assumptions explicitly. If uncertain, ask.
 - If multiple interpretations exist, present them - don't pick silently.
 - If a simpler approach exists, say so. Push back when warranted.
@@ -69,7 +72,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 ---
 
-**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, clarifying questions come before implementation rather than after mistakes, and bugs are reproduced before fixes are claimed to work.
 
 ## 开发与调试工作流 (Development & Debugging Workflow)
 

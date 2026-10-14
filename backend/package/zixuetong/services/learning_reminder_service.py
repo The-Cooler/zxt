@@ -58,7 +58,9 @@ class LearningReminderScheduler:
 
         sent_count = 0
         for plan in get_due_learning_plans(user, current_time):
-            if await self._send_plan_reminder(user, plan, reminder_date, current_time):
+            # 传入计划配置的提醒时间点（而非扫描时刻），去重才有稳定依据
+            configured_time = str(plan.get("reminder_time") or current_time)
+            if await self._send_plan_reminder(user, plan, reminder_date, configured_time):
                 sent_count += 1
         return sent_count
 
@@ -69,21 +71,43 @@ class LearningReminderScheduler:
         reminder_date: str,
         reminder_time: str,
     ) -> bool:
+        """发送提醒。
+
+        reminder_time 必须是计划中配置的提醒时间点（HH:MM），
+        而不是扫描发生的当前时刻：去重依赖它判断当天是否已按该时间发送过。
+        若传入当前时刻，每次都不同，会导致每分钟重复发送。
+        """
         plan_path = str(plan["file_path"])
         async with pg_manager.get_async_session_context() as db:
-            delivery = LearningReminderDelivery(
-                user_id=str(user.user_id),
-                plan_path=plan_path,
-                reminder_date=reminder_date,
-                reminder_time=reminder_time,
+            existing = await db.scalar(
+                select(LearningReminderDelivery).where(
+                    LearningReminderDelivery.user_id == str(user.user_id),
+                    LearningReminderDelivery.plan_path == plan_path,
+                    LearningReminderDelivery.reminder_date == reminder_date,
+                )
             )
-            db.add(delivery)
-            try:
+            if existing is not None:
+                if existing.reminder_time == reminder_time:
+                    # 当天已按该时间点发送过，不再重复
+                    return False
+                # 用户修改了提醒时间，允许当天按新时间再发一次
+                existing.reminder_time = reminder_time
                 await db.commit()
-                await db.refresh(delivery)
-            except IntegrityError:
-                await db.rollback()
-                return False
+                delivery = existing
+            else:
+                delivery = LearningReminderDelivery(
+                    user_id=str(user.user_id),
+                    plan_path=plan_path,
+                    reminder_date=reminder_date,
+                    reminder_time=reminder_time,
+                )
+                db.add(delivery)
+                try:
+                    await db.commit()
+                    await db.refresh(delivery)
+                except IntegrityError:
+                    await db.rollback()
+                    return False
 
         title, body = build_learning_reminder(plan)
         try:

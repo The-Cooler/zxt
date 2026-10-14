@@ -101,6 +101,9 @@ def _parse_learning_plan_index(content: str) -> list[dict[str, str]]:
                 "file_path": cells[column_map["文件路径"]].strip(),
                 "status": cells[column_map["状态"]].strip(),
                 "reminder_time": reminder_time,
+                # reminder_time 为空有两种来源：用户显式关闭，或从未设置。
+                # 保留原始单元格内容以便前端区分，避免把「已关闭」显示为「未安排提醒」。
+                "reminder_raw": raw_reminder_time,
                 "updated_at": cells[column_map["最近更新时间"]].strip(),
             }
         )

@@ -1159,6 +1159,7 @@ async def stream_agent_chat(
         full_msg = None
         accumulated_content = []
         accumulated_reasoning = []
+        usage_totals: dict[str, Any] | None = None
         async for mode, payload in _stream_agent_events(
             agent,
             messages,
@@ -1177,11 +1178,15 @@ async def stream_agent_chat(
 
             msg, metadata = payload
             if isinstance(msg, AIMessageChunk):
-                # 推理内容（reasoning_content）只透传给前端展示，不计入正文，
+                # reasoning_content 只透传给前端展示，不计入正文，
                 # 否则会污染用于落库与敏感词检测的 content 累积。
                 reasoning_content = (msg.additional_kwargs or {}).get("reasoning_content")
                 if reasoning_content:
                     accumulated_reasoning.append(reasoning_content)
+
+                # usage_metadata 每个 chunk 都会出现且为累计值，取最后一个即为本次调用总量
+                if getattr(msg, "usage_metadata", None):
+                    usage_totals = msg.usage_metadata
 
                 if msg.content:
                     accumulated_content.append(msg.content)
@@ -1257,6 +1262,17 @@ async def stream_agent_chat(
         if final_signature and final_signature != last_agent_state_signature:
             last_agent_state_signature = final_signature
             yield make_chunk(status="agent_state", agent_state=agent_state, meta=meta)
+
+        # 记录本次对话的 token 用量与缓存命中情况，用于排查额度消耗
+        if usage_totals:
+            input_details = usage_totals.get("input_token_details") or {}
+            logger.info(
+                f"[usage] thread={thread_id} agent={agent_id} "
+                f"input={usage_totals.get('input_tokens')} "
+                f"output={usage_totals.get('output_tokens')} "
+                f"total={usage_totals.get('total_tokens')} "
+                f"cache_read={input_details.get('cache_read', 0)}"
+            )
 
         # 先存储数据库，再返回 finished，避免前端查询时数据未落库
         try:

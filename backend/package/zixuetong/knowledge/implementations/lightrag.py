@@ -5,6 +5,7 @@ from collections.abc import Callable
 from contextlib import asynccontextmanager
 from functools import partial
 from types import MethodType
+from typing import TYPE_CHECKING
 
 from lightrag import LightRAG, QueryParam
 from lightrag.base import DocStatus
@@ -23,6 +24,9 @@ from zixuetong.models.embed import get_embedding_model_info_by_id
 from zixuetong.plugins.parser.unified import Parser
 from zixuetong.utils import logger
 from zixuetong.utils.datetime_utils import utc_isoformat
+
+if TYPE_CHECKING:
+    from zixuetong.services.task_service import TaskContext
 
 
 INDEX_MODE_FAST = "fast"
@@ -359,6 +363,13 @@ class LightRagKB(KnowledgeBase):
             # 显式传入离线 tokenizer：LightRAG 默认的 TiktokenTokenizer 会同步联网
             # 下载编码表，国内网络下可阻塞事件循环数十秒。
             tokenizer=OfflineTokenizer(),
+            # 接入 rerank：LightRAG 未配置 rerank_model_func 时会跳过重排，
+            # 导致 20 条未排序 chunk（含大量低质碎片）全量注入 prompt。
+            rerank_model_func=self._get_rerank_func(),
+            # LightRAG 默认 min_rerank_score=0.0，等于不做分数过滤。
+            # 实测 bge-reranker 原始分数分布：无意义碎片 ≤0.15，相关内容 ≈0.99，
+            # 故取 0.3 剔除碎片，同时保留弱相关内容。可用 MIN_RERANK_SCORE 覆盖。
+            min_rerank_score=float(os.getenv("MIN_RERANK_SCORE", "0.3")),
         )
 
         return rag
@@ -449,6 +460,39 @@ class LightRagKB(KnowledgeBase):
             )
 
         return llm_model_func
+
+    def _get_rerank_func(self):
+        """构建 LightRAG 的重排函数，用于过滤低相关度 chunk。
+
+        LightRAG 未提供 rerank_model_func 时会跳过重排，把检索到的全部 chunk
+        直接注入 prompt，既浪费 token 又引入噪声。此函数按 LightRAG 约定返回
+        [{"index": i, "relevance_score": score}, ...]。
+        """
+        model_spec = getattr(config, "reranker", "")
+        if not model_spec:
+            logger.warning("未配置 reranker，跳过重排")
+            return None
+
+        from zixuetong.models.rerank import get_reranker
+
+        try:
+            reranker = get_reranker(model_spec)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"重排模型初始化失败，将跳过重排: {exc}")
+            return None
+
+        async def rerank_func(query: str, documents: list[str], top_n: int | None = None, **kwargs):
+            # 用原始 relevance_score：sigmoid 归一化会把 0.0003 与 0.00008 一并
+            # 压到 ~0.5，抹平低质内容与无关内容的差异，不利于过滤。
+            scores = await reranker.acompute_score([query, documents], normalize=False)
+            ranked = sorted(
+                ({"index": i, "relevance_score": float(score)} for i, score in enumerate(scores)),
+                key=lambda item: item["relevance_score"],
+                reverse=True,
+            )
+            return ranked[:top_n] if top_n else ranked
+
+        return rerank_func
 
     def _get_embedding_func(self, embed_info: dict):
         """获取 embedding 函数"""

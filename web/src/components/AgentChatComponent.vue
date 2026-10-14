@@ -178,6 +178,7 @@
                             · 进度 {{ plan.completed_tasks }}/{{ plan.total_tasks }}
                           </template>
                           <template v-if="plan.reminder_time"> · 提醒 {{ plan.reminder_time }}</template>
+                          <template v-else-if="plan.reminder_raw"> · 已关闭提醒</template>
                           <template v-else> · 未安排提醒</template>
                         </span>
                       </span>
