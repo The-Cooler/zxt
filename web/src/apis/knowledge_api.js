@@ -376,22 +376,6 @@ export const fileApi = {
       },
       'json'
     ) // 期望 JSON 响应
-  },
-
-  /**
-   * 处理文件夹（异步处理zip文件）
-   * @param {Object} data - 处理参数
-   * @param {string} data.file_path - 已上传的zip文件路径
-   * @param {string} data.db_id - 知识库ID
-   * @param {string} data.content_hash - 文件内容哈希
-   * @returns {Promise} - 处理任务结果
-   */
-  processFolder: async ({ file_path, db_id, content_hash }) => {
-    return apiPost('/api/knowledge/files/process-folder', {
-      file_path,
-      db_id,
-      content_hash
-    })
   }
 }
 
@@ -538,22 +522,6 @@ export const evaluationApi = {
    * @param {string} taskId - 任务ID
    * @returns {Promise} - 评估结果
    */
-  getEvaluationResults: async (taskId) => {
-    // 已废弃：请改用 getEvaluationResultsByDb
-    return apiGet(`/api/evaluation/${taskId}/results`)
-  },
-
-  /**
-   * 删除评估结果
-   * @param {string} taskId - 任务ID
-   * @returns {Promise} - 删除结果
-   */
-  deleteEvaluationResult: async (taskId) => {
-    // 已废弃：请改用 deleteEvaluationResultByDb
-    return apiDelete(`/api/evaluation/${taskId}`)
-  },
-
-  // 新接口：带 db_id 的评估结果查询与删除
   getEvaluationResultsByDb: async (dbId, taskId, params = {}) => {
     const queryParams = new URLSearchParams()
 

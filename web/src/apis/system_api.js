@@ -20,7 +20,7 @@ export const healthApi = {
    * OCR服务健康检查
    * @returns {Promise} - OCR服务健康状态
    */
-  checkOcrHealth: async () => apiGet('/api/system/health/ocr')
+  checkOcrHealth: async () => apiGet('/api/system/ocr/health')
 }
 
 // =============================================================================
@@ -109,10 +109,6 @@ export const modelProviderApi = {
 
   getV2Models: async (modelType = 'chat') => {
     return apiGet(`/api/system/model-providers/models/v2?model_type=${modelType}`)
-  },
-
-  getCacheStatus: async () => {
-    return apiGet('/api/system/model-providers/models/cache-status')
   },
 
   refreshModelCache: async () => {

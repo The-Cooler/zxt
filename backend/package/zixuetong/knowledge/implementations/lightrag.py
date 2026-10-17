@@ -591,17 +591,19 @@ class LightRagKB(KnowledgeBase):
                 await self._mark_file_unparsed(file_id, operator_id)
                 raise ValueError("File has not been parsed yet (no markdown_file)")
 
-            # 检查 content_hash 是否已入库，避免重复 embedding
+            # 检查 content_hash 是否已入库，避免重复 embedding。
+            # 注意必须排除该文件自身的记录：同一文件重试入库时，
+            # 去重表里已有的正是它自己的 hash，不应据此判定为重复。
             content_hash = file_meta.get("content_hash")
             if content_hash and current_status != FileStatus.INDEXED:
                 from zixuetong.repositories.knowledge_content_hash_repository import KnowledgeContentHashRepository
 
                 hash_repo = KnowledgeContentHashRepository()
-                is_duplicate = await hash_repo.exists(db_id, content_hash)
-                if is_duplicate:
+                duplicate = await hash_repo.get_by_db_and_hash(db_id, content_hash)
+                if duplicate is not None and duplicate.last_file_id != file_id:
                     logger.warning(
                         f"跳过重复内容入库: file_id={file_id}, content_hash={content_hash}, "
-                        f"该内容已在知识库中存在，避免重复 embedding 消耗额度"
+                        f"该内容已在知识库中存在（file_id={duplicate.last_file_id}），避免重复 embedding 消耗额度"
                     )
                     raise ValueError(
                         f"该文件内容已在知识库中存在（content_hash: {content_hash[:16]}...），"
@@ -979,6 +981,25 @@ class LightRagKB(KnowledgeBase):
             raise Exception(f"File not found: {file_id}")
 
         return {"meta": self.files_meta[file_id]}
+
+    async def count_file_chunks(self, db_id: str, file_id: str) -> int:
+        """统计该文件在 LightRAG 中已有的 chunk 数。
+
+        用于入库前估算工作量：历史文件的 file_size 可能为空，
+        此时用已有 chunk 数推算处理规模，避免超时设置过小。
+        """
+        try:
+            rag = await asyncio.wait_for(self._get_lightrag_instance(db_id), timeout=30.0)
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout getting LightRAG instance for {db_id}")
+            return 0
+        if not rag or not hasattr(rag.text_chunks, "_data"):
+            return 0
+        return sum(
+            1
+            for chunk_data in rag.text_chunks._data.values()
+            if isinstance(chunk_data, dict) and chunk_data.get("full_doc_id") == file_id
+        )
 
     async def get_file_content(self, db_id: str, file_id: str) -> dict:
         """获取文件内容信息（chunks和lines）"""

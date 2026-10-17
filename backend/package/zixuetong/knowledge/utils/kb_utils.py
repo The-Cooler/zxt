@@ -229,6 +229,7 @@ async def prepare_item_metadata(item: str, content_type: str, db_id: str, params
             "created_at": utc_isoformat(),
             "file_id": file_id,
             "content_hash": content_hash,
+            "size": int(pre_info.get("size") or 0),
             "parent_id": params.get("parent_id"),
         }
 
@@ -271,6 +272,7 @@ async def prepare_item_metadata(item: str, content_type: str, db_id: str, params
 
             file_type = filename.split(".")[-1].lower() if "." in filename else ""
             item_path = item  # 保持MinIO URL作为路径
+            file_size = int(params.get("file_size") or 0) if params else 0
 
             # 从 content_hashes 映射中获取 content_hash
             content_hash = None
@@ -288,8 +290,10 @@ async def prepare_item_metadata(item: str, content_type: str, db_id: str, params
             filename_display = filename
             item_path = os.path.relpath(file_path, Path.cwd())
             content_hash = None
+            file_size = 0
             try:
                 if file_path.exists():
+                    file_size = file_path.stat().st_size
                     content_hash = await calculate_content_hash(file_path)
             except Exception as exc:  # noqa: BLE001
                 logger.warning(f"Failed to calculate content hash for {file_path}: {exc}")
@@ -304,6 +308,7 @@ async def prepare_item_metadata(item: str, content_type: str, db_id: str, params
         file_type = "url"
         item_path = item
         content_hash = None  # URL 没有 content_hash
+        file_size = 0
         file_id = f"url_{hashstr(item + str(time.time()), 6)}"
 
     else:
@@ -318,6 +323,8 @@ async def prepare_item_metadata(item: str, content_type: str, db_id: str, params
         "created_at": utc_isoformat(),
         "file_id": file_id,
         "content_hash": content_hash,
+        # size 供入库前的耗时/超时估算使用；缺失会导致时长估算恒取下限。
+        "size": file_size,
         "parent_id": params.get("parent_id") if params else None,
     }
 

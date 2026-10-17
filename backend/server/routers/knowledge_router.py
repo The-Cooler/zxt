@@ -1144,13 +1144,29 @@ async def index_documents(
                     # 根据文件大小和chunk配置动态计算超时时间
                     try:
                         file_info = await knowledge_base.get_file_info(db_id, file_id)
-                        file_size = file_info.get("size", 0)  # 字节
+                        meta = file_info.get("meta") or {}
+                        # size 位于 meta 内，顶层没有该字段；历史数据可能为 null。
+                        file_size = file_info.get("size") or meta.get("size") or 0
                         # 从params或文件元数据中获取chunk_size
-                        chunk_size = params.get("chunk_size", file_info.get("meta", {}).get("chunk_size", 1000))
+                        chunk_size = params.get("chunk_size", meta.get("chunk_size", 1000))
                     except Exception as e:
                         logger.warning(f"Failed to get file info for {file_id}: {e}, using default values")
                         file_size = 0
                         chunk_size = 1000
+
+                    # file_size 缺失时，用已入库的 chunk 数反推内容规模。
+                    # 否则 estimated_tokens 恒为 0，超时永远取下限 120 秒，
+                    # 大文件必然超时。
+                    if not file_size:
+                        try:
+                            indexed_chunks = await knowledge_base.count_file_chunks(db_id, file_id)
+                        except Exception:
+                            indexed_chunks = 0
+                        if indexed_chunks:
+                            file_size = indexed_chunks * chunk_size * 2.5
+                            logger.info(
+                                f"File {file_id}: size 缺失，按 {indexed_chunks} 个 chunk 估算内容规模"
+                            )
 
                     # 估算总token数：文件字节数 / 每token平均字节数
                     # 中文约3字节/字符≈3字节/token，英文约4字符/token≈1字节/token，平均按2.5字节/token
@@ -1172,8 +1188,14 @@ async def index_documents(
                     )
 
                     result = await asyncio.wait_for(
-                        knowledge_base.index_file(db_id, file_id, operator_id=operator_id, params=params, context=context),
-                        timeout=timeout_seconds
+                        knowledge_base.index_file(
+                            db_id,
+                            file_id,
+                            operator_id=operator_id,
+                            params=params,
+                            context=context,
+                        ),
+                        timeout=timeout_seconds,
                     )
                     processed_items.append(result)
                 except asyncio.TimeoutError:

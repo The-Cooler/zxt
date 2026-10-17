@@ -1,5 +1,6 @@
 import asyncio
 import os
+from typing import TYPE_CHECKING
 
 from zixuetong.knowledge.base import KBNotFoundError, KnowledgeBase
 from zixuetong.knowledge.chunking.ragflow_like.presets import (
@@ -8,6 +9,9 @@ from zixuetong.knowledge.chunking.ragflow_like.presets import (
 )
 from zixuetong.knowledge.factory import KnowledgeBaseFactory
 from zixuetong.utils import logger
+
+if TYPE_CHECKING:
+    from zixuetong.services.task_service import TaskContext
 
 
 class KnowledgeBaseManager:
@@ -397,6 +401,14 @@ class KnowledgeBaseManager:
         """获取文件内容信息（chunks和lines）"""
         kb_instance = await self._get_kb_for_database(db_id)
         return await kb_instance.get_file_content(db_id, file_id)
+
+    async def count_file_chunks(self, db_id: str, file_id: str) -> int:
+        """统计文件已入库的 chunk 数；实现不支持时返回 0。"""
+        kb_instance = await self._get_kb_for_database(db_id)
+        counter = getattr(kb_instance, "count_file_chunks", None)
+        if counter is None:
+            return 0
+        return await counter(db_id, file_id)
 
     async def get_file_info(self, db_id: str, file_id: str) -> dict:
         """获取文件完整信息（基本信息+内容信息）- 保持向后兼容"""
