@@ -1,47 +1,15 @@
 <template>
   <div class="chunk-params-config">
-    <div class="params-info">
+    <div class="params-info" v-if="!graphOnly">
       <p>调整分块参数可以控制文本的切分方式，影响检索质量和文档加载效率。</p>
     </div>
     <a-form :model="localParams" name="chunkConfig" autocomplete="off" layout="vertical">
-      <a-form-item v-if="showIndexMode" label="入库模式" name="index_mode">
-        <a-radio-group v-model:value="indexMode" class="index-mode-group">
-          <a-radio-button
-            v-for="option in indexModeOptions"
-            :key="option.value"
-            :value="option.value"
-            class="index-mode-option"
-          >
-            {{ option.label }}
-          </a-radio-button>
-        </a-radio-group>
-        <p class="param-description">{{ selectedIndexModeDescription }}</p>
-      </a-form-item>
-
-      <div class="graph-only-info" v-else-if="graphOnly">
-        <p>为已入库文件补充知识图谱。生成过程会调用模型抽取节点和关系，任务提交后会在后台执行。</p>
+      <div class="graph-only-info" v-if="graphOnly">
+        <p>为已入库文件补充知识图谱。系统会读取该文件已经入库的全部分块，逐块调用模型抽取实体和关系，任务提交后会在后台执行。</p>
+        <p>生成图谱不会重新分块，也不会重新写入向量；失败时文档仍可正常检索。</p>
       </div>
 
-      <div class="chunk-row" v-if="graphOnly || indexMode !== 'fast'">
-        <a-form-item label="最多节点" name="max_graph_nodes">
-          <a-input-number
-            v-model:value="localParams.max_graph_nodes"
-            :min="1"
-            :max="1000"
-            style="width: 100%"
-          />
-          <p class="param-description">限制本次新增的知识图谱节点数量</p>
-        </a-form-item>
-        <a-form-item label="最多关系" name="max_graph_relations">
-          <a-input-number
-            v-model:value="localParams.max_graph_relations"
-            :min="1"
-            :max="3000"
-            style="width: 100%"
-          />
-          <p class="param-description">限制本次新增的知识图谱关系数量</p>
-        </a-form-item>
-      </div>
+      <template v-else>
 
       <a-form-item v-if="showPreset" name="chunk_preset_id">
         <template #label>
@@ -96,6 +64,7 @@
         />
         <p class="param-description">支持 \n、\t 等转义字符。留空则不启用预分割</p>
       </a-form-item>
+      </template>
     </a-form>
   </div>
 </template>
@@ -143,68 +112,6 @@ const props = defineProps({
 // 使用 computed 包装，直接返回原始对象供表单修改
 // 表单修改会直接作用于 tempChunkParams（父组件的ref），实现双向绑定
 const localParams = computed(() => props.tempChunkParams)
-
-const indexModeOptions = [
-  {
-    value: 'fast',
-    label: '快速入库',
-    description: '速度最快，仅支持向量检索，不生成知识图谱。'
-  },
-  {
-    value: 'standard',
-    label: '标准入库',
-    description: '使用系统默认图谱抽取策略，兼顾检索和知识图谱。'
-  },
-  {
-    value: 'graph',
-    label: '图谱入库',
-    description: '构建知识图谱，并限制本次新增的节点和关系数量。'
-  }
-]
-
-const modeGraphDefaults = {
-  standard: {
-    max_graph_nodes: 5,
-    max_graph_relations: 10
-  },
-  graph: {
-    max_graph_nodes: 300,
-    max_graph_relations: 800
-  }
-}
-
-const applyModeGraphDefaults = (mode) => {
-  const defaults = modeGraphDefaults[mode] || modeGraphDefaults.standard
-  const otherDefaults = mode === 'graph' ? modeGraphDefaults.standard : modeGraphDefaults.graph
-  const nodes = props.tempChunkParams.max_graph_nodes
-  const relations = props.tempChunkParams.max_graph_relations
-
-  if (!nodes || nodes === otherDefaults.max_graph_nodes) {
-    props.tempChunkParams.max_graph_nodes = defaults.max_graph_nodes
-  }
-  if (!relations || relations === otherDefaults.max_graph_relations) {
-    props.tempChunkParams.max_graph_relations = defaults.max_graph_relations
-  }
-}
-
-const indexMode = computed({
-  get: () => props.tempChunkParams.index_mode || 'standard',
-  set: (value) => {
-    props.tempChunkParams.index_mode = value
-    if (value !== 'fast') {
-      applyModeGraphDefaults(value)
-    }
-  }
-})
-
-const selectedIndexModeDescription = computed(() => {
-  return (
-    indexModeOptions.find((option) => option.value === indexMode.value)?.description ||
-    indexModeOptions[1].description
-  )
-})
-
-const showIndexMode = computed(() => !props.graphOnly)
 
 const presetOptions = computed(() => {
   const options = []

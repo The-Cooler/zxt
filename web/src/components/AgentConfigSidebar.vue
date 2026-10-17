@@ -775,6 +775,27 @@ const updateConfigValue = (key, value) => {
   })
 }
 
+// 列表类配置（知识库、工具、MCP、Skills、Subagents）点击即保存到服务端，
+// 只改本地 store 会导致刷新页面后配置回退。
+const isAutoPersistKind = (kind) => isToolsKind(kind)
+
+const persistConfigNow = async () => {
+  try {
+    isSavingConfig.value = true
+    await agentStore.saveAgentConfig()
+  } catch (error) {
+    console.error('自动保存配置失败:', error)
+    message.error('配置保存失败，请点击下方保存按钮重试')
+  } finally {
+    isSavingConfig.value = false
+  }
+}
+
+const saveConfigAfterChange = async (kind) => {
+  if (!isAutoPersistKind(kind)) return
+  await persistConfigNow()
+}
+
 const closeSidebar = () => {
   emit('close')
 }
@@ -821,7 +842,7 @@ const getSelectedCount = (key) => {
   return currentOptions.length
 }
 
-const toggleOption = (key, option) => {
+const toggleOption = async (key, option) => {
   const currentOptions = [...ensureArray(key)]
   const index = currentOptions.indexOf(option)
 
@@ -834,12 +855,14 @@ const toggleOption = (key, option) => {
   agentStore.updateAgentConfig({
     [key]: currentOptions
   })
+  await saveConfigAfterChange(configurableItems.value[key]?.template_metadata?.kind)
 }
 
-const clearSelection = (key) => {
+const clearSelection = async (key) => {
   agentStore.updateAgentConfig({
     [key]: []
   })
+  await saveConfigAfterChange(configurableItems.value[key]?.template_metadata?.kind)
 }
 
 // 统一选择弹窗相关方法
@@ -882,11 +905,16 @@ const toggleModalSelection = (optionValue) => {
   }
 }
 
-const confirmSelection = () => {
+const confirmSelection = async () => {
   if (currentConfigKey.value) {
+    const key = currentConfigKey.value
     agentStore.updateAgentConfig({
-      [currentConfigKey.value]: [...tempSelectedValues.value]
+      [key]: [...tempSelectedValues.value]
     })
+    const kind = configurableItems.value[key]?.template_metadata?.kind
+    closeSelectionModal()
+    await saveConfigAfterChange(kind)
+    return
   }
   closeSelectionModal()
 }
@@ -954,8 +982,6 @@ const saveConfig = async () => {
     return
   }
 
-  if (!agentStore.hasConfigChanges) return
-
   try {
     isSavingConfig.value = true
     // 验证和过滤配置
@@ -967,6 +993,7 @@ const saveConfig = async () => {
       message.info('检测到无效配置项，已自动过滤')
     }
 
+    // 列表类配置点击时已落库，这里保存其余字段；无改动时也提示已保存，避免按钮看起来无效
     await agentStore.saveAgentConfig()
     message.success('配置已保存到服务器')
   } catch (error) {

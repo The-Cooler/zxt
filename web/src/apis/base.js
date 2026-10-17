@@ -5,6 +5,22 @@ import { message } from 'ant-design-vue'
  * 提供统一的请求和错误处理
  */
 
+/** 后端所有业务接口统一挂在 /api 下。 */
+const API_PREFIX = '/api'
+
+/**
+ * 补全 API 前缀。
+ *
+ * 调用方只需写业务路径（如 `/chat/threads`）；已带 `/api` 的路径保持原样，
+ * 便于渐进迁移。绝对 URL 不做处理。
+ */
+function withApiPrefix(url) {
+  if (typeof url !== 'string' || !url) return url
+  if (/^(https?:)?\/\//.test(url)) return url
+  if (url === API_PREFIX || url.startsWith(`${API_PREFIX}/`)) return url
+  return url.startsWith('/') ? `${API_PREFIX}${url}` : `${API_PREFIX}/${url}`
+}
+
 /**
  * 发送API请求的基础函数
  * @param {string} url - API端点
@@ -13,6 +29,7 @@ import { message } from 'ant-design-vue'
  * @returns {Promise} - 请求结果
  */
 export async function apiRequest(url, options = {}, responseType = 'json') {
+  const requestUrl = withApiPrefix(url)
   try {
     const isFormData = options?.body instanceof FormData
     // 默认请求配置
@@ -25,7 +42,7 @@ export async function apiRequest(url, options = {}, responseType = 'json') {
     }
 
     // 发送请求
-    const response = await fetch(url, requestOptions)
+    const response = await fetch(requestUrl, requestOptions)
 
     // 处理API返回的错误
     if (!response.ok) {
@@ -34,7 +51,7 @@ export async function apiRequest(url, options = {}, responseType = 'json') {
       let errorData = null
 
       console.log('API请求失败:', {
-        url,
+        url: requestUrl,
         status: response.status,
         statusText: response.statusText,
         headers: Object.fromEntries(response.headers.entries())
@@ -48,7 +65,7 @@ export async function apiRequest(url, options = {}, responseType = 'json') {
         // 如果是422错误，打印更详细的信息
         if (response.status === 422) {
           console.error('422验证错误详情:', {
-            url,
+            url: requestUrl,
             requestMethod: requestOptions.method,
             requestHeaders: requestOptions.headers,
             requestBody: requestOptions.body,

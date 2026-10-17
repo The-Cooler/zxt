@@ -1,25 +1,21 @@
 import pytest
 
-from zixuetong.knowledge.implementations.lightrag import LightRagKB, limit_extracted_graph_results, resolve_ingestion_options
+from zixuetong.knowledge.implementations.lightrag import LightRagKB, resolve_ingestion_options
 
 
-def test_resolve_ingestion_options_defaults_to_standard():
+def test_resolve_ingestion_options_defaults_to_fast():
     options = resolve_ingestion_options({})
 
-    assert options["index_mode"] == "standard"
-    assert options["max_graph_nodes"] is None
-    assert options["max_graph_relations"] is None
-
-
-def test_resolve_ingestion_options_accepts_fast_mode():
-    options = resolve_ingestion_options({"index_mode": "fast"})
-
     assert options["index_mode"] == "fast"
-    assert options["max_graph_nodes"] is None
-    assert options["max_graph_relations"] is None
 
 
-def test_resolve_ingestion_options_clamps_graph_limits():
+def test_resolve_ingestion_options_keeps_explicit_mode():
+    options = resolve_ingestion_options({"index_mode": "graph"})
+
+    assert options["index_mode"] == "graph"
+
+
+def test_resolve_ingestion_options_ignores_graph_limits():
     options = resolve_ingestion_options(
         {
             "index_mode": "graph",
@@ -28,83 +24,13 @@ def test_resolve_ingestion_options_clamps_graph_limits():
         }
     )
 
-    assert options["index_mode"] == "graph"
-    assert options["max_graph_nodes"] == 1000
-    assert options["max_graph_relations"] == 3000
+    assert "max_graph_nodes" not in options
+    assert "max_graph_relations" not in options
 
 
-def test_resolve_ingestion_options_ignores_invalid_limits():
-    options = resolve_ingestion_options(
-        {
-            "index_mode": "standard",
-            "max_graph_nodes": 0,
-            "max_graph_relations": "bad",
-        }
-    )
-
-    assert options["index_mode"] == "standard"
-    assert options["max_graph_nodes"] is None
-    assert options["max_graph_relations"] is None
-
-
-def test_limit_extracted_graph_results_keeps_only_allowed_nodes_and_relations():
-    chunk_results = [
-        (
-            {
-                "A": [{"entity_name": "A", "source_id": "chunk-1"}],
-                "B": [{"entity_name": "B", "source_id": "chunk-1"}],
-                "C": [{"entity_name": "C", "source_id": "chunk-1"}],
-            },
-            {
-                ("A", "B"): [{"src_id": "A", "tgt_id": "B", "source_id": "chunk-1"}],
-                ("B", "C"): [{"src_id": "B", "tgt_id": "C", "source_id": "chunk-1"}],
-            },
-        )
-    ]
-
-    limited = limit_extracted_graph_results(chunk_results, max_nodes=2, max_relations=2)
-
-    assert list(limited[0][0]) == ["A", "B"]
-    assert list(limited[0][1]) == [("A", "B")]
-
-
-def test_limit_extracted_graph_results_can_limit_relations_only():
-    chunk_results = [
-        (
-            {
-                "A": [{"entity_name": "A", "source_id": "chunk-1"}],
-                "B": [{"entity_name": "B", "source_id": "chunk-1"}],
-                "C": [{"entity_name": "C", "source_id": "chunk-1"}],
-            },
-            {
-                ("A", "B"): [{"src_id": "A", "tgt_id": "B", "source_id": "chunk-1"}],
-                ("B", "C"): [{"src_id": "B", "tgt_id": "C", "source_id": "chunk-1"}],
-            },
-        )
-    ]
-
-    limited = limit_extracted_graph_results(chunk_results, max_nodes=None, max_relations=1)
-
-    assert list(limited[0][0]) == ["A", "B", "C"]
-    assert list(limited[0][1]) == [("A", "B")]
-
-
-def test_limit_extracted_graph_results_counts_unique_nodes_across_chunks():
-    chunk_results = [
-        ({"A": [{"entity_name": "A"}]}, {}),
-        (
-            {
-                "A": [{"entity_name": "A"}],
-                "B": [{"entity_name": "B"}],
-            },
-            {},
-        ),
-    ]
-
-    limited = limit_extracted_graph_results(chunk_results, max_nodes=2, max_relations=None)
-
-    assert list(limited[0][0]) == ["A"]
-    assert list(limited[1][0]) == ["A", "B"]
+def test_generate_graph_uses_all_chunks_without_limits():
+    """全量抽取：节点/关系上限不再参与图谱流程。"""
+    assert not hasattr(LightRagKB, "_scoped_graph_limits")
 
 
 class FakeStorage:

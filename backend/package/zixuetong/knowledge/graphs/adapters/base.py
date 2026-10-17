@@ -1,4 +1,5 @@
 import os
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
@@ -6,6 +7,9 @@ from typing import Any
 from neo4j import GraphDatabase as GD
 
 from zixuetong.utils import logger
+
+# 连接失败后的重试冷却时间，避免每个请求都阻塞在连接超时上
+RECONNECT_COOLDOWN_SECONDS = 30
 
 
 @dataclass
@@ -155,16 +159,24 @@ class Neo4jConnectionManager:
     def __init__(self):
         self.driver = None
         self.status = "closed"
+        self._last_connect_attempt = 0.0
         if os.environ.get("LITE_MODE", "").lower() in ("true", "1"):
             logger.info("LITE_MODE enabled, skipping Neo4j connection")
             return
-        self._connect()
+        # 不在构造期连接：Neo4j 可能比本进程晚就绪（例如同时重启），
+        # 构造期抛异常会让整个服务导入失败。改为首次使用时连接。
+        self._connect(required=False)
 
-    def _connect(self):
-        """建立 Neo4j 连接"""
+    def _connect(self, *, required: bool = True):
+        """建立 Neo4j 连接。
+
+        required=False 时连接失败只记录警告，保留 closed 状态，
+        后续调用会通过 ensure_connected() 重试。
+        """
         if self.driver and self._is_connected():
             return
 
+        self._last_connect_attempt = time.monotonic()
         uri = os.environ.get("NEO4J_URI", "bolt://localhost:7687")
         username = os.environ.get("NEO4J_USERNAME", "neo4j")
         password = os.environ.get("NEO4J_PASSWORD", "0123456789")
@@ -177,8 +189,21 @@ class Neo4jConnectionManager:
             self.status = "open"
             logger.info("Successfully connected to Neo4j")
         except Exception as e:
-            logger.error(f"Failed to connect to Neo4j: {e}")
-            raise
+            self.status = "closed"
+            if required:
+                logger.error(f"Failed to connect to Neo4j: {e}")
+                raise
+            logger.warning(f"Neo4j not available yet, will retry on demand: {e}")
+
+    def ensure_connected(self) -> bool:
+        """确保连接可用；不可用时按冷却间隔重连，避免每次调用都等连接超时。"""
+        if self._is_connected():
+            self.status = "open"
+            return True
+        if time.monotonic() - self._last_connect_attempt < RECONNECT_COOLDOWN_SECONDS:
+            return False
+        self._connect(required=False)
+        return self.status == "open"
 
     def _is_connected(self) -> bool:
         """检查连接是否有效"""
@@ -192,8 +217,10 @@ class Neo4jConnectionManager:
             return False
 
     def is_running(self):
-        """检查图数据库是否正在运行"""
-        return self.status == "open" or self.status == "processing"
+        """检查图数据库是否正在运行（必要时尝试重连）"""
+        if self.status in {"open", "processing"} and self._is_connected():
+            return True
+        return self.ensure_connected()
 
     def close(self):
         """关闭数据库连接"""

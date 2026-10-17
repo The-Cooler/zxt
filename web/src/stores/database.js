@@ -411,6 +411,38 @@ export const useDatabaseStore = defineStore('database', () => {
     }
   }
 
+  async function generateGraph(fileIds, params = {}) {
+    if (fileIds.length === 0) return
+    state.chunkLoading = true
+    try {
+      const data = await documentApi.generateGraph(databaseId.value, fileIds, params)
+      if (data.status === 'success' || data.status === 'queued') {
+        enableAutoRefresh('auto')
+        message.success(data.message || '图谱生成任务已提交')
+        if (data.task_id) {
+          taskerStore.registerQueuedTask({
+            task_id: data.task_id,
+            name: `图谱生成 (${databaseId.value})`,
+            task_type: 'knowledge_graph',
+            message: data.message,
+            payload: { db_id: databaseId.value, count: fileIds.length }
+          })
+        }
+        await delayedRefresh()
+        return true
+      } else {
+        message.error(data.message || '提交失败')
+        return false
+      }
+    } catch (error) {
+      console.error(error)
+      message.error(error.message || '请求失败')
+      return false
+    } finally {
+      state.chunkLoading = false
+    }
+  }
+
   async function openFileDetail(record) {
     // 只要有 markdown_file (隐含在 status >= parsed 中) 或者是 error_indexing (说明解析成功但入库失败)，就可以查看
     const allowStatuses = ['done', 'parsed', 'indexed', 'error_indexing']
@@ -544,6 +576,7 @@ export const useDatabaseStore = defineStore('database', () => {
     addFiles,
     parseFiles,
     indexFiles,
+    generateGraph,
     openFileDetail,
     loadQueryParams,
 

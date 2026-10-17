@@ -339,20 +339,11 @@ async def add_documents(
         "qa_separator": params.get("qa_separator", ""),
         "chunk_preset_id": params.get("chunk_preset_id"),
         "chunk_parser_config": params.get("chunk_parser_config"),
-        "index_mode": params.get("index_mode"),
-        "max_graph_nodes": params.get("max_graph_nodes"),
-        "max_graph_relations": params.get("max_graph_relations"),
     }
     if not indexing_params.get("chunk_preset_id"):
         indexing_params.pop("chunk_preset_id", None)
     if not isinstance(indexing_params.get("chunk_parser_config"), dict):
         indexing_params.pop("chunk_parser_config", None)
-    if not indexing_params.get("index_mode"):
-        indexing_params.pop("index_mode", None)
-    if indexing_params.get("max_graph_nodes") in (None, ""):
-        indexing_params.pop("max_graph_nodes", None)
-    if indexing_params.get("max_graph_relations") in (None, ""):
-        indexing_params.pop("max_graph_relations", None)
 
     # URL 解析与入库（需白名单验证）
     if content_type == "url":
@@ -1263,6 +1254,97 @@ async def index_documents(
             coroutine=run_index,
         )
         return {"message": "入库任务已提交", "status": "queued", "task_id": task.id}
+    except Exception as e:
+        return {"message": f"提交失败: {e}", "status": "failed"}
+
+
+@knowledge.post("/databases/{db_id}/documents/graph")
+async def generate_document_graph(
+    db_id: str,
+    file_ids: list[str] = Body(...),
+    params: dict = Body({}),
+    current_user: User = Depends(get_system_owner),
+):
+    """为已入库文档生成知识图谱。
+
+    与文档入库是两条独立流程：入库只写向量，这里才调用模型抽取实体和关系。
+    全量处理文件已有 chunk，不重新分块、不重新 embedding。
+    """
+    logger.debug(f"Generate graph for db_id {db_id}: {file_ids} {params=}")
+    operator_id = current_user.id
+
+    async def run_graph(context: TaskContext):
+        await context.set_message("任务初始化")
+        await context.set_progress(5.0, "准备生成知识图谱")
+
+        total = len(file_ids)
+        processed_items = []
+
+        for idx, file_id in enumerate(file_ids, 1):
+            await context.raise_if_cancelled()
+            await context.set_progress(5.0 + ((idx - 1) / total) * 90.0, f"正在生成图谱 {idx}/{total}")
+            try:
+                result = await knowledge_base.generate_graph(
+                    db_id,
+                    file_id,
+                    operator_id=operator_id,
+                    params=params,
+                    context=context,
+                )
+                processed_items.append(result)
+            except asyncio.CancelledError:
+                logger.warning(f"Graph generation cancelled for {file_id}")
+                raise
+            except Exception as e:
+                logger.error(f"Graph generation failed for {file_id}: {e}")
+                processed_items.append({"file_id": file_id, "graph_status": "failed", "error": str(e)})
+
+        failed_items = [p for p in processed_items if p.get("error")]
+        failed_count = len(failed_items)
+        success_count = len(processed_items) - failed_count
+        chunk_failures = sum(len(p.get("failed_chunks") or []) for p in processed_items)
+
+        def parse_error(error_msg: str) -> str:
+            if "account balance is insufficient" in error_msg:
+                return "SiliconFlow 账户余额不足，请充值或更换模型提供商"
+            if "Error code: 403" in error_msg:
+                return "API 权限不足或配额已用尽"
+            if "Error code: 401" in error_msg:
+                return "API Key 无效或已过期"
+            if "Error code: 429" in error_msg:
+                return "API 请求频率超限，请稍后重试"
+            return error_msg
+
+        if failed_count and not success_count:
+            error_messages = [parse_error(p.get("error", "未知错误")) for p in failed_items]
+            await context.set_result({"items": processed_items, "success": False, "errors": error_messages})
+            raise Exception("图谱生成失败:\n" + "\n".join(error_messages))
+
+        message = f"图谱生成完成，成功 {success_count} 个"
+        if failed_count:
+            message += f"，失败 {failed_count} 个"
+        if chunk_failures:
+            message += f"，{chunk_failures} 块抽取失败"
+        await context.set_result(
+            {
+                "items": processed_items,
+                "success": True,
+                "failed_count": failed_count,
+                "chunk_failures": chunk_failures,
+            }
+        )
+        await context.set_progress(100.0, message)
+        return {"items": processed_items}
+
+    try:
+        database = await knowledge_base.get_database_info(db_id)
+        task = await tasker.enqueue(
+            name=f"图谱生成 ({database['name']})",
+            task_type="knowledge_graph",
+            payload={"db_id": db_id, "file_ids": file_ids, "params": params},
+            coroutine=run_graph,
+        )
+        return {"message": "图谱生成任务已提交", "status": "queued", "task_id": task.id}
     except Exception as e:
         return {"message": f"提交失败: {e}", "status": "failed"}
 

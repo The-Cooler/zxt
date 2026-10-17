@@ -19,6 +19,7 @@
           <a v-else :href="qrContent" target="_blank" rel="noopener noreferrer">{{ qrContent }}</a>
         </div>
         <span v-else class="hint">首次启用后会自动申请二维码；也可手动重新获取。</span>
+        <p class="hint">{{ statusHint }}</p>
       </div>
     </div>
   </div>
@@ -35,7 +36,17 @@ const configStore = useConfigStore()
 const connectLoading = ref(false)
 const qrContent = ref('')
 const qrImageSrc = ref('')
-const status = ref({ enabled: false, connected: false, awaiting_scan: false })
+const status = ref({
+  enabled: false,
+  connected: false,
+  awaiting_scan: false,
+  has_token: false,
+  polling: false,
+  poll_healthy: false,
+  known_chats: 0,
+  last_poll_at: null,
+  last_message_at: null
+})
 
 // 微信返回的 qrcode_img_content 是二维码内容（非微信环境不可直接渲染），
 // 与 openclaw 官方实现一致：优先按图片处理，否则用该内容本地生成二维码。
@@ -66,7 +77,21 @@ watch(qrContent, (value) => {
 const statusText = computed(() => {
   if (status.value.connected) return '已连接'
   if (status.value.awaiting_scan) return '等待扫码'
+  if (status.value.has_token) return '连接已失效'
   return '未连接'
+})
+
+const statusHint = computed(() => {
+  if (!status.value.has_token) {
+    return '尚未完成微信扫码绑定。'
+  }
+  if (!status.value.poll_healthy) {
+    return '已保存微信登录凭据，但消息轮询未连通，当前收不到微信消息。请检查服务器能否访问 ilinkai.weixin.qq.com，然后重新连接。'
+  }
+  if (!status.value.known_chats) {
+    return '连接正常。请在微信里给这个机器人发一条消息，之后学习提醒才能推送到该会话。'
+  }
+  return `连接正常，已在 ${status.value.known_chats} 个微信会话中收发过消息。`
 })
 
 const refreshStatus = async () => {
@@ -130,6 +155,7 @@ onMounted(refreshStatus)
 
   .label { font-weight: 500; color: var(--gray-900); }
   .hint { color: var(--gray-600); font-size: 13px; }
+  .login-card .hint { margin: 0; line-height: 1.5; }
   .status { font-size: 13px; }
   .connected { color: var(--color-success-600); }
   .disconnected { color: var(--color-warning-600); }

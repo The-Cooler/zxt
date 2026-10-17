@@ -220,6 +220,7 @@ class KnowledgeBase(ABC):
 
         # Initial status
         metadata["status"] = FileStatus.UPLOADED
+        metadata["graph_status"] = "pending"
         metadata["created_at"] = utc_isoformat()
         if operator_id:
             metadata["created_by"] = operator_id
@@ -418,6 +419,29 @@ class KnowledgeBase(ABC):
 
         Returns:
             Updated file metadata
+        """
+        pass
+
+    @abstractmethod
+    async def generate_graph(
+        self,
+        db_id: str,
+        file_id: str,
+        operator_id: str | None = None,
+        params: dict | None = None,
+        context: "TaskContext | None" = None,
+    ) -> dict:
+        """为已入库文件构建知识图谱（与入库流程相互独立）。
+
+        Args:
+            db_id: 知识库 ID
+            file_id: 文件 ID
+            operator_id: 操作人 ID
+            params: 本次图谱构建的参数（节点/关系上限等）
+            context: 任务上下文，用于上报进度
+
+        Returns:
+            更新后的文件元数据，graph_status 为 built/failed
         """
         pass
 
@@ -702,6 +726,7 @@ class KnowledgeBase(ABC):
                         "is_folder": file_info.get("is_folder", False),
                         "parent_id": file_info.get("parent_id", None),
                         "graph_error": file_info.get("graph_error"),
+                        "graph_status": file_info.get("graph_status") or "pending",
                         "processing_params": file_info.get("processing_params"),
                     }
 
@@ -1123,6 +1148,7 @@ class KnowledgeBase(ABC):
                     "content_hash": record.content_hash,
                     "size": record.file_size,
                     "content_type": record.content_type,
+                    "graph_status": record.graph_status,
                     "processing_params": sanitize_processing_params(
                         resolve_chunk_processing_params(
                             kb_additional_params=kb_additional_params,
@@ -1275,6 +1301,7 @@ class KnowledgeBase(ABC):
                 "content_hash": meta.get("content_hash"),
                 "file_size": meta.get("size"),
                 "content_type": meta.get("content_type"),
+                "graph_status": meta.get("graph_status"),
                 "processing_params": sanitize_processing_params(meta.get("processing_params")),
                 "is_folder": meta.get("is_folder", False),
                 "error_message": meta.get("error"),

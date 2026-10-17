@@ -237,7 +237,15 @@
                 </div>
                 <div class="info-row">
                   <span class="label">状态:</span>
-                  <span class="value">{{ getStatusText(record.status) }}</span>
+                  <span class="value">{{ getStatusText(getDisplayStatus(record)) }}</span>
+                </div>
+                <div v-if="isLightRAG && !record.is_folder" class="info-row">
+                  <span class="label">向量块:</span>
+                  <span class="value">{{ record.vector_chunk_count || 0 }} 个</span>
+                </div>
+                <div v-if="isLightRAG && !record.is_folder" class="info-row">
+                  <span class="label">图谱:</span>
+                  <span class="value">{{ getGraphStatusText(record.graph_status) }}</span>
                 </div>
                 <div class="info-row">
                   <span class="label">时间:</span>
@@ -276,33 +284,38 @@
           style="display: flex; align-items: center; justify-content: flex-end"
         >
           <template v-if="!record.is_folder">
-            <a-tooltip :title="getStatusText(text)">
+            <!-- 以向量表为准：状态为失败但向量仍在时，说明入库其实已完成 -->
+            <a-tooltip :title="getStatusText(getDisplayStatus(record))">
               <span
-                v-if="text === 'done' || text === 'indexed'"
+                v-if="['done', 'indexed'].includes(getDisplayStatus(record))"
                 style="color: var(--color-success-500)"
                 ><CheckCircleFilled
               /></span>
               <span
                 v-else-if="
-                  text === 'failed' || text === 'error_parsing' || text === 'error_indexing'
+                  ['failed', 'error_parsing', 'error_indexing'].includes(getDisplayStatus(record))
                 "
                 style="color: var(--color-error-500)"
                 ><CloseCircleFilled
               /></span>
               <span
-                v-else-if="text === 'processing' || text === 'parsing' || text === 'indexing'"
+                v-else-if="
+                  ['processing', 'parsing', 'indexing'].includes(getDisplayStatus(record))
+                "
                 style="color: var(--color-info-500)"
                 ><HourglassFilled
               /></span>
               <span
-                v-else-if="text === 'waiting' || text === 'uploaded'"
+                v-else-if="['waiting', 'uploaded'].includes(getDisplayStatus(record))"
                 style="color: var(--color-warning-500)"
                 ><ClockCircleFilled
               /></span>
-              <span v-else-if="text === 'parsed'" style="color: var(--color-primary-500)"
+              <span
+                v-else-if="getDisplayStatus(record) === 'parsed'"
+                style="color: var(--color-primary-500)"
                 ><FileTextFilled
               /></span>
-              <span v-else>{{ text }}</span>
+              <span v-else>{{ getDisplayStatus(record) }}</span>
             </a-tooltip>
           </template>
         </div>
@@ -353,9 +366,12 @@
                     {{ record.status === 'error_parsing' ? '重试解析' : '解析文件' }}
                   </a-button>
 
-                  <!-- Index Action -->
+                  <!-- Index Action：仅当确实没有可用向量时才提示重新入库 -->
                   <a-button
-                    v-if="record.status === 'parsed' || record.status === 'error_indexing'"
+                    v-if="
+                      (record.status === 'parsed' || record.status === 'error_indexing') &&
+                      getDisplayStatus(record) !== 'indexed'
+                    "
                     type="text"
                     block
                     @click="handleIndexFile(record)"
@@ -367,20 +383,25 @@
 
                   <!-- Reindex Action -->
                   <a-button
-                    v-if="record.status === 'done' || record.status === 'indexed'"
+                    v-if="['done', 'indexed'].includes(getDisplayStatus(record))"
                     type="text"
                     block
                     @click="handleReindexFile(record)"
                     :disabled="lock"
                   >
                     <template #icon><component :is="h(RotateCw)" size="14" /></template>
-                    {{
-                      isRecordIndexedWithoutGraph(record)
-                        ? '生成图谱'
-                        : isLightRAG
-                          ? '重新生成图谱'
-                          : '重新入库'
-                    }}
+                    {{ isRecordIndexedWithoutGraph(record) ? '生成图谱' : '重新入库' }}
+                  </a-button>
+
+                  <a-button
+                    v-if="isGraphBuilt(record)"
+                    type="text"
+                    block
+                    @click="handleRegenerateGraph(record)"
+                    :disabled="lock"
+                  >
+                    <template #icon><component :is="h(RotateCw)" size="14" /></template>
+                    重新生成图谱
                   </a-button>
 
                   <a-button
@@ -412,7 +433,7 @@ import { ref, computed, h } from 'vue'
 import { useDatabaseStore } from '@/stores/database'
 import { message, Modal } from 'ant-design-vue'
 import { documentApi } from '@/apis/knowledge_api'
-import { isIndexedWithoutGraph } from '@/utils/ingestionMode'
+import { isIndexedWithoutGraph, isGraphBuilt } from '@/utils/ingestionMode'
 import {
   CheckCircleFilled,
   HourglassFilled,
@@ -475,6 +496,30 @@ const getStatusText = (status) => {
     waiting: '等待中'
   }
   return map[status] || status
+}
+
+const getGraphStatusText = (graphStatus) => {
+  const map = {
+    built: '已生成',
+    pending: '未生成',
+    failed: '生成失败'
+  }
+  return map[graphStatus || 'pending'] || graphStatus
+}
+
+/**
+ * 展示用状态：入库是否完成以向量表是否有该文件的 chunk 为准。
+ *
+ * 历史操作中间状态里，文件被标成 error_indexing，但向量其实已经写入并
+ * 可被检索；直接显示「入库失败 + 重新入库」会误导用户重复入库。
+ */
+const getDisplayStatus = (record) => {
+  const status = record?.status
+  const hasVectors = (record?.vector_chunk_count || 0) > 0
+  if (hasVectors && ['error_indexing', 'failed'].includes(status)) {
+    return 'indexed'
+  }
+  return status
 }
 
 const props = defineProps({
@@ -690,10 +735,7 @@ const defaultIndexParams = {
   chunk_size: 1000,
   chunk_overlap: 200,
   qa_separator: '',
-  chunk_preset_id: '',
-  index_mode: 'standard',
-  max_graph_nodes: 5,
-  max_graph_relations: 10
+  chunk_preset_id: ''
 }
 
 const indexParams = ref({ ...defaultIndexParams })
@@ -702,27 +744,10 @@ const buildIndexParamsPayload = () => {
   if (indexParams.value.chunk_preset_id) {
     payload.chunk_preset_id = indexParams.value.chunk_preset_id
   }
-
-  payload.index_mode = indexParams.value.index_mode || 'standard'
-  if (payload.index_mode !== 'fast') {
-    payload.max_graph_nodes = indexParams.value.max_graph_nodes
-    payload.max_graph_relations = indexParams.value.max_graph_relations
-  }
-
   if (isLightRAG.value) {
     payload.qa_separator = indexParams.value.qa_separator || ''
-    return payload
   }
-
-  const params = {
-    ...indexParams.value,
-    ...payload
-  }
-  if (params.index_mode === 'fast') {
-    delete params.max_graph_nodes
-    delete params.max_graph_relations
-  }
-  return params
+  return payload
 }
 const currentIndexFileIds = ref([])
 const isBatchIndexOperation = ref(false)
@@ -1108,6 +1133,7 @@ const handleBatchIndex = async () => {
   isBatchIndexOperation.value = true
   indexGraphOnly.value = false
   indexConfigModalTitle.value = '批量入库参数配置'
+  Object.assign(indexParams.value, defaultIndexParams)
   indexConfigModalVisible.value = true
 }
 
@@ -1206,44 +1232,63 @@ const handleIndexFile = async (record) => {
   indexConfigModalVisible.value = true
 }
 
-const handleReindexFile = async (record) => {
+// 列表类操作：生成图谱 -> 独立图谱流程；已生成过图谱 -> 重新入库（入库不碰图谱）
+const openGraphConfigModal = async (record, isBatch = false) => {
+  currentIndexFileIds.value = isBatch ? [...selectedRowKeys.value] : [record.file_id]
+  isBatchIndexOperation.value = isBatch
+  indexGraphOnly.value = true
+  indexConfigModalTitle.value = record?.graph_status === 'built' ? '重新生成图谱' : '生成图谱'
+  indexConfigModalVisible.value = true
+}
+
+const openReindexConfigModal = async (record) => {
   closePopover(record.file_id)
   currentIndexFileIds.value = [record.file_id]
   isBatchIndexOperation.value = false
-  indexGraphOnly.value = isRecordIndexedWithoutGraph(record)
-  indexConfigModalTitle.value = indexGraphOnly.value
-    ? '生成图谱参数配置'
-    : isLightRAG.value
-      ? '重新生成图谱参数配置'
-      : '重新入库参数配置'
-
+  indexGraphOnly.value = false
+  indexConfigModalTitle.value = '重新入库参数配置'
   Object.assign(indexParams.value, defaultIndexParams)
   const processingParams = await loadRecordProcessingParams(record)
   if (processingParams) {
     Object.assign(indexParams.value, processingParams)
   }
-  if (indexGraphOnly.value || (isLightRAG.value && indexParams.value.index_mode === 'fast')) {
-    indexParams.value.index_mode = 'graph'
-    indexParams.value.max_graph_nodes = 300
-    indexParams.value.max_graph_relations = 800
-  }
-
   indexConfigModalVisible.value = true
+}
+
+// 文件已入库且已生成图谱时，提供「重新生成图谱」
+const handleRegenerateGraph = async (record) => {
+  await openGraphConfigModal(record)
+}
+
+const handleReindexFile = async (record) => {
+  if (isRecordIndexedWithoutGraph(record)) {
+    await openGraphConfigModal(record)
+    return
+  }
+  await openReindexConfigModal(record)
 }
 
 // 入库确认 (统一处理 Index 和 Reindex)
 const handleIndexConfigConfirm = async () => {
   try {
+    // 「生成图谱」走独立的图谱接口，与入库分开；入库只处理向量
     if (indexGraphOnly.value) {
-      indexParams.value.index_mode = 'graph'
-    }
-    const indexPayload = buildIndexParamsPayload()
-    if (isLightRAG.value && indexPayload.index_mode !== 'fast') {
       Modal.info({
         title: '图谱生成可能较慢',
-        content: '生成知识图谱会调用模型抽取节点和关系，耗时可能较长。任务提交后会在后台执行，你可以离开当前页面继续做其他事。'
+        content:
+          '系统会读取已入库的全部分块逐块抽取实体和关系，耗时可能较长。任务提交后会在后台执行，你可以离开当前页面继续做其他事。'
       })
+      const graphResult = await store.generateGraph(currentIndexFileIds.value, {})
+      if (graphResult) {
+        currentIndexFileIds.value = []
+        selectedRowKeys.value = []
+        indexConfigModalVisible.value = false
+        indexGraphOnly.value = false
+      }
+      return
     }
+
+    const indexPayload = buildIndexParamsPayload()
     // 调用 indexFiles 接口 (支持 params)
     const result = await store.indexFiles(currentIndexFileIds.value, indexPayload)
     if (result) {

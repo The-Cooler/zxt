@@ -50,7 +50,7 @@
 - 优化网页读取发现页面列表样式：修复树形结构节点的显示问题，统一字体大小、行高、对齐方式，规范复选框和节点内容的间距，确保横线分割和文字排版清晰整齐；修复已发现页面列表文字重叠问题，调整为三行布局（标题 13px/URL 12px/来源 11px），行高 1.4，间距清晰。
 - 修复知识库文档详情加载卡死：为 `get_file_content` 添加 LightRAG 实例获取和 MinIO Markdown 读取的超时保护（30 秒/10 秒），避免因 LightRAG 表不存在或 MinIO 连接问题导致请求永久挂起。
 - 新增 AI 动画演示 MVP：后端提供 `zixuetong.animation` 独立模块和 `/api/animation-demos` 接口，内置 `create_animation_demo` 工具可生成受限结构化动画 Artifact；前端在聊天消息中识别动画工具结果并渲染可播放、暂停、重播和调速的 2D 动画卡片。
-- 优化知识库文档入库：新增快速入库、标准入库、图谱入库三种模式；快速入库仅写入 chunks 与向量，标准/图谱入库支持限制本次新增节点和关系数量，避免小文档生成过多图谱数据并改善入库耗时。入库前按文件大小动态估算超时，文件大小缺失时用已有 chunk 数反推，避免大文件固定 2 分钟超时；同一文件重试入库不再被自身的去重记录拦截；查询检索接入 rerank 并设置分数阈值，过滤低相关度 chunk。
+- 优化知识库文档入库：入库与图谱生成彻底分离为两条独立流程。入库只做分块与向量化，不再提供「快速/标准/图谱」模式，也不调用模型抽取实体；图谱生成走独立接口 `POST /databases/{db_id}/documents/graph` 和独立任务类型 `knowledge_graph`。图谱构建读取该文件已有的分块逐块抽取，不重新分块、不重新 embedding、不删除 chunk，失败不会影响文档检索；按 Yuxi 的做法全量处理所有 chunk，移除节点/关系数量上限。单块抽取失败只记录不中断，任务中心显示「已抽取 x/y 块，实体 n 个，关系 m 条」的具体进度；`MAX_GLEANING` 默认设为 0，每块只做一次实体抽取。文件新增独立的 `graph_status`（pending/built/failed）记录图谱生成结果，前端据它决定显示「生成图谱」「重新生成图谱」还是「重新入库」，不再依据会沿用旧快照的 `processing_params.index_mode` 推断；文档详情悬浮卡同时展示图谱状态和向量块数。
 - 优化全局知识图谱构建：Neo4j 图谱支持从普通文件自动识别系统级实体关系，前端提供写入前的关系增删改校对流程；面向用户移除 JSONL 三元组文件入口，并明确单个知识库内 LightRAG 图谱仍由文档入库自动构建。
 - 优化网页读取预览内容：清除预览 HTML 中的跳转链接、图片、视频等多媒体元素，移除 href/src/srcset/data-src 属性，避免预览时加载外部资源或触发跳转。：URL 导入支持读取初始网页、发现同域 HTML 子页面、按 embedding 相似度排序、手动选择展开和入库；提交前先将所选页面清洗为 Markdown 产物并保存到 MinIO，用户可查看、编辑或删除清洗结果，再复用现有知识库文档处理任务。
 - 下放扩展管理权限：普通管理员现在可进入扩展管理并完整管理 Tools、MCP、SubAgent、Skills；同步放开 Skill 管理接口权限并补充权限测试。
@@ -69,15 +69,15 @@
 - 新增独立模型配置模块：增加 `model_providers` 表、独立管理接口和”模型配置”页面，支持 provider 基础信息、可配置模型列表端点、远端候选模型、`enabled_models` 的早期配置验证；启动时会补齐内置 provider 模板，`provider_type` 暂统一默认为 `openai`，该模块暂不接入现有运行时模型选择逻辑。远端模型加载默认使用 `/models` 获取 chat/通用模型，provider 声明 `embedding` 能力时使用 `/embeddings/models` 获取 embedding 候选，rerank 模型列表端点按供应商文档显式配置后加载；修复路由请求模型未接收 `embedding_base_url`/`rerank_base_url` 导致前端已填写仍被后端校验拦截的问题。补充手动添加模型能力：`enabled_models[i]` 新增可选 `source: "manual"|"remote"` 字段（默认 `remote`），管理员可通过”+ 手动添加”入口录入远端清单未覆盖的模型（典型：自部署 embedding/rerank），手动模型在前端跳过”远端不存在”的 stale 警告并显示「手动」标签；type 选项受 `provider.capabilities` 约束，后端在 `_normalize_payload` 与 `update_provider_config` 双层一致性校验中拦截越权写入。
 - 统一前端 Markdown 预览渲染：新增共享 `MarkdownPreview` 组件与 `markdown_preview` 渲染工具，替换 Agent 消息、文件预览、知识库 chunk、任务工具结果、聊天导出等场景中的旧 `md-editor-v3/marked` 预览；支持 KaTeX、任务列表、frontmatter 卡片、Shiki 代码高亮、DOMPurify 清洗和浅层渲染缓存，并抽取 HTML 转义与代码语言归一化工具。Skill 详情页复用 `AgentFilePreview`，统一文件预览、编辑、保存和全屏交互。
 - 优化远程 Skill 批量安装：`remote_skill_install_service.py` 新增 `install_remote_skills_batch()`，利用 `npx skills add --skill A --skill B --skill C` 原生多 skill 支持，将安装 N 个 skill 的仓库克隆次数从 2N 降至 1；配套新增路由 `POST /remote/install-batch`、前端 `installRemoteSkillsBatch()` API 方法和批处理 UI 逻辑。
-- 调整内置 `ChatbotAgent` 为学习助手：新增只读学习计划概览接口，空会话展示当前用户 workspace 中登记的学习计划；提示词约束新主题先匹配历史计划、候选知识库需确认后再写入 Markdown 计划。
+- 调整内置 `ChatbotAgent` 为学习助手：新增只读学习计划概览接口，空会话展示当前用户 workspace 中登记的学习计划；提示词约束新主题先匹配历史计划、候选知识库需确认后再写入 Markdown 计划。智能体配置中的知识库、工具、MCP、Skills、Subagents 在选择或清空后立即保存到服务端，刷新页面不再回退到旧选择；底栏保存按钮在无改动时也会给出「已保存」反馈。
 - 移除 OpenClaw Gateway 集成及其 WebSocket/RPC 配置、学习提醒调度器、历史警告学习、双向知识共享和 Agent 工具；保留通用站内通知能力。
-- 新增独立 ClawBot 微信互通：后端直接调用微信 iLink Bot HTTP 接口，不依赖 OpenClaw Gateway 或插件宿主；支持系统设置扫码连接、状态查询、微信文字消息接收及学习助手回复。微信返回的 `qrcode_img_content` 是二维码内容而非图片，前端用 `qrcode` 库在本地渲染成图片展示。
+- 新增独立 ClawBot 微信互通：后端直接调用微信 iLink Bot HTTP 接口，不依赖 OpenClaw Gateway 或插件宿主；支持系统设置扫码连接、状态查询、微信文字消息接收及学习助手回复。微信返回的 `qrcode_img_content` 是二维码内容而非图片，前端用 `qrcode` 库在本地渲染成图片展示。连接状态按真实轮询结果判断（长时间收不到 getupdates 响应即视为断开），扫码登录遇到 expired/need_verifycode 等终态会记录日志并结束轮询；设置页直接说明「未扫码」「轮询不通」「尚无微信会话」三种情况，便于定位扫了码却收不到消息的问题。
 - 更新正式文档：补充网页读取会话、清洗结果编辑、入库模式、学习助手文件约定和导航入口，并移除面向用户的 JSONL 三元组导入说明。
 - 新增树状对话：用户可从指定消息创建子线程；线程元数据保存父线程、分支消息和分支点上下文快照；子线程首次提问继承该快照，前端侧栏按父子关系展示对话树，并提供“从此处分支”操作。该实现采用元数据关系和显式上下文快照，暂不包含 DAG 多父合并、引用边或画布编辑能力。
 - 新增消息重新生成与思考过程：对最后一条助手回复可重新生成，截断时同步清理业务库消息与 LangGraph 状态中的对应区间；模型返回 `reasoning_content` 时在消息中以可折叠区域展示推理过程，通过智能体配置项 `enable_thinking` 控制，模型不支持时给出提示。同步调整消息操作栏：引用来源与点赞点踩只在消息级渲染一次，分支按钮只保留在用户提问处。
 - 修复提示词缓存未命中的问题：运行时把精确到秒的时间戳拼接在系统提示词前缀，导致 prompt cache 每次都失效；改为稳定内容在前、时间戳在后后，实测缓存命中率由 0% 提升到 85%~98%。
 - 修复模型选择的配置失效：默认模型、快速响应模型与内容审查模型仍指向已下线的模型；同时 `/api/chat/call` 未显式传模型时会按 v1 规则切分 v2 格式的默认值，导致 provider 解析失败。统一改为使用 v2 spec 的默认模型。
-- 修复前端接口路径与后端不匹配：通知接口缺少 `/api` 前缀导致站内提醒始终无法展示，OCR 健康检查路径顺序错误；同时移除 4 个后端已不存在、且无调用方的废弃 API 方法。
+- 修复前端接口路径与后端不匹配：通知接口缺少 `/api` 前缀导致站内提醒始终无法展示，OCR 健康检查路径顺序错误；同时移除 4 个后端已不存在、且无调用方的废弃 API 方法。`base.js` 新增统一前缀补全，调用方只需写业务路径，从设计上避免此类遗漏。
 
 ---
 

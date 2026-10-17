@@ -31,13 +31,18 @@ class UploadGraphService:
         os.makedirs(self.work_dir, exist_ok=True)
         self.is_initialized_from_file = False
 
-        # 尝试加载已保存的图数据库信息
-        if not self.load_graph_info():
-            logger.debug("创建新的图数据库配置")
+        # 尝试加载已保存的图数据库信息。
+        # Neo4j 可能尚未就绪，此时跳过，等首次实际使用再加载。
+        if self.connection.is_running():
+            if not self.load_graph_info():
+                logger.debug("创建新的图数据库配置")
+        else:
+            logger.warning("Neo4j 暂不可用，跳过图谱信息加载，将在首次使用时重试")
 
     @property
     def driver(self):
-        """获取数据库驱动"""
+        """获取数据库驱动（连接不可用时先尝试重连）"""
+        self.connection.ensure_connected()
         return self.connection.driver
 
     @property
@@ -46,11 +51,11 @@ class UploadGraphService:
         return self.connection.status
 
     def start(self):
-        """启动连接"""
-        # Neo4jConnectionManager 在初始化时已经自动连接
+        """启动连接（连接失败时记录警告，不阻塞调用方）"""
         if not self.connection.is_running():
-            self.connection._connect()
-            logger.info(f"Connected to Neo4j: {self.get_graph_info(self.kgdb_name)}")
+            logger.warning("Neo4j 连接不可用，图谱相关功能暂不可用")
+            return
+        logger.info(f"Connected to Neo4j: {self.get_graph_info(self.kgdb_name)}")
 
     def close(self):
         """关闭数据库连接"""
@@ -389,7 +394,7 @@ class UploadGraphService:
             return session.execute_read(query)
 
     def get_graph_info(self, graph_name="neo4j"):
-        assert self.driver is not None, "Database is not connected"
+        self.connection.ensure_connected()
         self.use_database(graph_name)
 
         def query(tx):

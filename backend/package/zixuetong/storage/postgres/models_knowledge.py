@@ -63,6 +63,10 @@ class KnowledgeFile(Base):
     file_size = Column(BigInteger)
     content_type = Column(String(64))
     processing_params = Column(JSON_VALUE)
+    # pending=尚未生成图谱 / built=已生成 / failed=生成失败。
+    # 单独存储而非从 processing_params 推断：快速入库会沿用文件此前保存的
+    # index_mode 快照，据此判断是否已生成图谱并不可靠。
+    graph_status = Column(String(32), default="pending", index=True)
     is_folder = Column(Boolean, default=False)
     error_message = Column(Text)
     created_by = Column(String(64))

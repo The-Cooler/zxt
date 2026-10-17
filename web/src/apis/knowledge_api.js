@@ -197,6 +197,20 @@ export const documentApi = {
       file_ids: fileIds,
       params
     })
+  },
+
+  /**
+   * 为已入库文档生成知识图谱（独立于入库流程）
+   * @param {string} dbId - 知识库ID
+   * @param {Array} fileIds - 文件ID列表
+   * @param {Object} params - 图谱参数（max_graph_nodes / max_graph_relations）
+   * @returns {Promise} - 任务结果
+   */
+  generateGraph: async (dbId, fileIds, params = {}) => {
+    return apiPost(`/api/knowledge/databases/${dbId}/documents/graph`, {
+      file_ids: fileIds,
+      params
+    })
   }
 }
 

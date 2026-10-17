@@ -110,6 +110,7 @@
                 :show-chunk-size-overlap="!isGraphBased"
                 :show-preset="true"
                 :allow-preset-follow-default="true"
+                :show-graph-limits="false"
                 :database-preset-id="
                   store.database?.additional_params?.chunk_preset_id || 'general'
                 "
@@ -920,10 +921,7 @@ const defaultIndexParams = {
   chunk_size: 1000,
   chunk_overlap: 200,
   qa_separator: '',
-  chunk_preset_id: '',
-  index_mode: 'standard',
-  max_graph_nodes: 5,
-  max_graph_relations: 10
+  chunk_preset_id: ''
 }
 const indexParams = ref({ ...defaultIndexParams })
 
@@ -932,27 +930,10 @@ const buildAutoIndexParams = () => {
   if (indexParams.value.chunk_preset_id) {
     payload.chunk_preset_id = indexParams.value.chunk_preset_id
   }
-
-  payload.index_mode = indexParams.value.index_mode || 'standard'
-  if (payload.index_mode !== 'fast') {
-    payload.max_graph_nodes = indexParams.value.max_graph_nodes
-    payload.max_graph_relations = indexParams.value.max_graph_relations
-  }
-
   if (isGraphBased.value) {
     payload.qa_separator = indexParams.value.qa_separator || ''
-    return payload
   }
-
-  const params = {
-    ...indexParams.value,
-    ...payload
-  }
-  if (params.index_mode === 'fast') {
-    delete params.max_graph_nodes
-    delete params.max_graph_relations
-  }
-  return params
+  return payload
 }
 
 const isGraphBased = computed(() => {

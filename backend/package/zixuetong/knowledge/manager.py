@@ -326,6 +326,18 @@ class KnowledgeBaseManager:
         kb_instance = await self._get_kb_for_database(db_id)
         return await kb_instance.index_file(db_id, file_id, operator_id, params=params, context=context)
 
+    async def generate_graph(
+        self,
+        db_id: str,
+        file_id: str,
+        operator_id: str | None = None,
+        params: dict | None = None,
+        context: "TaskContext | None" = None,
+    ) -> dict:
+        """Build knowledge graph for an indexed file (independent from indexing)"""
+        kb_instance = await self._get_kb_for_database(db_id)
+        return await kb_instance.generate_graph(db_id, file_id, operator_id, params=params, context=context)
+
     async def update_file_params(self, db_id: str, file_id: str, params: dict, operator_id: str | None = None) -> None:
         """Update file processing params"""
         kb_instance = await self._get_kb_for_database(db_id)
@@ -374,6 +386,19 @@ class KnowledgeBaseManager:
         db_info["mindmap"] = kb.mindmap
         db_info["sample_questions"] = kb.sample_questions or []
         db_info["query_params"] = kb.query_params
+
+        # 以向量表为准补充文件的实际入库 chunk 数。
+        # 历史失败操作可能删掉了文档记录，但向量仍可被检索；
+        # 只信 files.status 会让界面把「已入库」显示成「未入库」或反之。
+        files = db_info.get("files")
+        if isinstance(files, dict) and files and hasattr(kb_instance, "get_vector_chunk_counts"):
+            try:
+                vector_counts = await kb_instance.get_vector_chunk_counts(db_id)
+            except Exception as exc:
+                logger.warning(f"Failed to load vector chunk counts for {db_id}: {exc}")
+                vector_counts = {}
+            for file_id, file_info in files.items():
+                file_info["vector_chunk_count"] = vector_counts.get(file_id, 0)
 
         return db_info
 

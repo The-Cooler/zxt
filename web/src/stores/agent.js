@@ -389,12 +389,14 @@ export const useAgentStore = defineStore(
 
     /**
      * 保存智能体配置
+     *
+     * 未指定 configId 时保存当前选中的配置档案。知识库、工具等配置项
+     * 需要在点击后立即落库，否则刷新页面会回退到服务端旧值。
      * @param {Object} options - 额外参数 (e.g., { reload_graph: true })
      */
-    // eslint-disable-next-line no-unused-vars
     async function saveAgentConfig(options = {}) {
       const targetAgentId = selectedAgentId.value
-      const targetConfigId = selectedAgentConfigId.value
+      const targetConfigId = options.configId || selectedAgentConfigId.value
       if (!targetAgentId || !targetConfigId) return
 
       try {

@@ -173,7 +173,7 @@ async def get_mcp_client(
         logger.info(f"Initialized MCP client with servers: {list(server_configs.keys())}")
         return client
     except Exception as e:
-        logger.error("Failed to initialize MCP client: {}", e)
+        logger.error(f"Failed to initialize MCP client: {e}")
         return None
 
 

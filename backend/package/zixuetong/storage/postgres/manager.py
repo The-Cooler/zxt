@@ -87,6 +87,13 @@ class PostgresManager(metaclass=SingletonMeta):
         self._check_initialized()
         async with self.async_engine.begin() as conn:
             await conn.run_sync(BusinessBase.metadata.create_all)
+            # create_all 不会给已存在的表补列，新增列在这里显式补。
+            await conn.execute(
+                text(
+                    "ALTER TABLE knowledge_files "
+                    "ADD COLUMN IF NOT EXISTS graph_status VARCHAR(32) DEFAULT 'pending'"
+                )
+            )
         await self.ensure_system_owner()
         logger.info("PostgreSQL tables created/checked from SQLAlchemy models")
 

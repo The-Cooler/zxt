@@ -111,7 +111,7 @@ class Tasker:
                 worker = asyncio.create_task(self._worker_loop(), name="tasker-worker")
                 self._workers.append(worker)
             self._started = True
-            logger.info("Tasker started with {} workers", self.worker_count)
+            logger.info(f"Tasker started with {self.worker_count} workers")
 
     async def shutdown(self) -> None:
         async with self._lock:
@@ -138,7 +138,7 @@ class Tasker:
             self._tasks[task_id] = task
             await self._persist_task(task)
             await self._queue.put((task_id, coroutine))
-        logger.info("Enqueued task {} ({})", task_id, name)
+        logger.info(f"Enqueued task {task_id} ({name})")
         return task
 
     async def list_tasks(self, status: str | None = None, limit: int = 100) -> dict[str, Any]:
@@ -182,7 +182,7 @@ class Tasker:
             task.cancel_requested = True
             task.updated_at = utc_isoformat()
             await self._persist_task(task)
-        logger.info("Cancellation requested for task {}", task_id)
+        logger.info(f"Cancellation requested for task {task_id}")
         return True
 
     async def delete_task(self, task_id: str) -> bool:
@@ -192,7 +192,7 @@ class Tasker:
                 return False
             del self._tasks[task_id]
         await self._repo.delete(task_id)
-        logger.info("Deleted task {}", task_id)
+        logger.info(f"Deleted task {task_id}")
         return True
 
     async def _worker_loop(self) -> None:
@@ -226,7 +226,9 @@ class Tasker:
                     except asyncio.CancelledError:
                         await self._mark_cancelled(task_id, "任务被取消")
                     except Exception as exc:  # noqa: BLE001
-                        logger.exception("Task {} failed: {}", task_id, exc)
+                        # logger 是 loguru：必须用 f-string，不能用 logging 的 {} + 位置参数，
+                        # 否则格式化抛 TypeError，任务会永久停在 running。
+                        logger.opt(exception=exc).error(f"Task {task_id} failed: {exc}")
                         await self._update_task(
                             task_id,
                             status="failed",
@@ -240,7 +242,7 @@ class Tasker:
             except asyncio.CancelledError:
                 break
             except Exception as exc:  # noqa: BLE001
-                logger.exception("Tasker worker error: {}", exc)
+                logger.opt(exception=exc).error(f"Tasker worker error: {exc}")
 
     async def _get_task_instance(self, task_id: str) -> Task | None:
         async with self._lock:
@@ -310,7 +312,7 @@ class Tasker:
         for task in updated:
             await self._persist_task(task)
         if updated:
-            logger.info("Marked {} interrupted tasks as failed", len(updated))
+            logger.info(f"Marked {len(updated)} interrupted tasks as failed")
 
     async def _persist_task(self, task: Task) -> None:
         data: dict[str, Any] = {

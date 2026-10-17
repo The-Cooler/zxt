@@ -1,16 +1,16 @@
 import asyncio
 import os
 import traceback
-from collections.abc import Callable
-from contextlib import asynccontextmanager
+from contextlib import suppress
+from dataclasses import asdict
 from functools import partial
-from types import MethodType
 from typing import TYPE_CHECKING
 
 from lightrag import LightRAG, QueryParam
 from lightrag.base import DocStatus
-from lightrag.kg.shared_storage import initialize_pipeline_status
+from lightrag.kg.shared_storage import get_namespace_data, get_namespace_lock, initialize_pipeline_status
 from lightrag.llm.openai import openai_complete_if_cache, openai_embed
+from lightrag.operate import extract_entities, merge_nodes_and_edges
 from lightrag.utils import EmbeddingFunc
 from lightrag.utils import compute_mdhash_id, get_content_summary, sanitize_text_for_encoding
 from neo4j import GraphDatabase
@@ -30,92 +30,23 @@ if TYPE_CHECKING:
 
 
 INDEX_MODE_FAST = "fast"
-INDEX_MODE_STANDARD = "standard"
-INDEX_MODE_GRAPH = "graph"
-INDEX_MODES = {INDEX_MODE_FAST, INDEX_MODE_STANDARD, INDEX_MODE_GRAPH}
-MAX_GRAPH_NODES_LIMIT = 1000
-MAX_GRAPH_RELATIONS_LIMIT = 3000
-
-
-def _coerce_positive_int(value, *, max_value: int) -> int | None:
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError):
-        return None
-    if parsed <= 0:
-        return None
-    return min(parsed, max_value)
 
 
 def resolve_ingestion_options(params: dict | None) -> dict:
+    """保留给历史参数解析。
+
+    图谱节点/关系上限已从流程中移除，这里不再返回对应字段；
+    旧数据里的同名参数会被忽略。
+    """
     params = params or {}
-    index_mode = str(params.get("index_mode") or INDEX_MODE_STANDARD).strip().lower()
-    if index_mode not in INDEX_MODES:
-        index_mode = INDEX_MODE_STANDARD
-
-    return {
-        "index_mode": index_mode,
-        "max_graph_nodes": _coerce_positive_int(
-            params.get("max_graph_nodes"),
-            max_value=MAX_GRAPH_NODES_LIMIT,
-        ),
-        "max_graph_relations": _coerce_positive_int(
-            params.get("max_graph_relations"),
-            max_value=MAX_GRAPH_RELATIONS_LIMIT,
-        ),
-    }
+    return {"index_mode": params.get("index_mode") or INDEX_MODE_FAST}
 
 
-def limit_extracted_graph_results(
-    chunk_results: list,
-    *,
-    max_nodes: int | None,
-    max_relations: int | None,
-) -> list:
-    if max_nodes is None and max_relations is None:
-        return chunk_results
-
-    allowed_nodes: set[str] | None = None
-    remaining_nodes = max_nodes
-    if max_nodes is not None:
-        allowed_nodes = set()
-        for maybe_nodes, _maybe_edges in chunk_results:
-            for entity_name in maybe_nodes:
-                if entity_name in allowed_nodes:
-                    continue
-                if remaining_nodes is not None and remaining_nodes <= 0:
-                    break
-                allowed_nodes.add(entity_name)
-                remaining_nodes -= 1
-            if remaining_nodes is not None and remaining_nodes <= 0:
-                break
-
-    remaining_relations = max_relations
-    limited_results = []
-    for maybe_nodes, maybe_edges in chunk_results:
-        if allowed_nodes is None:
-            limited_nodes = maybe_nodes
-        else:
-            limited_nodes = {
-                entity_name: entities
-                for entity_name, entities in maybe_nodes.items()
-                if entity_name in allowed_nodes
-            }
-
-        limited_edges = {}
-        for edge_key, edges in maybe_edges.items():
-            src_id, tgt_id = edge_key
-            if allowed_nodes is not None and (src_id not in allowed_nodes or tgt_id not in allowed_nodes):
-                continue
-            if remaining_relations is not None and remaining_relations <= 0:
-                break
-            limited_edges[edge_key] = edges
-            if remaining_relations is not None:
-                remaining_relations -= 1
-
-        limited_results.append((limited_nodes, limited_edges))
-
-    return limited_results
+async def _get_pipeline_lock(rag: LightRAG):
+    """需要同时使用 pipeline_status 与锁、且不放进 async with 时使用。"""
+    return await get_namespace_data("pipeline_status", workspace=rag.workspace), get_namespace_lock(
+        "pipeline_status", workspace=rag.workspace
+    )
 
 
 class LightRagKB(KnowledgeBase):
@@ -155,52 +86,6 @@ class LightRagKB(KnowledgeBase):
         delimiter = "\n<|ZIXUETONG_CHUNK_DELIM|>\n"
         payload = delimiter.join(chunk["content"] for chunk in chunks if chunk.get("content"))
         return payload, delimiter, False  # 允许 LightRAG 基于进行二次切分，避免超限
-
-    @staticmethod
-    def _is_current_doc_chunks(chunks: dict, file_id: str) -> bool:
-        return bool(chunks) and all(chunk.get("full_doc_id") == file_id for chunk in chunks.values())
-
-    @asynccontextmanager
-    async def _scoped_graph_limits(
-        self,
-        rag: LightRAG,
-        *,
-        file_id: str,
-        max_nodes: int | None,
-        max_relations: int | None,
-    ):
-        if max_nodes is None and max_relations is None:
-            yield
-            return
-
-        original_method: Callable = rag._process_extract_entities
-
-        async def limited_process_extract_entities(
-            rag_self,
-            chunks: dict,
-            pipeline_status=None,
-            pipeline_status_lock=None,
-        ) -> list:
-            chunk_results = await original_method(chunks, pipeline_status, pipeline_status_lock)
-            if not self._is_current_doc_chunks(chunks, file_id):
-                return chunk_results
-
-            limited_results = limit_extracted_graph_results(
-                chunk_results,
-                max_nodes=max_nodes,
-                max_relations=max_relations,
-            )
-            logger.info(
-                f"Applied graph extraction limits for file {file_id}: "
-                f"max_nodes={max_nodes}, max_relations={max_relations}"
-            )
-            return limited_results
-
-        rag._process_extract_entities = MethodType(limited_process_extract_entities, rag)
-        try:
-            yield
-        finally:
-            rag._process_extract_entities = original_method
 
     async def _fast_insert_chunks(
         self,
@@ -360,6 +245,10 @@ class LightRagKB(KnowledgeBase):
             log_file_path=os.path.join(working_dir, "lightrag.log"),
             addon_params=addon_params,
             max_graph_nodes=max_graph_nodes,
+            # 每个 chunk 默认做 1 次主抽取 + MAX_GLEANING 次补充抽取。
+            # 补充抽取会让 LLM 调用翻倍，入库成本直接乘 2，默认关闭；
+            # 需要更高实体召回时可用 MAX_GLEANING=1 开启。
+            entity_extract_max_gleaning=int(os.getenv("MAX_GLEANING", "0")),
             # 显式传入离线 tokenizer：LightRAG 默认的 TiktokenTokenizer 会同步联网
             # 下载编码表，国内网络下可阻塞事件循环数十秒。
             tokenizer=OfflineTokenizer(),
@@ -634,22 +523,20 @@ class LightRagKB(KnowledgeBase):
                     file_processing_params=file_meta.get("processing_params"),
                     request_params=params,
                 )
-                ingestion_options = resolve_ingestion_options(params)
                 self.files_meta[file_id]["processing_params"] = params
+                self.files_meta[file_id]["graph_status"] = "pending"
                 await self._save_metadata()
 
                 chunks = chunk_markdown(markdown_content, file_id, filename, params)
-                chunk_input, split_by_character, split_by_character_only = self._prepare_lightrag_insert_payload(chunks)
-                if not chunk_input:
-                    chunk_input = markdown_content
 
-                # Clean up existing chunks if any (for re-indexing)
+                # 入库只负责向量：删除旧 chunks（同时清掉旧图谱）后写入向量索引。
+                # 实体抽取和图谱构建是独立动作，由 generate_graph 触发，
+                # 不在入库流程里执行，也不因为图谱状态改变入库结果。
                 await self.delete_file_chunks_only(db_id, file_id)
-
-                # 分离向量入库和图谱构建，避免图谱失败导致整个入库失败
-                # Step 1: 向量入库 (总是执行)
                 if context:
-                    await context.set_progress(context._tasker._tasks[context.task_id].progress, "正在进行向量化入库...")
+                    await context.set_progress(
+                        context._tasker._tasks[context.task_id].progress, "正在进行向量化入库..."
+                    )
                 await self._fast_insert_chunks(
                     rag,
                     markdown_content=markdown_content,
@@ -663,82 +550,20 @@ class LightRagKB(KnowledgeBase):
                     f"chunk_preset_id={params.get('chunk_preset_id')}"
                 )
 
-                # Step 2: 图谱构建 (仅非 fast 模式)
-                graph_error = None
-                if ingestion_options["index_mode"] != INDEX_MODE_FAST:
-                    try:
-                        if context:
-                            await context.set_progress(
-                                context._tasker._tasks[context.task_id].progress, "开始构建知识图谱..."
-                            )
-                        # 先删除已有的向量块，然后用完整模式重新入库（包含图谱）
-                        await self.delete_file_chunks_only(db_id, file_id)
-                        if context:
-                            await context.set_progress(
-                                context._tasker._tasks[context.task_id].progress, "正在提取实体和关系..."
-                            )
-                        async with self._scoped_graph_limits(
-                            rag,
-                            file_id=file_id,
-                            max_nodes=ingestion_options["max_graph_nodes"],
-                            max_relations=ingestion_options["max_graph_relations"],
-                        ):
-                            await rag.ainsert(
-                                input=chunk_input,
-                                ids=file_id,
-                                file_paths=file_path,
-                                split_by_character=split_by_character,
-                                split_by_character_only=split_by_character_only,
-                            )
-                        if context:
-                            await context.set_progress(
-                                context._tasker._tasks[context.task_id].progress, "正在保存图谱数据..."
-                            )
-                        await self._ensure_doc_processed(rag, file_id)
-                        logger.info(f"Graph built successfully for file {file_id}")
-                    except Exception as graph_ex:
-                        logger.warning(f"Graph building failed for {file_id}, but vector indexing succeeded: {graph_ex}")
-                        graph_error = str(graph_ex)
-                        # 图谱构建失败，回退到快速模式的向量入库
-                        await self.delete_file_chunks_only(db_id, file_id)
-                        await self._fast_insert_chunks(
-                            rag,
-                            markdown_content=markdown_content,
-                            chunks=chunks,
-                            file_id=file_id,
-                            file_path=file_path,
-                        )
-
-                # 记录已入库的 content_hash，防止后续重复入库
+                self.files_meta[file_id]["status"] = FileStatus.INDEXED
+                self.files_meta[file_id]["updated_at"] = utc_isoformat()
+                if operator_id:
+                    self.files_meta[file_id]["updated_by"] = operator_id
+                self.files_meta[file_id].pop("graph_error", None)
                 if content_hash:
                     from zixuetong.repositories.knowledge_content_hash_repository import KnowledgeContentHashRepository
 
-                    hash_repo = KnowledgeContentHashRepository()
-                    await hash_repo.record_indexed_content(
+                    await KnowledgeContentHashRepository().record_indexed_content(
                         db_id=db_id,
                         content_hash=content_hash,
                         file_id=file_id,
                         original_filename=file_meta.get("original_filename"),
                     )
-                    logger.info(f"已记录 content_hash 到去重表: file_id={file_id}, hash={content_hash[:16]}...")
-
-                # Update status
-                self.files_meta[file_id]["status"] = FileStatus.INDEXED
-                self.files_meta[file_id]["updated_at"] = utc_isoformat()
-                if operator_id:
-                    self.files_meta[file_id]["updated_by"] = operator_id
-
-                # 如果图谱构建失败，记录错误并将模式标记为 fast
-                if graph_error:
-                    self.files_meta[file_id]["graph_error"] = graph_error
-                    # 修改 processing_params.index_mode 为 fast，前端会显示"生成图谱"按钮
-                    if "processing_params" not in self.files_meta[file_id]:
-                        self.files_meta[file_id]["processing_params"] = {}
-                    self.files_meta[file_id]["processing_params"]["index_mode"] = INDEX_MODE_FAST
-                    logger.info(f"File {file_id} marked as indexed with fast mode due to graph building failure")
-                else:
-                    # 清除之前的 graph_error
-                    self.files_meta[file_id].pop("graph_error", None)
 
                 await self._persist_file(file_id)
 
@@ -757,6 +582,274 @@ class LightRagKB(KnowledgeBase):
             finally:
                 # Remove from processing queue
                 self._remove_from_processing_queue(file_id)
+
+    async def generate_graph(
+        self,
+        db_id: str,
+        file_id: str,
+        operator_id: str | None = None,
+        params: dict | None = None,
+        context: "TaskContext | None" = None,
+    ) -> dict:
+        """为已入库文件单独构建知识图谱。
+
+        与 index_file 完全独立：读取已有 chunk 逐块抽取实体和关系，
+        只写图谱，不重新分块、不重新 embedding、不删除 chunk、不修改入库状态。
+        参照 Yuxi 的做法：全量处理所有 chunk，单块失败不中断。
+
+        返回：
+            带有 graph_status、chunks_total、chunks_succeeded、
+            entity_count、relation_count、failed_chunks 的字典。
+        """
+        if db_id not in self.databases_meta:
+            raise ValueError(f"Database {db_id} not found")
+
+        db_write_lock = await self._get_db_write_lock(db_id)
+        async with db_write_lock:
+            rag = await self._get_lightrag_instance(db_id)
+            if not rag:
+                raise ValueError(f"Failed to get LightRAG instance for {db_id}")
+
+            if file_id not in self.files_meta:
+                raise ValueError(f"File {file_id} not found")
+            file_meta = self.files_meta[file_id]
+            file_path = file_meta.get("path") or "unknown_source"
+
+            chunks = self._load_existing_chunks(rag, file_id)
+            if not chunks:
+                raise ValueError("该文件还没有可用的 chunk，请先完成入库")
+
+            concurrency = self._resolve_graph_concurrency(params)
+            total = len(chunks)
+
+            self.files_meta[file_id]["graph_status"] = "pending"
+            self.files_meta[file_id].pop("graph_error", None)
+            self._add_to_processing_queue(file_id)
+            await self._persist_file(file_id)
+
+            try:
+                if context:
+                    await context.set_progress(5.0, f"图谱生成：准备处理 {total} 块")
+
+                chunk_results, failed_chunks = await self._extract_chunks_for_graph(
+                    rag,
+                    chunks,
+                    concurrency=concurrency,
+                    context=context,
+                )
+                succeeded = total - len(failed_chunks)
+
+                if chunk_results:
+                    if context:
+                        await context.set_progress(90.0, "图谱生成：正在写入实体和关系")
+                    await self._merge_graph_results(
+                        rag,
+                        file_id,
+                        file_path,
+                        chunk_results,
+                        context=context,
+                    )
+
+                entity_count = await self._count_graph_items(rag, file_id, "entity")
+                relation_count = await self._count_graph_items(rag, file_id, "relation")
+
+                self.files_meta[file_id]["graph_status"] = "failed" if failed_chunks else "built"
+                if failed_chunks:
+                    self.files_meta[file_id]["graph_error"] = (
+                        f"{len(failed_chunks)}/{total} 块抽取失败，示例: {failed_chunks[0].get('error')}"
+                    )
+                self.files_meta[file_id]["updated_at"] = utc_isoformat()
+                if operator_id:
+                    self.files_meta[file_id]["updated_by"] = operator_id
+                await self._persist_file(file_id)
+
+                result = dict(self.files_meta[file_id])
+                result.update(
+                    {
+                        "chunks_total": total,
+                        "chunks_succeeded": succeeded,
+                        "entity_count": entity_count,
+                        "relation_count": relation_count,
+                        "failed_chunks": failed_chunks,
+                    }
+                )
+                if context:
+                    await context.set_progress(
+                        100.0,
+                        f"图谱生成：已抽取 {succeeded}/{total} 块，"
+                        f"实体 {entity_count} 个，关系 {relation_count} 条",
+                    )
+                logger.info(
+                    f"Graph built for file {file_id}: {succeeded}/{total} chunks, "
+                    f"entities={entity_count}, relations={relation_count}, failed={len(failed_chunks)}"
+                )
+                return result
+            except asyncio.CancelledError:
+                self.files_meta[file_id]["graph_status"] = "failed"
+                self.files_meta[file_id]["graph_error"] = "图谱生成被取消"
+                await self._persist_file(file_id)
+                raise
+            except Exception as exc:
+                error_msg = str(exc)
+                logger.warning(f"Graph building failed for file {file_id}: {error_msg}")
+                self.files_meta[file_id]["graph_status"] = "failed"
+                self.files_meta[file_id]["graph_error"] = error_msg
+                self.files_meta[file_id]["updated_at"] = utc_isoformat()
+                await self._persist_file(file_id)
+                raise
+            finally:
+                self._remove_from_processing_queue(file_id)
+
+    @staticmethod
+    def _load_existing_chunks(rag: LightRAG, file_id: str) -> dict[str, dict]:
+        """读取 LightRAG 中该文件已有的 chunk，按 chunk_order_index 排序。"""
+        data = getattr(getattr(rag, "text_chunks", None), "_data", {}) or {}
+        selected = {
+            chunk_id: chunk
+            for chunk_id, chunk in data.items()
+            if isinstance(chunk, dict) and chunk.get("full_doc_id") == file_id
+        }
+        return dict(
+            sorted(
+                selected.items(),
+                key=lambda item: item[1].get("chunk_order_index") or 0,
+            )
+        )
+
+    @staticmethod
+    def _resolve_graph_concurrency(params: dict | None) -> int:
+        raw = (params or {}).get("graph_concurrency", 1)
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            return 1
+        return max(1, min(value, 8))
+
+    async def _extract_chunks_for_graph(
+        self,
+        rag: LightRAG,
+        chunks: dict[str, dict],
+        *,
+        concurrency: int,
+        context: "TaskContext | None",
+    ) -> tuple[list, list[dict]]:
+        """逐块调用 LightRAG 的实体抽取，单块失败只记录不中断。"""
+        total = len(chunks)
+        chunk_results: list = []
+        failed_chunks: list[dict] = []
+        completed = 0
+        semaphore = asyncio.Semaphore(concurrency)
+        results_lock = asyncio.Lock()
+
+        pipeline_status, pipeline_status_lock = await _get_pipeline_lock(rag)
+
+        async def extract_one(chunk_id: str, chunk: dict) -> None:
+            nonlocal completed
+            async with semaphore:
+                if context:
+                    await context.raise_if_cancelled()
+                result: list | None = None
+                error: str | None = None
+                try:
+                    result = await extract_entities(
+                        {chunk_id: chunk},
+                        global_config=asdict(rag),
+                        pipeline_status=pipeline_status,
+                        pipeline_status_lock=pipeline_status_lock,
+                        llm_response_cache=rag.llm_response_cache,
+                        text_chunks_storage=rag.text_chunks,
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(f"Chunk extraction failed for {chunk_id}: {exc}")
+                    error = str(exc)
+
+                async with results_lock:
+                    if error is not None:
+                        failed_chunks.append({"chunk_id": chunk_id, "error": error})
+                    else:
+                        chunk_results.extend(result or [])
+                    completed += 1
+                    if context:
+                        await context.set_progress(
+                            5.0 + (completed / total) * 80.0,
+                            f"图谱生成：已抽取 {completed}/{total} 块",
+                        )
+
+        await asyncio.gather(*(extract_one(chunk_id, chunk) for chunk_id, chunk in chunks.items()))
+        return chunk_results, failed_chunks
+
+    @staticmethod
+    async def _merge_graph_results(
+        rag: LightRAG,
+        file_id: str,
+        file_path: str,
+        chunk_results: list,
+        *,
+        context: "TaskContext | None" = None,
+    ) -> None:
+        """只把抽取结果写入图存储与实体/关系向量，不触碰 chunk。"""
+        pipeline_status, pipeline_status_lock = await _get_pipeline_lock(rag)
+
+        async def watch_cancel() -> None:
+            """把任务取消转成 LightRAG 的 cancellation_requested。
+
+            merge_nodes_and_edges 内部只在少数阶段检查该标志，
+            但至少能让等待中的合并尽早退出。
+            """
+            while True:
+                await asyncio.sleep(1.0)
+                if context is not None and context.is_cancel_requested():
+                    async with pipeline_status_lock:
+                        pipeline_status["cancellation_requested"] = True
+                    return
+
+        cancel_watcher = asyncio.create_task(watch_cancel()) if context is not None else None
+        try:
+            await merge_nodes_and_edges(
+                chunk_results=chunk_results,
+                knowledge_graph_inst=rag.chunk_entity_relation_graph,
+                entity_vdb=rag.entities_vdb,
+                relationships_vdb=rag.relationships_vdb,
+                global_config=asdict(rag),
+                full_entities_storage=rag.full_entities,
+                full_relations_storage=rag.full_relations,
+                doc_id=file_id,
+                pipeline_status=pipeline_status,
+                pipeline_status_lock=pipeline_status_lock,
+                llm_response_cache=rag.llm_response_cache,
+                entity_chunks_storage=rag.entity_chunks,
+                relation_chunks_storage=rag.relation_chunks,
+                current_file_number=1,
+                total_files=1,
+                file_path=file_path,
+            )
+            # JsonKVStorage 只在内存里更新，必须显式落盘；
+            # 否则进程重启后 full_entities/full_relations 会停留在旧数据。
+            await rag._insert_done()
+        finally:
+            if cancel_watcher is not None:
+                cancel_watcher.cancel()
+                with suppress(asyncio.CancelledError):
+                    await cancel_watcher
+            async with pipeline_status_lock:
+                pipeline_status["cancellation_requested"] = False
+
+    @staticmethod
+    async def _count_graph_items(rag: LightRAG, file_id: str, kind: str) -> int:
+        """统计本次写入的实体/关系数量，仅用于进度展示。"""
+        storage = rag.full_entities if kind == "entity" else rag.full_relations
+        try:
+            record = await storage.get_by_id(file_id)
+        except Exception:  # noqa: BLE001
+            return 0
+        if not record:
+            return 0
+        key = "entity_names" if kind == "entity" else "relation_pairs"
+        value = record.get(key) or []
+        return len(value)
+
 
     async def update_content(self, db_id: str, file_ids: list[str], params: dict | None = None) -> list[dict]:
         """更新内容 - 根据file_ids重新解析文件并更新向量库"""
@@ -1000,6 +1093,32 @@ class LightRagKB(KnowledgeBase):
             for chunk_data in rag.text_chunks._data.values()
             if isinstance(chunk_data, dict) and chunk_data.get("full_doc_id") == file_id
         )
+
+    async def get_vector_chunk_counts(self, db_id: str) -> dict[str, int]:
+        """按文档统计向量表里实际可检索的 chunk 数。
+
+        检索直接读向量表，而不是 doc_chunks；两者可能在历史失败操作中不一致。
+        前端据此判断文件是否真的已完成入库。
+        """
+        try:
+            rag = await asyncio.wait_for(self._get_lightrag_instance(db_id), timeout=30.0)
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout getting LightRAG instance for {db_id}")
+            return {}
+        chunks_vdb = getattr(rag, "chunks_vdb", None) if rag else None
+        if chunks_vdb is None:
+            return {}
+        try:
+            rows = await chunks_vdb.db.query(
+                f"SELECT full_doc_id, COUNT(*) AS cnt FROM {chunks_vdb.table_name} "
+                "WHERE workspace=$1 AND full_doc_id IS NOT NULL GROUP BY full_doc_id",
+                [chunks_vdb.workspace],
+                multirows=True,
+            )
+        except Exception as exc:
+            logger.warning(f"Failed to count vector chunks for {db_id}: {exc}")
+            return {}
+        return {str(row["full_doc_id"]): int(row["cnt"]) for row in rows or [] if row.get("full_doc_id")}
 
     async def get_file_content(self, db_id: str, file_id: str) -> dict:
         """获取文件内容信息（chunks和lines）"""

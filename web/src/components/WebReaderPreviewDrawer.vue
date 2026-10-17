@@ -313,16 +313,10 @@ const buildIndexPayload = () => {
   if (localIndexParams.chunk_preset_id) {
     payload.chunk_preset_id = localIndexParams.chunk_preset_id
   }
-  payload.index_mode = localIndexParams.index_mode || 'standard'
-  if (payload.index_mode !== 'fast') {
-    payload.max_graph_nodes = localIndexParams.max_graph_nodes
-    payload.max_graph_relations = localIndexParams.max_graph_relations
-  }
   if (props.isGraphBased) {
     payload.qa_separator = localIndexParams.qa_separator || ''
-    return payload
   }
-  return { ...localIndexParams, ...payload }
+  return payload
 }
 
 const generateCleanedPages = async () => {

@@ -19,11 +19,14 @@ from zixuetong.services.chat_service import agent_chat
 from zixuetong.storage.postgres.manager import pg_manager
 from zixuetong.storage.postgres.models_business import User
 from zixuetong.utils import logger
+from zixuetong.utils.datetime_utils import utc_isoformat
 
 ILINK_BASE_URL = "https://ilinkai.weixin.qq.com"
 CHANNEL_VERSION = "2.4.6"
 APP_CLIENT_VERSION = str((2 << 16) | (4 << 8) | 6)
 LONG_POLL_TIMEOUT_SECONDS = 40
+# 连续成功拉取超过该时长没有心跳，才认为连接已失效
+POLL_HEARTBEAT_FRESH_SECONDS = 90
 
 
 class ClawBotBridge:
@@ -33,10 +36,22 @@ class ClawBotBridge:
         self._state: dict[str, object] = {}
         self._qr_content = ""
         self._login_task: asyncio.Task | None = None
+        self._last_poll_at: float | None = None
+        self._last_poll_at_iso: str | None = None
+        self._last_message_at: str | None = None
 
     @property
     def is_connected(self) -> bool:
-        return bool(self._state.get("bot_token")) and self._poll_task is not None and not self._poll_task.done()
+        if not self._state.get("bot_token"):
+            return False
+        if self._poll_task is None or self._poll_task.done():
+            return False
+        return self._is_poll_fresh()
+
+    def _is_poll_fresh(self) -> bool:
+        if self._last_poll_at is None:
+            return False
+        return (asyncio.get_event_loop().time() - self._last_poll_at) < POLL_HEARTBEAT_FRESH_SECONDS
 
     @property
     def qr_content(self) -> str:
@@ -135,6 +150,7 @@ class ClawBotBridge:
         if not qrcode:
             raise RuntimeError("ClawBot 未返回连接二维码")
         self._qr_content = str(response.get("qrcode_img_content") or qrcode)
+        logger.info("ClawBot 已发起扫码登录，等待微信端确认")
         if self._login_task and not self._login_task.done():
             self._login_task.cancel()
         self._login_task = asyncio.create_task(self._wait_for_login(qrcode))
@@ -144,7 +160,8 @@ class ClawBotBridge:
         try:
             while conf.clawbot_enabled:
                 response = await self._get(f"/ilink/bot/get_qrcode_status?qrcode={quote(qrcode, safe='')}")
-                if response.get("status") == "confirmed" and response.get("bot_token"):
+                status = response.get("status")
+                if status == "confirmed" and response.get("bot_token"):
                     self._state = {
                         "bot_token": response["bot_token"],
                         "baseurl": response.get("baseurl") or ILINK_BASE_URL,
@@ -154,13 +171,21 @@ class ClawBotBridge:
                     }
                     self._save_state()
                     self._qr_content = ""
+                    logger.info("ClawBot 微信扫码确认成功，开始轮询微信消息")
                     self._start_polling()
+                    return
+                if status in {"expired", "need_verifycode", "verify_code_blocked"}:
+                    # 旧实现只认 confirmed，扫码后状态停在这些值时永远静默，
+                    # 界面上会表现为「扫了码但没有任何反应」。
+                    logger.warning(f"ClawBot 扫码登录终止: status={status}")
+                    self._qr_content = ""
                     return
                 await asyncio.sleep(1)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
             logger.warning(f"ClawBot 登录轮询失败: {exc}")
+            self._qr_content = ""
 
     def _start_polling(self) -> None:
         if self._poll_task is None or self._poll_task.done():
@@ -175,6 +200,9 @@ class ClawBotBridge:
                     token=str(self._state["bot_token"]),
                     timeout=LONG_POLL_TIMEOUT_SECONDS,
                 )
+                # 只有拿到响应才算链路存活；单纯「任务还在跑」在断网时会永久成功。
+                self._last_poll_at = asyncio.get_event_loop().time()
+                self._last_poll_at_iso = utc_isoformat()
                 self._state["get_updates_buf"] = response.get("get_updates_buf") or self._state.get("get_updates_buf", "")
                 self._save_state()
                 for message in response.get("msgs") or []:
@@ -192,11 +220,15 @@ class ClawBotBridge:
         context_token = str(message.get("context_token") or "")
         text = ""
         for item in message.get("item_list") or []:
-            if item.get("type") == 1:
-                text = str((item.get("text_item") or {}).get("text") or "").strip()
-                break
+            text_item = item.get("text_item") or {}
+            voice_item = item.get("voice_item") or {}
+            piece = str(text_item.get("text") or voice_item.get("text") or "").strip()
+            if piece:
+                text = f"{text}\n{piece}".strip()
         if not sender or not context_token or not text:
             return
+        self._last_message_at = utc_isoformat()
+        logger.info(f"ClawBot 收到微信消息: sender={sender}, length={len(text)}")
 
         async with pg_manager.get_async_session_context() as db:
             user = await db.scalar(select(User).order_by(User.id).limit(1))
@@ -262,10 +294,20 @@ class ClawBotBridge:
         )
 
     def status(self) -> dict[str, object]:
+        contexts = self._state.get("contexts")
+        state_loaded = self._state_path().is_file()
         return {
             "enabled": conf.clawbot_enabled,
             "connected": self.is_connected,
             "awaiting_scan": bool(self._qr_content),
+            # 以下字段用于界面直接说明「扫了码但收不到消息」的原因
+            "has_token": bool(self._state.get("bot_token")),
+            "state_loaded": state_loaded,
+            "polling": self._poll_task is not None and not self._poll_task.done(),
+            "poll_healthy": self._is_poll_fresh(),
+            "known_chats": len(contexts) if isinstance(contexts, dict) else 0,
+            "last_poll_at": self._last_poll_at_iso,
+            "last_message_at": self._last_message_at,
         }
 
 

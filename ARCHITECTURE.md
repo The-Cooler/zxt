@@ -65,7 +65,7 @@
 
 - Docker Compose 是开发环境的事实来源。开发时优先检查容器、日志和热重载，不要默认要求本地裸跑服务。
 - HTTP 路由层应保持薄；领域流程放在 `zixuetong.services`，持久化查询放在 `zixuetong.repositories`。
-- 前端 API 调用应集中在 `web/src/apis`，组件不要散落拼接后端 URL；树状对话分支通过 `thread/branch` API 创建，侧栏根据线程元数据展示父子层级。
+- 前端 API 调用应集中在 `web/src/apis`，组件不要散落拼接后端 URL；路径统一由 `base.js` 补全 `/api` 前缀，调用方只需写业务路径（已带 `/api` 的写法仍兼容）。树状对话分支通过 `thread/branch` API 创建，侧栏根据线程元数据展示父子层级。
 - 智能体能力通过 context、middleware、toolkits、backends 组合，不要把知识库、MCP、Skills 或沙盒逻辑硬编码进单个页面或路由。
 - LITE 模式必须允许跳过知识库、图谱、评估等重依赖能力；新增相关接口或初始化逻辑时要尊重这个边界。
 - 沙盒虚拟路径以 `SANDBOX_VIRTUAL_PATH_PREFIX` 为边界，用户可见路径与宿主机真实路径不要混用。
